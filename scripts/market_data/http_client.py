@@ -40,8 +40,15 @@ class HttpClient:
             self._host_last[host] = time.monotonic()
 
     def get_json(self, url, headers=None):
+        body = self.get_bytes(url, headers)
+        try:
+            return json.loads(body)
+        except json.JSONDecodeError:
+            raise FetchError(f"response was not JSON for {url}") from None
+
+    def get_bytes(self, url, headers=None, accept="application/json"):
         host = urlparse(url).netloc
-        request_headers = {"User-Agent": BROWSER_UA, "Accept": "application/json", "Accept-Encoding": "gzip"}
+        request_headers = {"User-Agent": BROWSER_UA, "Accept": accept, "Accept-Encoding": "gzip"}
         request_headers.update(headers or {})
 
         last_error = None
@@ -53,15 +60,12 @@ class HttpClient:
                     body = response.read()
                     if response.headers.get("Content-Encoding") == "gzip":
                         body = gzip.decompress(body)
-                return json.loads(body)
+                return body
             except urllib.error.HTTPError as err:
                 last_error = f"HTTP {err.code}"
                 if err.code not in RETRYABLE_STATUS:
                     break
             except (urllib.error.URLError, TimeoutError, ConnectionError) as err:
                 last_error = f"network error: {err}"
-            except json.JSONDecodeError:
-                last_error = "response was not JSON"
-                break
             time.sleep(2 ** attempt)
         raise FetchError(f"{last_error} for {url}")

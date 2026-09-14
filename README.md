@@ -49,6 +49,7 @@ Signed-in users turn alerts on from the account menu (**Email alerts**) and choo
 - Score reaches a chosen threshold
 - Price falls below major support
 - Earnings within a chosen number of days
+- Files a material 8-K (anything but the routine results release)
 - Market regime changes
 
 After each data build, [`scripts/send_alerts.mjs`](scripts/send_alerts.mjs) scores the new `data/market.json` and the copy the site was showing with the same engine ([`js/alerts.js`](js/alerts.js)), and sends each user one email listing what changed. Alerts fire on transitions, so a stock that stays actionable is reported once. Emails go only to the verified address on the Firebase Auth account (Google sign-ins are verified; email/password accounts get a "Send verification email" button in the dialog).
@@ -74,6 +75,9 @@ Every number on the dashboard comes from a real source. A GitHub Actions job ([`
 | Revenue, operating margin, earnings, free cash flow, leverage, EPS | SEC EDGAR XBRL filings (10-K/10-Q/20-F) | Trailing twelve months; newly registered companies fall back to latest quarter vs the same quarter a year earlier |
 | Forward (next-twelve-month) EPS, PEG, earnings date, estimate revisions, 1y target, sector | Nasdaq.com (Zacks consensus) | Earnings dates are marked when estimated |
 | Options chain: bid/ask, IV, delta, theta, open interest | Cboe delayed quotes (15-minute delay) | ATM call at the monthly expiration nearest 45-60 DTE |
+| Latest quarter (revenue, operating income, net income vs a year earlier), buybacks and dividends | SEC EDGAR XBRL filings | Quarters derived the same way as the trailing figures |
+| 8-K events (restructuring, new debt, leadership changes, impairments, …) | SEC EDGAR filing index | Labeled from the 8-K item numbers the company selected; routine items (exhibits, Reg FD, vote results) are dropped |
+| Headlines (last 7 days) | Yahoo Finance RSS | Only headlines naming the ticker or company; tone is a keyword match on event words, not analysis |
 
 Each build cross-checks price and the 52-week range across sources and logs any disagreement over 2%. A build that loses SPY, QQQ or more than 20% of the core universe does not overwrite the previous data.
 
@@ -128,7 +132,14 @@ One sortable table ranks every stock in the current view (watchlist, all, primar
 
 Click any column to sort (missing values always sort last) and any row for the detail view: price chart with SMAs and support, every metric with its source and date, fact/interpretation/speculation tagging, the bear case and invalidation level, and the full score breakdown with data gaps. Stocks you added that are waiting for their first data build appear as "Data pending" rows.
 
-### 6. Utilities
+### 6. What's Happening ([`js/developments.js`](js/developments.js))
+Each table row carries a one-line summary, with the full version in the detail view. No language model or text interpretation is involved; every statement comes from a number or a form item:
+- **Latest quarter:** revenue and net income or loss versus the same quarter a year earlier, e.g. *"Quarter ended Jun 27: revenue $16.1B (+25% YoY), net loss $11.0B (was a $2.9B loss)."*
+- **Capital returns:** buybacks and dividends over the trailing twelve months.
+- **What the company did:** 8-K events from the last 120 days, linked to the filing, negative ones (restructuring, impairment, restatement, delisting notice) first.
+- **Headlines:** up to six from the last week that name the company, marked + or − when they contain event words ("downgrade", "raises guidance", "lawsuit"). Most headlines are opinion pieces and stay neutral.
+
+### 7. Utilities
 - **Stress tests:** simulated -8% tech pullback, implied volatility x1.6, or +8% rally applied to the real data and labeled as simulated.
 - **Copy report:** markdown export of the current view.
 
@@ -152,7 +163,7 @@ To test locally without installing dependencies:
 SEC_USER_AGENT="StockWatcher you@example.com" python scripts/build_market_data.py   # core + requested tickers
 python scripts/build_market_data.py --only AAPL,SPY                                  # quick partial build
 python -m pip install pytest && python -m pytest tests                               # data pipeline tests
-npm test                                                                             # scoring engine and alert tests
+npm test                                                                             # scoring engine, alert and summary tests
 ```
 
 To preview alert emails without sending (needs `npm install` and the service account key):

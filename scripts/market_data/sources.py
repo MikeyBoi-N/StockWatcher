@@ -122,6 +122,24 @@ class SecEdgar:
             return None
         return self.http.get_json(f"https://data.sec.gov/api/xbrl/companyfacts/CIK{cik:010d}.json", self.headers)
 
+    def submissions(self, symbol):
+        """Filing index (form types, dates, 8-K item numbers); None for symbols without an SEC registrant."""
+        cik = self.cik(symbol)
+        if cik is None:
+            return None
+        return self.http.get_json(f"https://data.sec.gov/submissions/CIK{cik:010d}.json", self.headers)
+
+
+class YahooNews:
+    name = "Yahoo Finance RSS"
+
+    def __init__(self, http):
+        self.http = http
+
+    def headlines_rss(self, symbol):
+        url = f"https://feeds.finance.yahoo.com/rss/2.0/headline?s={quote(symbol.replace('.', '-'))}&region=US&lang=en-US"
+        return self.http.get_bytes(url, accept="application/rss+xml, application/xml")
+
 
 class NasdaqAnalyst:
     name = "Nasdaq.com (Zacks consensus)"
@@ -153,4 +171,5 @@ class Providers:
     options: CboeOptions
     filings: SecEdgar | None
     analyst: NasdaqAnalyst
+    news: YahooNews | None = None
 

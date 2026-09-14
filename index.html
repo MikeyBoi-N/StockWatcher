@@ -287,6 +287,11 @@
     .bench .sticky-ticker { left: 44px; min-width: 190px; max-width: 220px; border-right: 1px solid var(--border); }
     .ticker { font-weight: 600; color: var(--text); }
     .company { display: block; font-size: 11px; color: var(--text-3); overflow: hidden; text-overflow: ellipsis; max-width: 190px; }
+    .dev-line { display: inline-block; max-width: 360px; overflow: hidden; text-overflow: ellipsis; vertical-align: bottom; }
+    .dev-list { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-direction: column; gap: 5px; font-size: 13px; }
+    .dev-list a { color: var(--text); text-decoration: none; }
+    .dev-list a:hover { text-decoration: underline; }
+    .dev-meta { color: var(--text-3); font-size: 11px; }
     .tag {
       display: inline-block;
       font-size: 10px;
@@ -870,6 +875,12 @@
           <div id="modalOptionsDetails"></div>
         </div>
 
+        <!-- Latest quarter, 8-K filings and headlines -->
+        <div class="sub-box">
+          <div class="sub-box-title">What's happening</div>
+          <div id="modalDevelopmentsDetails" style="display:flex; flex-direction:column; gap:8px;"></div>
+        </div>
+
         <!-- Facts, Interpretation, Speculation Separation -->
         <div class="sub-box">
           <div class="sub-box-title">Fact, interpretation, speculation</div>
@@ -911,6 +922,7 @@
       RULES, applyScenario as simulateScenario, classifyEvaluations, determineMarketRegime, evaluateAsset
     } from "./js/engine.js";
     import { ALERT_TRIGGERS, normalizeAlertPrefs } from "./js/alerts.js";
+    import { capitalReturns, developmentsLine, filingActions, quarterSummary } from "./js/developments.js";
 
     const SYMBOLS_URL = "data/symbols.json";
     const MARKET_URL = "data/market.json";
@@ -1963,6 +1975,14 @@
           },
           { key: "next", label: "Next step", sort: r => r.next.text, cell: r => `<span class="${r.next.tone === "pos" ? "tone-pos" : ""}">${escapeHtml(r.next.text)}</span>` },
           { key: "warnings", label: "Warnings", dir: "desc", sort: r => value(r, e => e.warnings.length), cell: r => cell(r, e => this.warningChips(e.warnings)) },
+          {
+            key: "developments", label: "What's happening", title: "Latest quarter (SEC filings), recent 8-K events and headline tone. Click a row for details.", dir: "desc",
+            sort: r => value(r, (e, i) => developmentsLine(i)?.negatives ?? null),
+            cell: r => cell(r, (e, i) => {
+              const line = developmentsLine(i);
+              return line ? `<span class="dev-line tone-${line.tone}" title="${escapeHtml(line.text)}">${escapeHtml(line.text)}</span>` : null;
+            })
+          },
 
           { key: "tech", group: "Score breakdown", label: "Tech", title: "Technicals, out of 30", num: true, dir: "desc", sort: r => value(r, e => e.tech.score), cell: r => cell(r, e => pillar(e.tech.score, 30)) },
           { key: "fund", group: "Score breakdown", label: "Fund", title: "Fundamentals, out of 25", num: true, dir: "desc", sort: r => value(r, e => e.fund.score), cell: r => cell(r, e => pillar(e.fund.score, 25, e.fund.available)) },
@@ -2261,6 +2281,8 @@
           <div><strong>Invalidation Level:</strong> ${escapeHtml(e.bearCase.invalidationLevel)}</div>
         `;
 
+        this.renderDevelopments(item);
+
         const sources = Object.entries(item.sources).filter(([, name]) => name).map(([kind, name]) => `${kind}: ${name}`).join(" · ");
         document.getElementById("modalSourcesDetails").innerHTML = `
           <div><strong>Score ${e.totalScore}</strong> = Technicals ${e.tech.score}/30 + Fundamentals ${e.fund.score}/25 + Valuation ${e.val.score}/20 + Catalysts ${e.cat.score}/15 + Market ${e.marketBonus}/10${e.tech.isExtended ? " − 12 extension penalty" : ""}${e.cat.earningsWarning ? " − 8 earnings penalty" : ""} (${escapeHtml(e.tierLabel)})</div>
@@ -2271,6 +2293,41 @@
         `;
 
         this.detailModal.classList.add("active");
+      }
+
+      renderDevelopments(item) {
+        const el = document.getElementById("modalDevelopmentsDetails");
+        if (item.etf) {
+          el.innerHTML = '<div class="muted">Filings and company headlines are not tracked for ETFs.</div>';
+          return;
+        }
+        const link = (url, text) => /^https?:\/\//.test(url)
+          ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(text)}</a>`
+          : escapeHtml(text);
+        const toneClass = { negative: "tone-neg", positive: "tone-pos", neutral: "" };
+        const dateText = (iso) => new Date(iso.length === 10 ? `${iso}T12:00:00` : iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+
+        const summary = [quarterSummary(item), capitalReturns(item)].filter(Boolean);
+        const actions = filingActions(item);
+        const headlines = item.headlines ?? [];
+        el.innerHTML = `
+          ${summary.length ? `<div>${summary.map(escapeHtml).join(" ")}</div>` : '<div class="muted">No recent quarterly figures in SEC filings.</div>'}
+          <div>
+            <strong>SEC 8-K events (last 120 days)</strong>
+            ${item.filingEvents === null || item.filingEvents === undefined
+              ? '<div class="muted">Filings could not be read in the last data build.</div>'
+              : actions.length
+                ? `<ul class="dev-list">${actions.map(a => `<li><span class="${toneClass[a.tone]}">${link(a.url, a.label)}</span> <span class="dev-meta">${escapeHtml(dateText(a.date))}</span></li>`).join("")}</ul>`
+                : '<div class="muted">None beyond routine results releases.</div>'}
+          </div>
+          <div>
+            <strong>Headlines (last 7 days)</strong>
+            ${headlines.length
+              ? `<ul class="dev-list">${headlines.map(h => `<li><span class="${toneClass[h.tone]}">${h.tone === "neutral" ? "" : h.tone === "positive" ? "+ " : "− "}</span>${link(h.url, h.title)} <span class="dev-meta">${escapeHtml(h.publisher)} · ${escapeHtml(dateText(h.published))}</span></li>`).join("")}</ul>`
+              : `<div class="muted">${item.headlines ? "No headlines naming the company." : "Headlines could not be read in the last data build."}</div>`}
+          </div>
+          <div class="dev-meta">8-K events are labeled from the item numbers the company selected on the form. Headline tone (+/−) is a keyword match on event words like "downgrade" or "raises guidance", not analysis; most headlines are opinion and stay neutral.</div>
+        `;
       }
 
       exportMarkdown() {

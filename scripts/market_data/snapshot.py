@@ -2,10 +2,14 @@
 from bisect import bisect_right
 from datetime import date
 
+from xml.etree.ElementTree import ParseError
+
 from . import analyst
+from .filings import recent_events
 from .fundamentals import compute_fundamentals
 from .http_client import FetchError
 from .indicators import technicals
+from .news import recent_headlines
 from .options import summarize_chain
 
 # Cross-source deviations above this are reported so bad data is caught instead of silently scored.
@@ -23,7 +27,7 @@ def _attempt(errors, label, fn):
         return fn()
     except FetchError as err:
         errors.append(f"{label}: {err}")
-    except (KeyError, TypeError, ValueError, ZeroDivisionError) as err:
+    except (KeyError, TypeError, ValueError, ZeroDivisionError, ParseError) as err:
         errors.append(f"{label}: unexpected response ({type(err).__name__}: {err})")
     return None
 
@@ -53,11 +57,19 @@ def build_stock_record(symbol, meta, providers, as_of):
     summary = analyst.parse_summary(summary_payload)
 
     fundamentals, forecast, peg, earnings = None, None, None, (None, None)
+    filing_events, headlines = None, None
     if not is_etf:
         if providers.filings:
             facts = _attempt(errors, "SEC filings", lambda: providers.filings.company_facts(symbol))
             if facts:
                 fundamentals = _attempt(errors, "fundamentals", lambda: compute_fundamentals(facts, price, close_on_or_before, as_of))
+            submissions = _attempt(errors, "SEC filing index", lambda: providers.filings.submissions(symbol))
+            if submissions:
+                filing_events = _attempt(errors, "8-K events", lambda: recent_events(submissions, as_of))
+        if providers.news:
+            rss = _attempt(errors, "headlines", lambda: providers.news.headlines_rss(symbol))
+            if rss:
+                headlines = _attempt(errors, "headlines", lambda: recent_headlines(rss, symbol, meta.get("name", symbol), as_of))
         forecast = analyst.parse_forecast(_attempt(errors, "EPS forecast", lambda: providers.analyst.forecast(symbol)))
         peg = analyst.parse_peg(_attempt(errors, "PEG ratio", lambda: providers.analyst.peg(symbol)))
         earnings = analyst.parse_earnings_date(_attempt(errors, "earnings date", lambda: providers.analyst.earnings_date(symbol)))
@@ -106,11 +118,16 @@ def build_stock_record(symbol, meta, providers, as_of):
             "oneYearTarget": summary["oneYearTarget"],
         },
         "options": options,
+        # None when the source wasn't queried or failed; an empty list means nothing recent.
+        "filingEvents": filing_events,
+        "headlines": headlines,
         "sources": {
             "prices": bars.source,
             "fundamentals": fundamentals["source"] if fundamentals else None,
             "analyst": providers.analyst.name if (forecast or peg or earnings_date or summary_payload) else None,
             "options": options["source"] if options else None,
+            "filingEvents": "SEC EDGAR 8-K filings" if filing_events is not None else None,
+            "headlines": providers.news.name if headlines is not None else None,
         },
         "checks": {
             "priceVsCboePct": _pct_diff(price, ((chain or {}).get("data") or {}).get("current_price")),

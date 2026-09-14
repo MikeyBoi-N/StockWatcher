@@ -19,7 +19,7 @@ from pathlib import Path
 
 from market_data.http_client import FetchError, HttpClient
 from market_data.snapshot import build_stock_record, failed_checks
-from market_data.sources import CboeOptions, NasdaqAnalyst, NasdaqHistory, Providers, SecEdgar, YahooChart
+from market_data.sources import CboeOptions, NasdaqAnalyst, NasdaqHistory, Providers, SecEdgar, YahooChart, YahooNews
 
 ROOT = Path(__file__).resolve().parent.parent
 UNIVERSE_FILE = ROOT / "data" / "universe.json"
@@ -91,6 +91,7 @@ def main():
         options=CboeOptions(http),
         filings=SecEdgar(http, sec_user_agent) if sec_user_agent else None,
         analyst=NasdaqAnalyst(http),
+        news=YahooNews(http),
     )
 
     as_of = datetime.now(timezone.utc).date()

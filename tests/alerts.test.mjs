@@ -4,10 +4,10 @@ import { DEFAULT_ALERT_PREFS, alertsForUser, normalizeAlertPrefs } from "../js/a
 
 const stock = (overrides = {}) => ({
   ticker: "TEST", name: "Test Corp", bucket: "notReady", score: 68, extended: false, price: 105, support: 100,
-  daysToEarnings: 30, earningsDate: "2026-10-14", earningsEstimated: false, vehicle: "SHARES", ...overrides
+  daysToEarnings: 30, earningsDate: "2026-10-14", earningsEstimated: false, vehicle: "SHARES", filingEvents: [], ...overrides
 });
 const snapshot = (stocks, regime = "BULLISH") => ({ generatedAt: "2026-09-14T15:00:00+00:00", regime, stocks: new Map(stocks.map(s => [s.ticker, s])) });
-const allOn = normalizeAlertPrefs({ enabled: true, triggers: { actionable: true, avoid: true, score: true, supportBreak: true, earnings: true, regime: true }, scoreThreshold: 70, earningsDays: 7 });
+const allOn = normalizeAlertPrefs({ enabled: true, triggers: { actionable: true, avoid: true, score: true, supportBreak: true, earnings: true, filing: true, regime: true }, scoreThreshold: 70, earningsDays: 7 });
 const triggers = (alerts) => alerts.map(a => a.trigger).sort();
 
 test("unchanged snapshots produce no alerts", () => {
@@ -54,4 +54,16 @@ test("malformed stored prefs fall back to defaults and clamp numbers", () => {
   assert.equal(p.triggers.actionable, DEFAULT_ALERT_PREFS.triggers.actionable);
   assert.equal(p.scoreThreshold, 100);
   assert.equal(p.earningsDays, 1);
+});
+
+test("new material 8-Ks alert once; results releases and unreadable previous filings do not", () => {
+  const restructuring = { date: "2026-09-10", form: "8-K", url: "https://www.sec.gov/a", items: [{ code: "2.05", label: "Restructuring (layoffs, closures or exit costs)", tone: "negative" }] };
+  const results = { date: "2026-09-11", form: "8-K", url: "https://www.sec.gov/b", items: [{ code: "2.02", label: "Released results or a financial update", tone: "neutral" }] };
+  const before = snapshot([stock()]);
+  const after = snapshot([stock({ filingEvents: [results, restructuring] })]);
+  const alerts = alertsForUser(before, after, allOn, ["TEST"]);
+  assert.deepEqual(triggers(alerts), ["filing"]);
+  assert.match(alerts[0].message, /Restructuring/);
+  assert.deepEqual(alertsForUser(after, after, allOn, ["TEST"]), []);
+  assert.deepEqual(alertsForUser(snapshot([stock({ filingEvents: null })]), after, allOn, ["TEST"]), []);
 });

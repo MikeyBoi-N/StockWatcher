@@ -12,12 +12,13 @@ export const ALERT_TRIGGERS = [
   { id: "score", label: "Score reaches my threshold" },
   { id: "supportBreak", label: "Price falls below major support" },
   { id: "earnings", label: "Earnings coming up" },
+  { id: "filing", label: "Files a material 8-K", hint: "Restructuring, new debt, leadership change, impairment and similar SEC filings" },
   { id: "regime", label: "Market regime changes", hint: "SPY and QQQ vs their 50d and 200d SMAs" }
 ];
 
 export const DEFAULT_ALERT_PREFS = {
   enabled: false,
-  triggers: { actionable: true, avoid: false, score: false, supportBreak: true, earnings: true, regime: true },
+  triggers: { actionable: true, avoid: false, score: false, supportBreak: true, earnings: true, filing: true, regime: true },
   scoreThreshold: 75,
   earningsDays: 7
 };
@@ -58,7 +59,9 @@ export function summarizeSnapshot(market) {
       daysToEarnings: e.item.catalysts.daysToEarnings,
       earningsDate: e.item.catalysts.nextEarningsDate,
       earningsEstimated: e.item.catalysts.earningsDateEstimated,
-      vehicle: e.optionsEval.recommendation
+      vehicle: e.optionsEval.recommendation,
+      // null when the build couldn't read filings, so a first successful read doesn't alert on old events
+      filingEvents: Array.isArray(e.item.filingEvents) ? e.item.filingEvents : null
     }]))
   };
 }
@@ -101,6 +104,16 @@ export function alertsForUser(prev, cur, prefs, watchlist) {
     }
     if (on.earnings && inEarningsWindow(b) && !inEarningsWindow(a)) {
       add("earnings", `Earnings in ${b.daysToEarnings} day${b.daysToEarnings === 1 ? "" : "s"} (${b.earningsDate}${b.earningsEstimated ? ", estimated" : ""}).`);
+    }
+    if (on.filing && a.filingEvents && b.filingEvents) {
+      const seen = new Set(a.filingEvents.map(f => f.url));
+      for (const filing of b.filingEvents) {
+        // Item 2.02 is the routine results release; earnings alerts already cover it.
+        const items = filing.items.filter(i => i.code !== "2.02");
+        if (!seen.has(filing.url) && items.length) {
+          add("filing", `Filed an 8-K on ${filing.date}: ${items.map(i => i.label).join("; ")}. ${filing.url}`);
+        }
+      }
     }
   }
   return alerts;

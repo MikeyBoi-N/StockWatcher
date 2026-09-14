@@ -42,6 +42,11 @@ DURATION_TAGS = {
         "ifrs-full": ["DepreciationAndAmortisationExpense"],
     },
     "eps_diluted": {"us-gaap": ["EarningsPerShareDiluted"], "ifrs-full": ["DilutedEarningsLossPerShare"]},
+    "buybacks": {"us-gaap": ["PaymentsForRepurchaseOfCommonStock"], "ifrs-full": ["PaymentsToAcquireOrRedeemEntitysShares"]},
+    "dividends": {
+        "us-gaap": ["PaymentsOfDividendsCommonStock", "PaymentsOfDividends"],
+        "ifrs-full": ["DividendsPaidClassifiedAsFinancingActivities"],
+    },
 }
 
 
@@ -180,6 +185,41 @@ def _aligned_ttm(companyfacts, concept, period_end, basis="ttm"):
     return unit, ttm, prior
 
 
+def latest_quarter(companyfacts, as_of):
+    """
+    The most recent fiscal quarter: revenue, operating income and net income, each with the same quarter a year
+    earlier (None when not reported). None when the filer has no recent quarterly revenue (e.g. annual-only filers).
+    """
+    unit, revenue_facts = concept_facts(companyfacts, "revenue")
+    revenue_q = quarterly_values(revenue_facts)
+    if not revenue_q:
+        return None
+    end = max(revenue_q)
+    if (as_of - end).days > MAX_PERIOD_AGE_DAYS:
+        return None
+
+    def same_quarter(concept):
+        quarters = quarterly_values(concept_facts(companyfacts, concept)[1])
+        matches = [e for e in quarters if abs((e - end).days) <= PERIOD_ALIGNMENT_DAYS]
+        if not matches:
+            return None, None
+        match = max(matches)
+        return quarters[match], _near(quarters, match, 365)
+
+    operating_income, operating_income_prior = same_quarter("operating_income")
+    net_income, net_income_prior = same_quarter("net_income")
+    return {
+        "periodEnd": end.isoformat(),
+        "currency": unit,
+        "revenue": _round_int(revenue_q[end]),
+        "revenuePriorYear": _round_int(_near(revenue_q, end, 365)),
+        "operatingIncome": _round_int(operating_income),
+        "operatingIncomePriorYear": _round_int(operating_income_prior),
+        "netIncome": _round_int(net_income),
+        "netIncomePriorYear": _round_int(net_income_prior),
+    }
+
+
 def _latest_instant(companyfacts, tag, near_end=None):
     node = companyfacts.get("facts", {}).get("us-gaap", {}).get(tag)
     if not node or "USD" not in node["units"]:
@@ -295,6 +335,8 @@ def compute_fundamentals(companyfacts, price, close_on_or_before, as_of):
     _, capex, capex_prior = _aligned_ttm(companyfacts, "capex", period_end) if full_year else (None, None, None)
     _, depreciation, _ = _aligned_ttm(companyfacts, "depreciation", period_end) if full_year else (None, None, None)
     eps_unit, eps_ttm, _ = _aligned_ttm(companyfacts, "eps_diluted", period_end) if full_year else (None, None, None)
+    _, buybacks, _ = _aligned_ttm(companyfacts, "buybacks", period_end) if full_year else (None, None, None)
+    _, dividends, _ = _aligned_ttm(companyfacts, "dividends", period_end) if full_year else (None, None, None)
 
     revenue_growth = revenue / revenue_prior - 1 if revenue_prior and revenue_prior > 0 else None
     margin = _ratio(operating_income, revenue)
@@ -337,9 +379,16 @@ def compute_fundamentals(companyfacts, price, close_on_or_before, as_of):
         "trailingPe": _round(trailing_pe, 1),
         "historical5yPe": None if foreign_filer else _round(historical_average_pe(companyfacts, close_on_or_before, as_of), 1),
         "sharesOutstanding": shares_outstanding(companyfacts),
+        "buybacksTTM": _round_int(buybacks),
+        "dividendsTTM": _round_int(dividends),
+        "latestQuarter": latest_quarter(companyfacts, as_of),
         "direction": business_direction(revenue_growth, margin_change, earnings_growth),
     }
 
 
 def _round(value, digits):
     return None if value is None else round(value, digits)
+
+
+def _round_int(value):
+    return None if value is None else round(value)

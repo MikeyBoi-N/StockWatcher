@@ -4,6 +4,8 @@ from market_data.http_client import FetchError
 from market_data.snapshot import build_stock_record, failed_checks
 from market_data.sources import Providers, YahooChart
 
+from conftest import FIXTURES
+
 AS_OF = date(2026, 9, 14)
 
 
@@ -48,6 +50,16 @@ class StubFilings:
     def company_facts(self, symbol):
         return self.fixture("sec_aapl.json")
 
+    def submissions(self, symbol):
+        return self.fixture("sec_aapl_submissions.json")
+
+
+class StubNews:
+    name = "stub news"
+
+    def headlines_rss(self, symbol):
+        return (FIXTURES / "yahoo_aapl_rss.xml").read_bytes()
+
 
 class StubOptions:
     def __init__(self, fixture):
@@ -69,9 +81,12 @@ def test_yahoo_adapter_parses_real_chart(fixture):
 
 
 def test_full_record_from_all_sources(fixture):
-    providers = Providers(yahoo(fixture), Failing(), StubOptions(fixture), StubFilings(fixture), StubAnalyst(fixture))
+    providers = Providers(yahoo(fixture), Failing(), StubOptions(fixture), StubFilings(fixture), StubAnalyst(fixture), StubNews())
     record, errors = build_stock_record("AAPL", {"name": "Apple Inc.", "exchange": "NASDAQ", "etf": False}, providers, AS_OF)
     assert errors == []
+    assert record["filingEvents"][0]["date"] == "2026-09-01"
+    assert record["headlines"] and all("Apple" in h["title"] or "AAPL" in h["title"] for h in record["headlines"])
+    assert record["sources"]["headlines"] == "stub news"
     assert record["price"] == 332.27
     assert record["fundamentals"]["source"] == "SEC EDGAR XBRL"
     assert record["valuation"]["forwardPe"] == round(332.27 / record["catalysts"]["ntmEps"], 1)
@@ -91,6 +106,7 @@ def test_price_fallback_is_used_when_primary_fails(fixture):
     providers = Providers(Failing(), NasdaqStub(), Failing(), None, Failing())
     record, errors = build_stock_record("AAPL", {"etf": False}, providers, AS_OF)
     assert record is not None and record["price"] == 332.27
+    assert record["filingEvents"] is None and record["headlines"] is None
     assert any("prices (Yahoo)" in e for e in errors)
     assert record["fundamentals"] is None and record["options"] is None
 
