@@ -40,6 +40,30 @@ The web config values are public identifiers, not secrets; `firestore.rules` is 
 
 ---
 
+## Email Alerts
+
+Signed-in users turn alerts on from the account menu (**Email alerts**) and choose what triggers them for stocks on their watchlist:
+
+- Becomes actionable
+- Drops to avoid
+- Score reaches a chosen threshold
+- Price falls below major support
+- Earnings within a chosen number of days
+- Market regime changes
+
+After each data build, [`scripts/send_alerts.mjs`](scripts/send_alerts.mjs) scores the new `data/market.json` and the copy the site was showing with the same engine ([`js/alerts.js`](js/alerts.js)), and sends each user one email listing what changed. Alerts fire on transitions, so a stock that stays actionable is reported once. Emails go only to the verified address on the Firebase Auth account (Google sign-ins are verified; email/password accounts get a "Send verification email" button in the dialog).
+
+**Limits:** checks happen only when the data builds (3x per weekday), so a price that dips below support and recovers between builds is missed. A stock hovering at a threshold can alert on consecutive builds. Gmail allows about 500 emails a day.
+
+### Alert setup
+1. **Firebase console → Project settings → Service accounts → Generate new private key.** In GitHub, **Settings → Secrets and variables → Actions → Secrets → New repository secret:** `FIREBASE_SERVICE_ACCOUNT` = the entire JSON file. Then delete the downloaded file.
+2. **Google Account → Security:** turn on 2-Step Verification, then create an **App password**. Add secrets `GMAIL_USER` (the full Gmail address) and `GMAIL_APP_PASSWORD` (the 16-character app password).
+3. Nothing else: the deploy workflow publishes [`firestore.rules`](firestore.rules) with the same service account whenever it changes ([`scripts/deploy_firestore_rules.mjs`](scripts/deploy_firestore_rules.mjs)).
+
+Until the secrets exist, the alert step logs a notice and the build still passes.
+
+---
+
 ## Real Market Data
 
 Every number on the dashboard comes from a real source. A GitHub Actions job ([`scripts/build_market_data.py`](scripts/build_market_data.py)) runs every 4 hours on weekdays around US market hours, writes `data/market.json`, and redeploys the site. The page shows when the data was built and flags it if it is more than 4 days old.
@@ -128,7 +152,13 @@ To test locally without installing dependencies:
 SEC_USER_AGENT="StockWatcher you@example.com" python scripts/build_market_data.py   # core + requested tickers
 python scripts/build_market_data.py --only AAPL,SPY                                  # quick partial build
 python -m pip install pytest && python -m pytest tests                               # data pipeline tests
-node --test tests/engine.test.mjs                                                    # scoring engine tests
+npm test                                                                             # scoring engine and alert tests
+```
+
+To preview alert emails without sending (needs `npm install` and the service account key):
+```bash
+curl -fsSL https://mikeyboi-n.github.io/StockWatcher/data/market.json -o /tmp/previous.json
+FIREBASE_SERVICE_ACCOUNT="$(cat path/to/key.json)" node scripts/send_alerts.mjs /tmp/previous.json --dry-run
 ```
 
 ### Refreshing the symbol list

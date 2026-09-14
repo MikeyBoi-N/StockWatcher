@@ -7,10 +7,12 @@ service cloud.firestore {
       allow read, delete: if request.auth != null && request.auth.uid == uid;
       allow create, update: if request.auth != null
         && request.auth.uid == uid
-        && request.resource.data.keys().hasOnly(['name', 'email', 'watchlist', 'addedStocks', 'createdAt', 'updatedAt'])
+        && request.resource.data.keys().hasOnly(['name', 'email', 'watchlist', 'addedStocks', 'alerts', 'createdAt', 'updatedAt'])
         && request.resource.data.watchlist is list
         && request.resource.data.watchlist.size() <= 500
-        && request.resource.data.addedStocks is map;
+        && request.resource.data.addedStocks is map
+        // Email alert settings; scripts/send_alerts.mjs normalizes the contents and only emails verified auth addresses.
+        && (!('alerts' in request.resource.data) || request.resource.data.alerts is map);
     }
 
     // Tickers users added, so the scheduled data build knows what to fetch. Public read (the build reads it

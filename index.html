@@ -517,6 +517,14 @@
     .auth-link-muted { color: var(--text-2); font-size: 12px; text-decoration: none; }
     .auth-link-muted:hover, .auth-footer a:hover { text-decoration: underline; }
 
+    /* Email alerts dialog */
+    .alert-option { display: flex; align-items: flex-start; gap: 10px; font-size: 13px; color: var(--text); cursor: pointer; }
+    .alert-option input[type="checkbox"] { accent-color: var(--text); width: 16px; height: 16px; margin-top: 1px; flex-shrink: 0; }
+    .alert-option-hint { display: block; font-size: 11px; color: var(--text-3); }
+    .alert-triggers { display: flex; flex-direction: column; gap: 10px; border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; }
+    .alert-triggers:disabled { opacity: 0.5; }
+    .alert-number { width: 72px; display: inline-block; padding: 4px 8px; font-size: 13px; margin-left: 6px; }
+
     /* Toast */
     .toast {
       position: fixed;
@@ -780,6 +788,37 @@
     </div>
   </div>
 
+  <!-- Email Alerts Modal -->
+  <div id="alertsModal" class="modal-backdrop">
+    <div class="modal-card" style="max-width:520px;">
+      <div class="modal-header">
+        <div>
+          <h3 style="font-size:16px;">Email alerts</h3>
+          <div style="font-size:12px; color:var(--text-secondary);">Checked after each data refresh (3x per weekday). One email per refresh, only when something on your watchlist changed.</div>
+        </div>
+        <button id="alertsCloseBtn" class="modal-close">&times;</button>
+      </div>
+      <form id="alertsForm" class="modal-content">
+        <div id="alertsVerifyNotice" class="auth-error" hidden>
+          <span id="alertsVerifyText"></span>
+          <button type="button" id="btnSendVerification" class="btn-secondary" style="font-size:12px; padding:4px 8px; margin-top:6px;">Send verification email</button>
+        </div>
+
+        <label class="alert-option">
+          <input type="checkbox" id="alertsEnabled">
+          <span>Email me at <strong id="alertsEmail"></strong></span>
+        </label>
+
+        <fieldset id="alertsTriggers" class="alert-triggers"></fieldset>
+
+        <div style="display:flex; justify-content:flex-end; gap:10px;">
+          <button type="button" id="alertsCancelBtn" class="btn-secondary">Cancel</button>
+          <button type="submit" class="btn-primary">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- Interactive Detail Modal -->
   <div id="detailModal" class="modal-backdrop">
     <div class="modal-card">
@@ -865,12 +904,13 @@
      * StockWatcher — Complete Institutional Research Terminal & Account Engine
      */
     import { initializeApp } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js";
-    import { getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, signOut, updateProfile, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js";
+    import { getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, signOut, updateProfile, sendPasswordResetEmail, sendEmailVerification } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js";
     import { getFirestore, doc, getDoc, setDoc, updateDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
     import { firebaseConfig } from "./firebase-config.js";
     import {
       RULES, applyScenario as simulateScenario, classifyEvaluations, determineMarketRegime, evaluateAsset
     } from "./js/engine.js";
+    import { ALERT_TRIGGERS, normalizeAlertPrefs } from "./js/alerts.js";
 
     const SYMBOLS_URL = "data/symbols.json";
     const MARKET_URL = "data/market.json";
@@ -905,6 +945,7 @@
      * Profile document: users/{uid} = {
      *   name, email, watchlist: [ticker],
      *   addedStocks: { [ticker]: { name, exchange, etf, thesis, addedAt, research: engineItem | null } },
+     *   alerts: { enabled, triggers: { [triggerId]: bool }, scoreThreshold, earningsDays }  (see js/alerts.js)
      *   createdAt, updatedAt
      * }
      */
@@ -956,7 +997,7 @@
           const data = snap.data();
           // Older profiles may carry manually entered `research` levels; scores now use real data only.
           const addedStocks = Object.fromEntries(Object.entries(data.addedStocks || {}).map(([ticker, { research, ...meta }]) => [ticker, meta]));
-          return { uid: fbUser.uid, name: data.name, email: data.email, watchlist: data.watchlist || [], addedStocks, createdAt: data.createdAt };
+          return { uid: fbUser.uid, name: data.name, email: data.email, watchlist: data.watchlist || [], addedStocks, alerts: normalizeAlertPrefs(data.alerts), createdAt: data.createdAt };
         }
         // First sign-in for this account: create its profile document.
         const profile = {
@@ -966,7 +1007,7 @@
           addedStocks: {}
         };
         await setDoc(ref, { ...profile, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
-        return { uid: fbUser.uid, ...profile };
+        return { uid: fbUser.uid, ...profile, alerts: normalizeAlertPrefs(null) };
       }
 
       login(email, password) {
@@ -1000,6 +1041,20 @@
       /** Adds a ticker to the public list the scheduled data build fetches (see scripts/build_market_data.py). */
       requestTicker(ticker) {
         return setDoc(doc(this.db, "tickerRequests", ticker), { requestedAt: serverTimestamp() });
+      }
+
+      saveAlerts(profile) {
+        return updateDoc(doc(this.db, "users", profile.uid), { alerts: profile.alerts, updatedAt: serverTimestamp() });
+      }
+
+      /** Alerts are only emailed to verified addresses; reload picks up a link clicked in another tab. */
+      async isEmailVerified() {
+        await this.auth.currentUser.reload();
+        return this.auth.currentUser.emailVerified;
+      }
+
+      sendVerificationEmail() {
+        return sendEmailVerification(this.auth.currentUser);
       }
 
       saveProfile(profile) {
@@ -1149,6 +1204,15 @@
         this.dataset = this.buildDataset();
         this.renderAuthUI();
         this.rescore();
+        // Alert emails link to #alerts; guests sign in first and land in the dialog afterwards.
+        if (location.hash === "#alerts") {
+          if (profile) {
+            history.replaceState(null, "", location.pathname + location.search);
+            this.openAlertsModal();
+          } else if (this.accountManager) {
+            this.openAuthModal("signin");
+          }
+        }
       }
 
       buildDataset() {
@@ -1228,6 +1292,11 @@
         this.addSearchStatus = document.getElementById("addSearchStatus");
         this.addSelectedStock = document.getElementById("addSelectedStock");
         this.addErrorMsg = document.getElementById("addErrorMsg");
+
+        this.alertsModal = document.getElementById("alertsModal");
+        this.alertsForm = document.getElementById("alertsForm");
+        this.alertsEnabled = document.getElementById("alertsEnabled");
+        this.alertsTriggers = document.getElementById("alertsTriggers");
 
         this.detailModal = document.getElementById("detailModal");
         this.modalCloseBtn = document.getElementById("modalCloseBtn");
@@ -1371,6 +1440,14 @@
           this.handleAddTickerSubmit();
         });
 
+        // Email Alerts
+        const closeAlerts = () => this.alertsModal.classList.remove("active");
+        document.getElementById("alertsCloseBtn").addEventListener("click", closeAlerts);
+        document.getElementById("alertsCancelBtn").addEventListener("click", closeAlerts);
+        this.alertsEnabled.addEventListener("change", () => { this.alertsTriggers.disabled = !this.alertsEnabled.checked; });
+        this.alertsForm.addEventListener("submit", (e) => { e.preventDefault(); this.saveAlertSettings(); });
+        document.getElementById("btnSendVerification").addEventListener("click", (e) => this.sendVerificationEmail(e.target));
+
         this.modalCloseBtn.addEventListener("click", () => this.detailModal.classList.remove("active"));
         this.btnExportJournal.addEventListener("click", () => this.exportMarkdown());
       }
@@ -1503,6 +1580,7 @@
               <div class="user-menu-dropdown" id="userMenuDropdown">
                 <div class="dropdown-item" style="cursor:default; font-size:12px; color:var(--text-muted);">${escapeHtml(this.currentUser.email)}</div>
                 <div class="dropdown-item" id="btnMenuEditWl">Edit watchlist</div>
+                <div class="dropdown-item" id="btnMenuAlerts">Email alerts${this.currentUser.alerts.enabled ? " (on)" : ""}</div>
                 <div class="dropdown-item" id="btnMenuSwitchUser">Switch account</div>
                 <div class="dropdown-item" id="btnMenuLogout">Sign out</div>
               </div>
@@ -1519,6 +1597,7 @@
             this.renderWatchlistModalGrid();
             this.watchlistModal.classList.add("active");
           });
+          document.getElementById("btnMenuAlerts").addEventListener("click", () => this.openAlertsModal());
           document.getElementById("btnMenuSwitchUser").addEventListener("click", async () => {
             await this.accountManager.logout();
             this.openAuthModal("signin");
@@ -1711,6 +1790,71 @@
         this.showToast(this.marketData.has(symbol)
           ? `Saved ${symbol} to your watchlist.`
           : `Saved ${symbol}. Its market data arrives with the next refresh (${REFRESH_NOTE}).`);
+      }
+
+      async openAlertsModal() {
+        if (!this.currentUser) return;
+        const prefs = this.currentUser.alerts;
+        const email = this.accountManager.auth.currentUser.email;
+        document.getElementById("alertsEmail").textContent = email;
+        this.alertsEnabled.checked = prefs.enabled;
+        this.alertsTriggers.disabled = !prefs.enabled;
+        const number = (id, value, min, max) => `<input type="number" class="auth-input alert-number" id="${id}" value="${value}" min="${min}" max="${max}" required>`;
+        const extra = {
+          score: ` of ${number("alertsScoreThreshold", prefs.scoreThreshold, 1, 100)}`,
+          earnings: ` within ${number("alertsEarningsDays", prefs.earningsDays, 1, 30)} days`
+        };
+        this.alertsTriggers.innerHTML = `<legend class="auth-label" style="padding:0 4px;">Alert me when a watchlist stock…</legend>` + ALERT_TRIGGERS.map(t => `
+          <label class="alert-option">
+            <input type="checkbox" data-trigger="${t.id}" ${prefs.triggers[t.id] ? "checked" : ""}>
+            <span>${escapeHtml(t.label)}${extra[t.id] || ""}${t.hint ? `<span class="alert-option-hint">${escapeHtml(t.hint)}</span>` : ""}</span>
+          </label>`).join("");
+        document.getElementById("alertsVerifyNotice").hidden = true;
+        this.alertsModal.classList.add("active");
+
+        try {
+          if (await this.accountManager.isEmailVerified()) return;
+        } catch (err) {
+          console.error("Could not refresh email verification status", err);
+          return;
+        }
+        document.getElementById("alertsVerifyText").textContent = `Alerts are only sent to verified addresses. Verify ${email} first.`;
+        document.getElementById("alertsVerifyNotice").hidden = false;
+      }
+
+      async saveAlertSettings() {
+        if (!this.alertsForm.reportValidity()) return;
+        const previous = this.currentUser.alerts;
+        this.currentUser.alerts = normalizeAlertPrefs({
+          enabled: this.alertsEnabled.checked,
+          triggers: Object.fromEntries([...this.alertsTriggers.querySelectorAll("[data-trigger]")].map(cb => [cb.dataset.trigger, cb.checked])),
+          scoreThreshold: Number(document.getElementById("alertsScoreThreshold").value),
+          earningsDays: Number(document.getElementById("alertsEarningsDays").value)
+        });
+        try {
+          await this.accountManager.saveAlerts(this.currentUser);
+        } catch (err) {
+          console.error("Failed to save alert settings", err);
+          this.currentUser.alerts = previous;
+          this.showToast("Could not save alert settings. Check your connection and try again.");
+          return;
+        }
+        this.alertsModal.classList.remove("active");
+        this.renderAuthUI();
+        this.showToast(this.currentUser.alerts.enabled ? "Email alerts on." : "Email alerts off.");
+      }
+
+      async sendVerificationEmail(button) {
+        button.disabled = true;
+        try {
+          await this.accountManager.sendVerificationEmail();
+          document.getElementById("alertsVerifyText").textContent = "Verification email sent. Click the link in it, then reopen this dialog.";
+        } catch (err) {
+          console.error(err);
+          this.showToast(describeError(err));
+        } finally {
+          button.disabled = false;
+        }
       }
 
       applyScenario(scenario) {

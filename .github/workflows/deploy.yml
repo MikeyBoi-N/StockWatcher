@@ -25,6 +25,8 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
+    env:
+      SITE_URL: https://mikeyboi-n.github.io/StockWatcher/
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -34,11 +36,23 @@ jobs:
         with:
           python-version: "3.13"
 
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
       - name: Run Tests
         run: |
           python -m pip install --quiet pytest
           python -m pytest tests -q
-          node --test tests/engine.test.mjs
+          npm test
+
+      - name: Fetch Previously Deployed Market Data
+        # Alerts compare the new build against what the site currently shows. The copy lives outside the
+        # repository so it isn't deployed.
+        continue-on-error: true
+        run: curl -fsSL "${SITE_URL}data/market.json" -o "$RUNNER_TEMP/previous-market.json"
 
       - name: Refresh US-Listed Symbol Directory
         # Falls back to the committed data/symbols.json if Nasdaq Trader is unreachable.
@@ -54,7 +68,7 @@ jobs:
         run: python scripts/build_market_data.py
 
       - name: Validate Market Data With Scoring Engine
-        run: node --test tests/engine.test.mjs
+        run: npm test
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
@@ -64,6 +78,24 @@ jobs:
         with:
           path: '.'
 
+      - name: Install Firebase Admin Dependencies
+        # Installed after the Pages upload so node_modules is never published with the site.
+        run: npm ci --no-audit --no-fund
+
+      - name: Deploy Firestore Rules
+        # Before the site deploy, so pages that write new profile fields never meet the old rules.
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: node scripts/deploy_firestore_rules.mjs
+
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+
+      - name: Send Email Alerts
+        # Runs after deploy so email links show the data that triggered them; skips itself until the secrets exist.
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+        run: node scripts/send_alerts.mjs "$RUNNER_TEMP/previous-market.json"
