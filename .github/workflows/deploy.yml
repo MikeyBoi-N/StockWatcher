@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - main
+  schedule:
+    - cron: "0 6 * * 1"  # Weekly refresh of the US-listed symbol directory
   workflow_dispatch:
 
 permissions:
@@ -24,6 +26,11 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
+
+      - name: Refresh US-Listed Symbol Directory
+        # Falls back to the committed data/symbols.json if Nasdaq Trader is unreachable.
+        continue-on-error: true
+        run: python3 scripts/fetch_symbols.py
 
       - name: Setup Pages
         uses: actions/configure-pages@v5

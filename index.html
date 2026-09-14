@@ -30,6 +30,7 @@
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
+    [hidden] { display: none !important; }
 
     body {
       background-color: var(--bg-main);
@@ -752,6 +753,187 @@
       font-weight: 600;
     }
 
+    .btn-remove-stock {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-size: 16px;
+      line-height: 1;
+      cursor: pointer;
+      padding: 0 4px;
+    }
+    .btn-remove-stock:hover { color: var(--crimson); }
+
+    /* Real Symbol Search */
+    .symbol-search { position: relative; }
+
+    .symbol-results {
+      position: absolute;
+      top: 58px;
+      left: 0;
+      right: 0;
+      background: var(--bg-card);
+      border: 1px solid var(--border-focus);
+      border-radius: 6px;
+      max-height: 280px;
+      overflow-y: auto;
+      z-index: 20;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.6);
+    }
+
+    .symbol-result {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      background: transparent;
+      border: none;
+      border-bottom: 1px solid var(--border-subtle);
+      color: var(--text-secondary);
+      padding: 8px 12px;
+      text-align: left;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .symbol-result:last-child { border-bottom: none; }
+    .symbol-result:hover, .symbol-result:focus { background: var(--bg-card-hover); color: #fff; outline: none; }
+    .symbol-result-ticker { font-family: var(--font-mono); font-weight: 700; color: #fff; min-width: 64px; }
+    .symbol-result-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .symbol-result-meta { font-family: var(--font-mono); font-size: 10px; color: var(--text-muted); white-space: nowrap; }
+
+    .selected-stock {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      background: rgba(6, 182, 212, 0.06);
+      border: 1px solid rgba(6, 182, 212, 0.4);
+      border-radius: 8px;
+      padding: 10px 14px;
+    }
+
+    .research-details {
+      border: 1px solid var(--border-subtle);
+      border-radius: 8px;
+      padding: 10px 14px;
+    }
+    .research-details summary { cursor: pointer; font-size: 12px; color: var(--accent-cyan); }
+
+    /* Auth Dialog */
+    .auth-card { max-width: 420px; }
+    .auth-panel { display: none; flex-direction: column; gap: 12px; }
+    #authModal[data-view="signin"] [data-panel="signin"],
+    #authModal[data-view="register"] [data-panel="register"],
+    #authModal[data-view="reset"] [data-panel="reset"] { display: flex; }
+    #authModal[data-view="reset"] [data-auth-tabs] { display: none; }
+
+    .auth-tabs {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      background: var(--bg-main);
+      border: 1px solid var(--border-subtle);
+      border-radius: 8px;
+      padding: 3px;
+    }
+    .auth-tab {
+      background: transparent;
+      border: none;
+      border-radius: 6px;
+      color: var(--text-secondary);
+      font-size: 13px;
+      font-weight: 600;
+      padding: 7px 0;
+      cursor: pointer;
+    }
+    #authModal[data-view="signin"] .auth-tab[data-auth-view="signin"],
+    #authModal[data-view="register"] .auth-tab[data-auth-view="register"] {
+      background: var(--bg-card-alt);
+      color: #fff;
+      box-shadow: inset 0 0 0 1px var(--border-focus);
+    }
+
+    .btn-google {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      width: 100%;
+      background: #fff;
+      color: #1f1f1f;
+      border: 1px solid #dadce0;
+      border-radius: 6px;
+      padding: 9px 12px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .btn-google:hover { background: #f5f7fa; }
+    .btn-google:disabled, .auth-submit:disabled { opacity: 0.6; cursor: wait; }
+
+    .auth-divider {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--text-muted);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .auth-divider::before, .auth-divider::after { content: ""; flex: 1; height: 1px; background: var(--border-subtle); }
+
+    .auth-label { display: block; color: var(--text-muted); font-size: 11px; margin-bottom: 4px; }
+    .auth-input {
+      width: 100%;
+      background: var(--bg-card-alt);
+      border: 1px solid var(--border-subtle);
+      color: #fff;
+      padding: 9px 12px;
+      border-radius: 6px;
+      font-size: 14px;
+    }
+    .auth-input:focus { outline: none; border-color: var(--accent-cyan); box-shadow: 0 0 0 3px var(--accent-cyan-glow); }
+    .auth-input[aria-invalid="true"] { border-color: var(--crimson); }
+    .auth-password { position: relative; }
+    .auth-password .auth-input { padding-right: 60px; }
+    .auth-reveal {
+      position: absolute;
+      right: 6px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      padding: 4px 6px;
+    }
+    .auth-reveal:hover { color: #fff; }
+    .auth-submit { justify-content: center; padding: 10px; }
+    .auth-error {
+      background: rgba(239, 68, 68, 0.08);
+      border: 1px solid rgba(239, 68, 68, 0.35);
+      color: #fca5a5;
+      border-radius: 6px;
+      padding: 8px 10px;
+      font-size: 12px;
+    }
+    .auth-success {
+      background: rgba(16, 185, 129, 0.08);
+      border: 1px solid rgba(16, 185, 129, 0.35);
+      color: #a7f3d0;
+      border-radius: 6px;
+      padding: 10px 12px;
+      font-size: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .auth-footer { text-align: center; font-size: 12px; color: var(--text-muted); }
+    .auth-footer a { color: var(--accent-cyan); text-decoration: none; }
+    .auth-link-muted { color: var(--text-secondary); font-size: 11px; text-decoration: none; }
+    .auth-link-muted:hover, .auth-footer a:hover { text-decoration: underline; }
+
     /* Toast */
     .toast {
       position: fixed;
@@ -820,7 +1002,7 @@
             <strong>Technicals</strong>, <strong>Fundamentals</strong>, <strong>Valuation Reality</strong>, <strong>Catalysts</strong>, and <strong>Options Greeks (IV Rank, Delta, Theta)</strong>.
           </p>
           <div class="watchlist-status-bar">
-            <span>Account: <strong id="heroAccountName" style="color:var(--accent-cyan);">Demo Trader</strong></span>
+            <span>Account: <strong id="heroAccountName" style="color:var(--accent-cyan);">Guest</strong></span>
             <span>•</span>
             <span id="heroWlStats">Monitoring <strong>17</strong> stocks</span>
             <button class="btn-manage-wl" id="btnHeroEditWl">Change Monitored Stocks</button>
@@ -904,6 +1086,29 @@
         SECTION 3 — TOP OPPORTUNITIES (RANKED BY STRICT RISK/REWARD)
       </div>
       <div id="topOpportunitiesGrid" class="top-three-grid"></div>
+    </section>
+
+    <!-- TRACKED STOCKS WITHOUT ANALYTICS DATA -->
+    <section id="trackedNoDataSection" hidden>
+      <div class="section-headline" style="color: var(--text-secondary);">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14"></path><path d="M5 12h14"></path></svg>
+        TRACKED IN YOUR WATCHLIST — AWAITING RESEARCH LEVELS (NOT SCORED)
+      </div>
+      <div class="table-panel">
+        <table class="data-table" id="trackedNoDataTable">
+          <thead>
+            <tr>
+              <th>Ticker</th>
+              <th>Company</th>
+              <th>Exchange</th>
+              <th>Your Thesis</th>
+              <th>Added</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
     </section>
 
     <!-- SECTION 4: NOT READY YET -->
@@ -1000,7 +1205,7 @@
           <div style="display:flex; gap:8px;">
             <button class="btn-secondary" id="btnSelectAllWl" style="font-size:11px; padding:4px 8px;">Select All</button>
             <button class="btn-secondary" id="btnSelectPrimaryOnly" style="font-size:11px; padding:4px 8px;">Primary (12) Only</button>
-            <button class="btn-secondary" id="btnOpenAddCustom" style="font-size:11px; padding:4px 8px; color:var(--accent-cyan);">+ Add Custom Ticker</button>
+            <button class="btn-secondary" id="btnOpenAddCustom" style="font-size:11px; padding:4px 8px; color:var(--accent-cyan);">+ Add Stock</button>
           </div>
         </div>
 
@@ -1015,62 +1220,97 @@
     </div>
   </div>
 
-  <!-- Login Modal -->
-  <div id="loginModal" class="modal-backdrop">
-    <div class="modal-card" style="max-width:440px;">
+  <!-- Auth Dialog: Sign In / Create Account / Reset Password -->
+  <div id="authModal" class="modal-backdrop" data-view="signin">
+    <div class="modal-card auth-card" role="dialog" aria-modal="true" aria-labelledby="authTitle">
       <div class="modal-header">
-        <h3 style="font-size:16px;">Sign In to StockWatcher</h3>
-        <button id="loginCloseBtn" class="modal-close">&times;</button>
+        <div>
+          <h3 id="authTitle" style="font-size:16px;">Sign in to StockWatcher</h3>
+          <div id="authSubtitle" style="font-size:12px; color:var(--text-secondary);">Your watchlist and research sync across every device.</div>
+        </div>
+        <button type="button" id="authCloseBtn" class="modal-close" aria-label="Close">&times;</button>
       </div>
-      <form id="loginForm" class="modal-content" style="gap:14px;">
-        <div>
-          <label style="color:var(--text-muted); font-size:11px;">Username or Email</label>
-          <input type="text" id="loginUsername" required placeholder="demo_trader" style="width:100%; background:var(--bg-card-alt); border:1px solid var(--border-subtle); color:#fff; padding:8px 12px; border-radius:6px; font-family:var(--font-mono);">
-        </div>
-        <div>
-          <label style="color:var(--text-muted); font-size:11px;">Password</label>
-          <input type="password" id="loginPassword" required placeholder="••••••••" style="width:100%; background:var(--bg-card-alt); border:1px solid var(--border-subtle); color:#fff; padding:8px 12px; border-radius:6px;">
-        </div>
-        <div id="loginErrorMsg" style="color:var(--crimson); font-size:12px; display:none;"></div>
-        <button type="submit" class="btn-primary-blue" style="justify-content:center; padding:10px;">Sign In</button>
-        <button type="button" id="btnDemoQuickLogin" class="btn-secondary" style="justify-content:center; color:var(--accent-cyan);">Instant 1-Click Demo Login</button>
-        <div style="text-align:center; font-size:12px; color:var(--text-muted); margin-top:6px;">
-          Don't have an account? <a href="#" id="linkOpenRegister" style="color:var(--accent-cyan); text-decoration:none;">Create one</a>
-        </div>
-      </form>
-    </div>
-  </div>
 
-  <!-- Register Modal -->
-  <div id="registerModal" class="modal-backdrop">
-    <div class="modal-card" style="max-width:480px;">
-      <div class="modal-header">
-        <h3 style="font-size:16px;">Create StockWatcher Account</h3>
-        <button id="registerCloseBtn" class="modal-close">&times;</button>
+      <div class="modal-content" style="gap:14px;">
+        <div class="auth-tabs" role="tablist" data-auth-tabs>
+          <button type="button" role="tab" class="auth-tab" data-auth-view="signin">Sign in</button>
+          <button type="button" role="tab" class="auth-tab" data-auth-view="register">Create account</button>
+        </div>
+
+        <!-- Sign In -->
+        <form id="loginForm" class="auth-panel" data-panel="signin" novalidate>
+          <button type="button" class="btn-google" data-google-signin>
+            <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z"/></svg>
+            <span>Continue with Google</span>
+          </button>
+          <div class="auth-divider"><span>or sign in with email</span></div>
+          <div>
+            <label class="auth-label" for="loginEmail">Email</label>
+            <input class="auth-input" type="email" id="loginEmail" required autocomplete="email" placeholder="jane@example.com">
+          </div>
+          <div>
+            <div style="display:flex; justify-content:space-between; align-items:baseline;">
+              <label class="auth-label" for="loginPassword">Password</label>
+              <a href="#" class="auth-link-muted" data-auth-view="reset">Forgot password?</a>
+            </div>
+            <div class="auth-password">
+              <input class="auth-input" type="password" id="loginPassword" required autocomplete="current-password" placeholder="&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;">
+              <button type="button" class="auth-reveal" data-reveal="loginPassword">Show</button>
+            </div>
+          </div>
+          <div class="auth-error" data-auth-error hidden></div>
+          <button type="submit" class="btn-primary-blue auth-submit">Sign In</button>
+          <div class="auth-footer">Don&rsquo;t have an account? <a href="#" data-auth-view="register">Create one</a></div>
+        </form>
+
+        <!-- Create Account -->
+        <form id="registerForm" class="auth-panel" data-panel="register" novalidate>
+          <button type="button" class="btn-google" data-google-signin>
+            <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z"/></svg>
+            <span>Continue with Google</span>
+          </button>
+          <div class="auth-divider"><span>or create an account with email</span></div>
+          <div>
+            <label class="auth-label" for="regName">Full Name</label>
+            <input class="auth-input" type="text" id="regName" required maxlength="80" autocomplete="name" placeholder="Jane Doe">
+          </div>
+          <div>
+            <label class="auth-label" for="regEmail">Email Address</label>
+            <input class="auth-input" type="email" id="regEmail" required autocomplete="email" placeholder="jane@example.com">
+          </div>
+          <div>
+            <label class="auth-label" for="regPassword">Password</label>
+            <div class="auth-password">
+              <input class="auth-input" type="password" id="regPassword" required minlength="6" autocomplete="new-password" placeholder="At least 6 characters">
+              <button type="button" class="auth-reveal" data-reveal="regPassword">Show</button>
+            </div>
+          </div>
+          <div>
+            <label class="auth-label" for="regPasswordConfirm">Confirm Password</label>
+            <input class="auth-input" type="password" id="regPasswordConfirm" required autocomplete="new-password" placeholder="Re-enter password">
+          </div>
+          <div class="auth-error" data-auth-error hidden></div>
+          <button type="submit" class="btn-primary-blue auth-submit">Create Account</button>
+          <div class="auth-footer">Already have an account? <a href="#" data-auth-view="signin">Sign in</a></div>
+        </form>
+
+        <!-- Reset Password -->
+        <form id="resetForm" class="auth-panel" data-panel="reset" novalidate>
+          <div data-reset-request>
+            <div style="font-size:13px; color:var(--text-secondary); margin-bottom:12px;">Enter the email you signed up with and we&rsquo;ll send you a link to choose a new password.</div>
+            <label class="auth-label" for="resetEmail">Email</label>
+            <input class="auth-input" type="email" id="resetEmail" required autocomplete="email" placeholder="jane@example.com">
+          </div>
+          <div class="auth-success" data-reset-sent hidden>
+            <strong>Check your inbox.</strong>
+            <div>If an account exists for <span data-reset-email></span>, a reset link is on its way. It can take a minute and may land in spam.</div>
+            <div style="margin-top:6px; color:var(--text-muted);">Signed up with Google? Use &ldquo;Continue with Google&rdquo; instead &mdash; there&rsquo;s no password to reset.</div>
+          </div>
+          <div class="auth-error" data-auth-error hidden></div>
+          <button type="submit" class="btn-primary-blue auth-submit" data-reset-request>Send Reset Link</button>
+          <div class="auth-footer"><a href="#" data-auth-view="signin">&larr; Back to sign in</a></div>
+        </form>
       </div>
-      <form id="registerForm" class="modal-content" style="gap:12px;">
-        <div>
-          <label style="color:var(--text-muted); font-size:11px;">Full Name</label>
-          <input type="text" id="regName" required placeholder="Jane Doe" style="width:100%; background:var(--bg-card-alt); border:1px solid var(--border-subtle); color:#fff; padding:7px 10px; border-radius:6px;">
-        </div>
-        <div>
-          <label style="color:var(--text-muted); font-size:11px;">Username</label>
-          <input type="text" id="regUsername" required placeholder="janedoe" style="width:100%; background:var(--bg-card-alt); border:1px solid var(--border-subtle); color:#fff; padding:7px 10px; border-radius:6px; font-family:var(--font-mono);">
-        </div>
-        <div>
-          <label style="color:var(--text-muted); font-size:11px;">Email Address</label>
-          <input type="email" id="regEmail" required placeholder="jane@example.com" style="width:100%; background:var(--bg-card-alt); border:1px solid var(--border-subtle); color:#fff; padding:7px 10px; border-radius:6px;">
-        </div>
-        <div>
-          <label style="color:var(--text-muted); font-size:11px;">Password</label>
-          <input type="password" id="regPassword" required placeholder="At least 6 characters" style="width:100%; background:var(--bg-card-alt); border:1px solid var(--border-subtle); color:#fff; padding:7px 10px; border-radius:6px;">
-        </div>
-        <div id="regErrorMsg" style="color:var(--crimson); font-size:12px; display:none;"></div>
-        <button type="submit" class="btn-primary-blue" style="justify-content:center; padding:10px; margin-top:6px;">Create Account</button>
-        <div style="text-align:center; font-size:12px; color:var(--text-muted);">
-          Already have an account? <a href="#" id="linkOpenLogin" style="color:var(--accent-cyan); text-decoration:none;">Sign in</a>
-        </div>
-      </form>
     </div>
   </div>
 
@@ -1079,77 +1319,85 @@
     <div class="modal-card" style="max-width:680px;">
       <div class="modal-header">
         <div>
-          <h3 style="font-size:16px;">Add Stock to Research Library</h3>
-          <div style="font-size:12px; color:var(--text-secondary);">Explain why this company deserves attention. Do not add random stocks.</div>
+          <h3 style="font-size:16px;">Add Stock to Your Watchlist</h3>
+          <div style="font-size:12px; color:var(--text-secondary);">Search every US-listed stock and ETF. Explain why it deserves attention. Do not add random stocks.</div>
         </div>
         <button id="addTickerCloseBtn" class="modal-close">&times;</button>
       </div>
       <form id="addTickerForm" class="modal-content" style="font-size:13px; gap:14px;">
-        <div style="display:grid; grid-template-columns:1fr 2fr 2fr; gap:10px;">
-          <div>
-            <label style="color:var(--text-muted); font-size:11px;">Symbol</label>
-            <input type="text" id="addSymbol" required placeholder="PLTR" style="width:100%; background:var(--bg-card-alt); border:1px solid var(--border-subtle); color:#fff; padding:6px 10px; border-radius:4px; font-family:var(--font-mono); text-transform:uppercase;">
-          </div>
-          <div>
-            <label style="color:var(--text-muted); font-size:11px;">Company Name</label>
-            <input type="text" id="addName" required placeholder="Palantir Technologies" style="width:100%; background:var(--bg-card-alt); border:1px solid var(--border-subtle); color:#fff; padding:6px 10px; border-radius:4px;">
-          </div>
-          <div>
-            <label style="color:var(--text-muted); font-size:11px;">Sector / Asset Type</label>
-            <input type="text" id="addType" required placeholder="Enterprise AI & Defense" style="width:100%; background:var(--bg-card-alt); border:1px solid var(--border-subtle); color:#fff; padding:6px 10px; border-radius:4px;">
-          </div>
+        <div class="symbol-search">
+          <label style="color:var(--text-muted); font-size:11px;">Search by ticker or company name</label>
+          <input type="text" id="addSearch" autocomplete="off" spellcheck="false" placeholder="e.g. PLTR or Palantir" style="width:100%; background:var(--bg-card-alt); border:1px solid var(--border-subtle); color:#fff; padding:8px 12px; border-radius:6px; font-family:var(--font-mono);">
+          <div id="addSearchResults" class="symbol-results" hidden></div>
+          <div id="addSearchStatus" style="font-size:11px; color:var(--text-muted); margin-top:4px;"></div>
+        </div>
+
+        <div id="addSelectedStock" class="selected-stock" hidden></div>
+
+        <div>
+          <label style="color:var(--text-muted); font-size:11px;">Why it deserves attention (Mandatory thesis justifying inclusion)</label>
+          <textarea id="addWhyAttention" required rows="2" maxlength="1000" placeholder="Explain the specific catalyst, moat, or technical development..." style="width:100%; background:var(--bg-card-alt); border:1px solid var(--border-subtle); color:#fff; padding:8px 10px; border-radius:4px; resize:vertical; font-family:var(--font-sans);"></textarea>
+        </div>
+
+        <details id="addResearchDetails" class="research-details">
+          <summary>Optional: enter your own research levels to enable scoring</summary>
+          <div style="font-size:11px; color:var(--text-muted); margin:8px 0 10px;">Price and Major Support are to score this stock. Other fields fall back to conservative estimates.</div>
+
+        <div style="margin-bottom:10px;">
+          <label style="color:var(--text-muted); font-size:11px;">Sector / Asset Type</label>
+          <input type="text" id="addType" maxlength="80" placeholder="Enterprise AI & Defense" style="width:100%; background:var(--bg-card-alt); border:1px solid var(--border-subtle); color:#fff; padding:6px 10px; border-radius:4px;">
         </div>
 
         <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:10px;">
           <div>
             <label style="color:var(--text-muted); font-size:11px;">Price ($)</label>
-            <input type="number" step="0.01" id="addPrice" required placeholder="36.50" style="width:100%; background:var(--bg-card-alt); border:1px solid var(--border-subtle); color:#fff; padding:6px 10px; border-radius:4px; font-family:var(--font-mono);">
+            <input type="number" step="0.01" id="addPrice" placeholder="36.50" style="width:100%; background:var(--bg-card-alt); border:1px solid var(--border-subtle); color:#fff; padding:6px 10px; border-radius:4px; font-family:var(--font-mono);">
           </div>
           <div>
             <label style="color:var(--text-muted); font-size:11px;">52w High ($)</label>
-            <input type="number" step="0.01" id="addHigh52" required placeholder="38.00" style="width:100%; background:var(--bg-card-alt); border:1px solid var(--border-subtle); color:#fff; padding:6px 10px; border-radius:4px; font-family:var(--font-mono);">
+            <input type="number" step="0.01" id="addHigh52" placeholder="38.00" style="width:100%; background:var(--bg-card-alt); border:1px solid var(--border-subtle); color:#fff; padding:6px 10px; border-radius:4px; font-family:var(--font-mono);">
           </div>
           <div>
             <label style="color:var(--text-muted); font-size:11px;">Major Support ($)</label>
-            <input type="number" step="0.01" id="addSupport" required placeholder="32.00" style="width:100%; background:var(--bg-card-alt); border:1px solid var(--border-subtle); color:#fff; padding:6px 10px; border-radius:4px; font-family:var(--font-mono);">
+            <input type="number" step="0.01" id="addSupport" placeholder="32.00" style="width:100%; background:var(--bg-card-alt); border:1px solid var(--border-subtle); color:#fff; padding:6px 10px; border-radius:4px; font-family:var(--font-mono);">
           </div>
           <div>
             <label style="color:var(--text-muted); font-size:11px;">Major Resist ($)</label>
-            <input type="number" step="0.01" id="addResistance" required placeholder="38.50" style="width:100%; background:var(--bg-card-alt); border:1px solid var(--border-subtle); color:#fff; padding:6px 10px; border-radius:4px; font-family:var(--font-mono);">
+            <input type="number" step="0.01" id="addResistance" placeholder="38.50" style="width:100%; background:var(--bg-card-alt); border:1px solid var(--border-subtle); color:#fff; padding:6px 10px; border-radius:4px; font-family:var(--font-mono);">
           </div>
         </div>
 
         <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:10px;">
           <div>
             <label style="color:var(--text-muted); font-size:11px;">20d SMA ($)</label>
-            <input type="number" step="0.01" id="addSma20" required placeholder="34.20" style="width:100%; background:var(--bg-card-alt); border:1px solid var(--border-subtle); color:#fff; padding:6px 10px; border-radius:4px; font-family:var(--font-mono);">
+            <input type="number" step="0.01" id="addSma20" placeholder="34.20" style="width:100%; background:var(--bg-card-alt); border:1px solid var(--border-subtle); color:#fff; padding:6px 10px; border-radius:4px; font-family:var(--font-mono);">
           </div>
           <div>
             <label style="color:var(--text-muted); font-size:11px;">50d SMA ($)</label>
-            <input type="number" step="0.01" id="addSma50" required placeholder="31.50" style="width:100%; background:var(--bg-card-alt); border:1px solid var(--border-subtle); color:#fff; padding:6px 10px; border-radius:4px; font-family:var(--font-mono);">
+            <input type="number" step="0.01" id="addSma50" placeholder="31.50" style="width:100%; background:var(--bg-card-alt); border:1px solid var(--border-subtle); color:#fff; padding:6px 10px; border-radius:4px; font-family:var(--font-mono);">
           </div>
           <div>
             <label style="color:var(--text-muted); font-size:11px;">200d SMA ($)</label>
-            <input type="number" step="0.01" id="addSma200" required placeholder="26.00" style="width:100%; background:var(--bg-card-alt); border:1px solid var(--border-subtle); color:#fff; padding:6px 10px; border-radius:4px; font-family:var(--font-mono);">
+            <input type="number" step="0.01" id="addSma200" placeholder="26.00" style="width:100%; background:var(--bg-card-alt); border:1px solid var(--border-subtle); color:#fff; padding:6px 10px; border-radius:4px; font-family:var(--font-mono);">
           </div>
           <div>
             <label style="color:var(--text-muted); font-size:11px;">14-day RSI</label>
-            <input type="number" step="0.1" id="addRsi" required placeholder="54" style="width:100%; background:var(--bg-card-alt); border:1px solid var(--border-subtle); color:#fff; padding:6px 10px; border-radius:4px; font-family:var(--font-mono);">
+            <input type="number" step="0.1" id="addRsi" placeholder="54" style="width:100%; background:var(--bg-card-alt); border:1px solid var(--border-subtle); color:#fff; padding:6px 10px; border-radius:4px; font-family:var(--font-mono);">
           </div>
         </div>
 
         <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:10px;">
           <div>
             <label style="color:var(--text-muted); font-size:11px;">Rev Growth %</label>
-            <input type="number" step="0.1" id="addRevGrowth" required placeholder="27" style="width:100%; background:var(--bg-card-alt); border:1px solid var(--border-subtle); color:#fff; padding:6px 10px; border-radius:4px; font-family:var(--font-mono);">
+            <input type="number" step="0.1" id="addRevGrowth" placeholder="27" style="width:100%; background:var(--bg-card-alt); border:1px solid var(--border-subtle); color:#fff; padding:6px 10px; border-radius:4px; font-family:var(--font-mono);">
           </div>
           <div>
             <label style="color:var(--text-muted); font-size:11px;">Forward P/E</label>
-            <input type="number" step="0.1" id="addFwdPe" required placeholder="75" style="width:100%; background:var(--bg-card-alt); border:1px solid var(--border-subtle); color:#fff; padding:6px 10px; border-radius:4px; font-family:var(--font-mono);">
+            <input type="number" step="0.1" id="addFwdPe" placeholder="75" style="width:100%; background:var(--bg-card-alt); border:1px solid var(--border-subtle); color:#fff; padding:6px 10px; border-radius:4px; font-family:var(--font-mono);">
           </div>
           <div>
             <label style="color:var(--text-muted); font-size:11px;">PEG Ratio</label>
-            <input type="number" step="0.01" id="addPeg" required placeholder="2.8" style="width:100%; background:var(--bg-card-alt); border:1px solid var(--border-subtle); color:#fff; padding:6px 10px; border-radius:4px; font-family:var(--font-mono);">
+            <input type="number" step="0.01" id="addPeg" placeholder="2.8" style="width:100%; background:var(--bg-card-alt); border:1px solid var(--border-subtle); color:#fff; padding:6px 10px; border-radius:4px; font-family:var(--font-mono);">
           </div>
           <div>
             <label style="color:var(--text-muted); font-size:11px;">Trajectory</label>
@@ -1161,10 +1409,9 @@
           </div>
         </div>
 
-        <div>
-          <label style="color:var(--text-muted); font-size:11px;">Why it deserves attention (Mandatory thesis justifying inclusion)</label>
-          <textarea id="addWhyAttention" required rows="2" placeholder="Explain the specific catalyst, moat, or technical development..." style="width:100%; background:var(--bg-card-alt); border:1px solid var(--border-subtle); color:#fff; padding:8px 10px; border-radius:4px; resize:vertical; font-family:var(--font-sans);"></textarea>
-        </div>
+        </details>
+
+        <div id="addErrorMsg" style="color:var(--crimson); font-size:12px;" hidden></div>
 
         <div style="display:flex; justify-content:flex-end; gap:10px;">
           <button type="button" id="addCancelBtn" class="btn-secondary">Cancel</button>
@@ -1247,10 +1494,21 @@
   <!-- ========================================================================= -->
   <!-- JAVASCRIPT LOGIC -->
   <!-- ========================================================================= -->
-  <script>
+  <script type="module">
     /**
      * StockWatcher — Complete Institutional Research Terminal & Account Engine
      */
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js";
+    import { getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, signOut, updateProfile, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js";
+    import { getFirestore, doc, getDoc, setDoc, updateDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
+    import { firebaseConfig } from "./firebase-config.js";
+
+    const SYMBOLS_URL = "data/symbols.json";
+    const DEFAULT_WATCHLIST = ["SPY", "QQQ", "MSFT", "NVDA", "GOOGL", "AMZN", "AAPL"];
+
+    const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, ch => (
+      { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]
+    ));
 
     // --- SEED DATABASE OF 19 PRE-CALIBRATED ASSETS ---
     const SEED_WATCHLIST = [
@@ -1452,88 +1710,157 @@
     ];
 
     /**
-     * ACCOUNT & AUTH STORAGE ENGINE
+     * ACCOUNT & AUTH STORAGE ENGINE (Firebase Auth + Firestore)
+     *
+     * Profile document: users/{uid} = {
+     *   name, email, watchlist: [ticker],
+     *   addedStocks: { [ticker]: { name, exchange, etf, thesis, addedAt, research: engineItem | null } },
+     *   createdAt, updatedAt
+     * }
      */
+    const AUTH_ERROR_MESSAGES = {
+      "auth/invalid-credential": "Incorrect email or password.",
+      "auth/invalid-email": "That email address is not valid.",
+      "auth/email-already-in-use": "An account with that email already exists. Try signing in.",
+      "auth/weak-password": "Password must be at least 6 characters.",
+      "auth/too-many-requests": "Too many attempts. Wait a moment and try again.",
+      "auth/network-request-failed": "Network error. Check your connection.",
+      "auth/missing-email": "Enter your email address first.",
+      "auth/user-disabled": "This account has been disabled.",
+      "auth/account-exists-with-different-credential": "This email is already registered with a password. Sign in with email and password instead.",
+      "auth/popup-blocked": "Your browser blocked the Google sign-in window. Allow popups for this site and try again.",
+      "auth/unauthorized-domain": "Sign-in isn't allowed from this domain yet. Add it under Firebase → Authentication → Settings → Authorized domains.",
+      "auth/operation-not-allowed": "This sign-in method isn't enabled for this project."
+    };
+
+    // The user dismissed the Google popup themselves; nothing to report.
+    const SILENT_AUTH_ERRORS = new Set(["auth/popup-closed-by-user", "auth/cancelled-popup-request"]);
+
+    const describeError = (err) => AUTH_ERROR_MESSAGES[err?.code] || "Something went wrong. Please try again.";
+
     class AccountManager {
-      constructor() {
-        this.STORAGE_KEY_USERS = "StockWatcher_Accounts_v1";
-        this.STORAGE_KEY_SESSION = "StockWatcher_Session_v1";
-        this.initDefaultUsers();
+      constructor(auth, db) {
+        this.auth = auth;
+        this.db = db;
+        this.pendingName = null;
       }
 
-      initDefaultUsers() {
-        const existing = localStorage.getItem(this.STORAGE_KEY_USERS);
-        if (!existing) {
-          const defaultAccounts = {
-            "demo_trader": {
-              username: "demo_trader",
-              name: "Demo Trader",
-              email: "demo@stockwatcher.io",
-              passwordHash: "demo123",
-              watchlist: ["SPY", "QQQ", "MSFT", "NVDA", "SPCX", "XOM", "SNDK", "GOOGL", "AMZN", "META", "AVGO", "TSM", "JPM", "COST", "AMD", "AAPL", "LLY"]
-            }
-          };
-          localStorage.setItem(this.STORAGE_KEY_USERS, JSON.stringify(defaultAccounts));
-          localStorage.setItem(this.STORAGE_KEY_SESSION, "demo_trader");
+      /** Calls onUser(profile | null) whenever the session changes; onError(err) if the profile can't be loaded. */
+      onSessionChange(onUser, onError) {
+        return onAuthStateChanged(this.auth, async (fbUser) => {
+          if (!fbUser) return onUser(null);
+          try {
+            onUser(await this.loadProfile(fbUser));
+          } catch (err) {
+            onError(err);
+          }
+        });
+      }
+
+      async loadProfile(fbUser) {
+        const ref = doc(this.db, "users", fbUser.uid);
+        const snap = await getDoc(ref);
+        if (snap.exists()) {
+          const data = snap.data();
+          return { uid: fbUser.uid, name: data.name, email: data.email, watchlist: data.watchlist || [], addedStocks: data.addedStocks || {}, createdAt: data.createdAt };
         }
-      }
-
-      getAccounts() {
-        try {
-          return JSON.parse(localStorage.getItem(this.STORAGE_KEY_USERS)) || {};
-        } catch(e) { return {}; }
-      }
-
-      getCurrentSession() {
-        const username = localStorage.getItem(this.STORAGE_KEY_SESSION);
-        const accounts = this.getAccounts();
-        if (username && accounts[username]) {
-          return accounts[username];
-        }
-        return accounts["demo_trader"] || null;
-      }
-
-      login(usernameOrEmail, password) {
-        const accounts = this.getAccounts();
-        const user = Object.values(accounts).find(
-          u => (u.username.toLowerCase() === usernameOrEmail.toLowerCase() || u.email.toLowerCase() === usernameOrEmail.toLowerCase()) && u.passwordHash === password
-        );
-        if (user) {
-          localStorage.setItem(this.STORAGE_KEY_SESSION, user.username);
-          return { success: true, user };
-        }
-        return { success: false, error: "Invalid username or password" };
-      }
-
-      register(name, username, email, password) {
-        const accounts = this.getAccounts();
-        const uname = username.trim().toLowerCase();
-        if (accounts[uname]) {
-          return { success: false, error: "Username is already taken" };
-        }
-        const defaultWatchlist = ["SPY", "QQQ", "MSFT", "NVDA", "GOOGL", "AMZN", "AAPL"];
-        accounts[uname] = {
-          name: name.trim(),
-          username: uname,
-          email: email.trim().toLowerCase(),
-          passwordHash: password,
-          watchlist: defaultWatchlist
+        // First sign-in for this account: create its profile document.
+        const profile = {
+          name: this.pendingName || fbUser.displayName || fbUser.email.split("@")[0],
+          email: fbUser.email,
+          watchlist: [...DEFAULT_WATCHLIST],
+          addedStocks: {}
         };
-        localStorage.setItem(this.STORAGE_KEY_USERS, JSON.stringify(accounts));
-        localStorage.setItem(this.STORAGE_KEY_SESSION, uname);
-        return { success: true, user: accounts[uname] };
+        await setDoc(ref, { ...profile, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+        return { uid: fbUser.uid, ...profile };
+      }
+
+      login(email, password) {
+        return signInWithEmailAndPassword(this.auth, email.trim(), password);
+      }
+
+      async register(name, email, password) {
+        this.pendingName = name.trim();
+        try {
+          const cred = await createUserWithEmailAndPassword(this.auth, email.trim(), password);
+          await updateProfile(cred.user, { displayName: this.pendingName });
+        } finally {
+          this.pendingName = null;
+        }
+      }
+
+      loginWithGoogle() {
+        const provider = new GoogleAuthProvider();
+        provider.setCustomParameters({ prompt: "select_account" });
+        return signInWithPopup(this.auth, provider);
+      }
+
+      sendPasswordReset(email) {
+        return sendPasswordResetEmail(this.auth, email.trim());
       }
 
       logout() {
-        localStorage.removeItem(this.STORAGE_KEY_SESSION);
+        return signOut(this.auth);
       }
 
-      updateUserWatchlist(username, newWatchlist) {
-        const accounts = this.getAccounts();
-        if (accounts[username]) {
-          accounts[username].watchlist = newWatchlist;
-          localStorage.setItem(this.STORAGE_KEY_USERS, JSON.stringify(accounts));
+      saveProfile(profile) {
+        return updateDoc(doc(this.db, "users", profile.uid), {
+          watchlist: profile.watchlist,
+          addedStocks: profile.addedStocks,
+          updatedAt: serverTimestamp()
+        });
+      }
+    }
+
+    /**
+     * REAL SYMBOL DIRECTORY (US-listed stocks & ETFs, generated by scripts/fetch_symbols.py)
+     */
+    class SymbolDirectory {
+      constructor(url) {
+        this.url = url;
+        this.loading = null;
+        this.symbols = [];
+        this.bySymbol = new Map();
+      }
+
+      load() {
+        this.loading ??= fetch(this.url)
+          .then(res => {
+            if (!res.ok) throw new Error(`Symbol list request failed (${res.status})`);
+            return res.json();
+          })
+          .then(data => {
+            this.symbols = data.symbols.map(([symbol, name, exchange, etf]) => ({ symbol, name, exchange, etf: etf === 1, nameKey: name.toUpperCase() }));
+            this.bySymbol = new Map(this.symbols.map(s => [s.symbol, s]));
+            return this;
+          })
+          .catch(err => {
+            this.loading = null;
+            throw err;
+          });
+        return this.loading;
+      }
+
+      get(symbol) {
+        return this.bySymbol.get(symbol.toUpperCase()) || null;
+      }
+
+      /** Ranks exact ticker > ticker prefix > name prefix > name contains; shorter tickers first within a rank. */
+      search(query, limit = 12) {
+        const q = query.trim().toUpperCase();
+        if (!q) return [];
+        const matches = [];
+        for (const s of this.symbols) {
+          let rank;
+          if (s.symbol === q) rank = 0;
+          else if (s.symbol.startsWith(q)) rank = 1;
+          else if (s.nameKey.startsWith(q)) rank = 2;
+          else if (q.length >= 2 && s.nameKey.includes(q)) rank = 3;
+          else continue;
+          matches.push({ rank, s });
         }
+        matches.sort((a, b) => a.rank - b.rank || a.s.symbol.length - b.s.symbol.length || a.s.symbol.localeCompare(b.s.symbol));
+        return matches.slice(0, limit).map(m => m.s);
       }
     }
 
@@ -1735,10 +2062,17 @@
      * MAIN APPLICATION CONTROLLER
      */
     class StockWatcherApp {
-      constructor() {
-        this.accountManager = new AccountManager();
-        this.currentUser = this.accountManager.getCurrentSession();
-        this.dataset = JSON.parse(JSON.stringify(SEED_WATCHLIST));
+      /**
+       * @param {AccountManager|null} accountManager null when Firebase isn't configured (guest-only mode)
+       * @param {SymbolDirectory} symbolDirectory source of real tickers for the add-stock picker
+       */
+      constructor(accountManager, symbolDirectory) {
+        this.accountManager = accountManager;
+        this.symbolDirectory = symbolDirectory;
+        this.currentUser = null;
+        this.authResolved = !accountManager;
+        this.selectedStock = null;
+        this.dataset = this.buildDataset();
         this.currentEvaluations = [];
         this.currentFilter = "my_watchlist";
         this.marketRegime = "BULLISH";
@@ -1747,6 +2081,55 @@
         this.attachEvents();
         this.renderAuthUI();
         this.executeScan(false);
+
+        if (accountManager) {
+          accountManager.onSessionChange(
+            (profile) => this.handleSessionChange(profile),
+            (err) => {
+              console.error("Failed to load account profile", err);
+              this.authResolved = true;
+              this.renderAuthUI();
+              this.showToast("Signed in, but your saved data could not be loaded. Check Firestore setup.");
+            }
+          );
+        }
+      }
+
+      handleSessionChange(profile) {
+        this.currentUser = profile;
+        this.authResolved = true;
+        if (profile) this.closeAuthModal();
+        this.scenarioSelector.value = "baseline";
+        this.dataset = this.buildDataset();
+        this.renderAuthUI();
+        this.executeScan(false);
+      }
+
+      /** Seed library plus any stocks the signed-in user has entered research levels for. */
+      buildDataset() {
+        const researched = this.currentUser
+          ? Object.values(this.currentUser.addedStocks).map(s => s.research).filter(Boolean)
+          : [];
+        const researchedTickers = new Set(researched.map(r => r.ticker));
+        return structuredClone([...SEED_WATCHLIST.filter(x => !researchedTickers.has(x.ticker)), ...researched]);
+      }
+
+      async persistProfile() {
+        if (!this.currentUser) return false;
+        try {
+          await this.accountManager.saveProfile(this.currentUser);
+          return true;
+        } catch (err) {
+          console.error("Failed to save profile", err);
+          this.showToast("Could not save to your account. Check your connection and try again.");
+          return false;
+        }
+      }
+
+      requireAccounts() {
+        if (this.accountManager) return true;
+        this.showToast("Accounts aren't configured yet. See README → Firebase setup.");
+        return false;
       }
 
       initDOM() {
@@ -1772,21 +2155,24 @@
         this.btnSaveWatchlist = document.getElementById("btnSaveWatchlist");
         this.btnOpenAddCustom = document.getElementById("btnOpenAddCustom");
 
-        this.loginModal = document.getElementById("loginModal");
+        this.authModal = document.getElementById("authModal");
+        this.authTitle = document.getElementById("authTitle");
+        this.authSubtitle = document.getElementById("authSubtitle");
+        this.authCloseBtn = document.getElementById("authCloseBtn");
         this.loginForm = document.getElementById("loginForm");
-        this.loginCloseBtn = document.getElementById("loginCloseBtn");
-        this.btnDemoQuickLogin = document.getElementById("btnDemoQuickLogin");
-        this.linkOpenRegister = document.getElementById("linkOpenRegister");
-        this.linkOpenLogin = document.getElementById("linkOpenLogin");
-
-        this.registerModal = document.getElementById("registerModal");
         this.registerForm = document.getElementById("registerForm");
-        this.registerCloseBtn = document.getElementById("registerCloseBtn");
+        this.resetForm = document.getElementById("resetForm");
 
         this.addTickerModal = document.getElementById("addTickerModal");
         this.addTickerForm = document.getElementById("addTickerForm");
         this.addTickerCloseBtn = document.getElementById("addTickerCloseBtn");
         this.addCancelBtn = document.getElementById("addCancelBtn");
+        this.addSearch = document.getElementById("addSearch");
+        this.addSearchResults = document.getElementById("addSearchResults");
+        this.addSearchStatus = document.getElementById("addSearchStatus");
+        this.addSelectedStock = document.getElementById("addSelectedStock");
+        this.addResearchDetails = document.getElementById("addResearchDetails");
+        this.addErrorMsg = document.getElementById("addErrorMsg");
 
         this.detailModal = document.getElementById("detailModal");
         this.modalCloseBtn = document.getElementById("modalCloseBtn");
@@ -1800,6 +2186,8 @@
         this.notReadyTableBody = document.querySelector("#notReadyTable tbody");
         this.avoidTableBody = document.querySelector("#avoidTable tbody");
         this.watchNextTableBody = document.querySelector("#watchNextTable tbody");
+        this.trackedNoDataSection = document.getElementById("trackedNoDataSection");
+        this.trackedNoDataTableBody = document.querySelector("#trackedNoDataTable tbody");
       }
 
       attachEvents() {
@@ -1823,11 +2211,21 @@
         this.btnManageWatchlist.addEventListener("click", openWl);
         this.btnHeroEditWl.addEventListener("click", openWl);
         this.wlModalCloseBtn.addEventListener("click", () => this.watchlistModal.classList.remove("active"));
-        this.btnSaveWatchlist.addEventListener("click", () => {
-          this.saveWatchlistSelection();
+        this.btnSaveWatchlist.addEventListener("click", async () => {
           this.watchlistModal.classList.remove("active");
-          this.showToast("Account watchlist updated!");
+          const saved = await this.saveWatchlistSelection();
+          if (saved) this.showToast("Account watchlist saved!");
+          else if (!this.currentUser) this.showToast("Sign in to save your watchlist to an account.");
           this.executeScan(false);
+        });
+
+        this.wlSelectionContainer.addEventListener("click", (e) => {
+          const btn = e.target.closest(".btn-remove-stock");
+          if (btn) this.removeAddedStock(btn.dataset.ticker);
+        });
+
+        document.addEventListener("click", () => {
+          document.getElementById("userMenuDropdown")?.classList.remove("show");
         });
 
         this.btnSelectAllWl.addEventListener("click", () => {
@@ -1844,76 +2242,70 @@
           this.updateWlCountBadge();
         });
 
-        // Login / Register Modals
-        this.loginCloseBtn.addEventListener("click", () => this.loginModal.classList.remove("active"));
-        this.registerCloseBtn.addEventListener("click", () => this.registerModal.classList.remove("active"));
-        this.linkOpenRegister.addEventListener("click", (e) => {
-          e.preventDefault();
-          this.loginModal.classList.remove("active");
-          this.registerModal.classList.add("active");
-        });
-        this.linkOpenLogin.addEventListener("click", (e) => {
-          e.preventDefault();
-          this.registerModal.classList.remove("active");
-          this.loginModal.classList.add("active");
-        });
-
-        this.loginForm.addEventListener("submit", (e) => {
-          e.preventDefault();
-          const u = document.getElementById("loginUsername").value;
-          const p = document.getElementById("loginPassword").value;
-          const res = this.accountManager.login(u, p);
-          if (res.success) {
-            this.currentUser = res.user;
-            this.loginModal.classList.remove("active");
-            this.renderAuthUI();
-            this.showToast(`Welcome back, ${res.user.name}!`);
-            this.executeScan(false);
-          } else {
-            const err = document.getElementById("loginErrorMsg");
-            err.textContent = res.error;
-            err.style.display = "block";
+        // Auth Dialog
+        this.authCloseBtn.addEventListener("click", () => this.closeAuthModal());
+        this.authModal.addEventListener("click", (e) => {
+          const viewLink = e.target.closest("[data-auth-view]");
+          if (viewLink) {
+            e.preventDefault();
+            this.setAuthView(viewLink.dataset.authView);
+            return;
           }
-        });
-
-        this.registerForm.addEventListener("submit", (e) => {
-          e.preventDefault();
-          const n = document.getElementById("regName").value;
-          const u = document.getElementById("regUsername").value;
-          const em = document.getElementById("regEmail").value;
-          const p = document.getElementById("regPassword").value;
-          const res = this.accountManager.register(n, u, em, p);
-          if (res.success) {
-            this.currentUser = res.user;
-            this.registerModal.classList.remove("active");
-            this.renderAuthUI();
-            this.showToast(`Account created! Welcome, ${res.user.name}!`);
-            this.executeScan(false);
-          } else {
-            const err = document.getElementById("regErrorMsg");
-            err.textContent = res.error;
-            err.style.display = "block";
+          const reveal = e.target.closest("[data-reveal]");
+          if (reveal) {
+            const input = document.getElementById(reveal.dataset.reveal);
+            const show = input.type === "password";
+            input.type = show ? "text" : "password";
+            reveal.textContent = show ? "Hide" : "Show";
+            return;
           }
+          if (e.target.closest("[data-google-signin]")) this.handleGoogleSignIn();
+        });
+        this.authModal.addEventListener("input", (e) => e.target.removeAttribute("aria-invalid"));
+        this.loginForm.addEventListener("submit", (e) => { e.preventDefault(); this.handleLoginSubmit(); });
+        this.registerForm.addEventListener("submit", (e) => { e.preventDefault(); this.handleRegisterSubmit(); });
+        this.resetForm.addEventListener("submit", (e) => { e.preventDefault(); this.handleResetSubmit(); });
+
+        // All dialogs: close on Escape or on a click outside the card
+        document.querySelectorAll(".modal-backdrop").forEach(backdrop => {
+          backdrop.addEventListener("mousedown", (e) => {
+            if (e.target === backdrop) backdrop.classList.remove("active");
+          });
+        });
+        document.addEventListener("keydown", (e) => {
+          if (e.key === "Escape") document.querySelectorAll(".modal-backdrop.active").forEach(m => m.classList.remove("active"));
         });
 
-        this.btnDemoQuickLogin.addEventListener("click", () => {
-          const res = this.accountManager.login("demo_trader", "demo123");
-          if (res.success) {
-            this.currentUser = res.user;
-            this.loginModal.classList.remove("active");
-            this.renderAuthUI();
-            this.showToast("Logged in as Demo Trader");
-            this.executeScan(false);
-          }
-        });
-
-        // Add Custom Ticker
-        this.btnOpenAddCustom.addEventListener("click", () => {
-          this.watchlistModal.classList.remove("active");
-          this.addTickerModal.classList.add("active");
-        });
+        // Add Real Stock
+        this.btnOpenAddCustom.addEventListener("click", () => this.openAddStockModal());
         this.addTickerCloseBtn.addEventListener("click", () => this.addTickerModal.classList.remove("active"));
         this.addCancelBtn.addEventListener("click", () => this.addTickerModal.classList.remove("active"));
+
+        this.addSearch.addEventListener("input", () => this.renderSymbolResults());
+        this.addSearch.addEventListener("keydown", (e) => {
+          if (e.key !== "Enter") return;
+          e.preventDefault();
+          const first = this.addSearchResults.querySelector(".symbol-result");
+          if (first) this.selectStock(first.dataset.symbol);
+        });
+        this.addTickerModal.addEventListener("mousedown", (e) => {
+          if (!e.target.closest(".symbol-search")) this.addSearchResults.hidden = true;
+        });
+        this.addSearch.addEventListener("focus", () => this.renderSymbolResults());
+        this.addSearchResults.addEventListener("click", (e) => {
+          const btn = e.target.closest(".symbol-result");
+          if (btn) this.selectStock(btn.dataset.symbol);
+        });
+        this.addSelectedStock.addEventListener("click", (e) => {
+          if (!e.target.closest("#btnChangeSelectedStock")) return;
+          this.clearSelectedStock();
+          this.addSearch.focus();
+        });
+
+        this.trackedNoDataTableBody.addEventListener("click", (e) => {
+          const btn = e.target.closest(".btn-add-research");
+          if (btn) this.openAddStockModal(btn.dataset.ticker);
+        });
 
         this.addTickerForm.addEventListener("submit", (e) => {
           e.preventDefault();
@@ -1924,6 +2316,111 @@
         this.btnExportJournal.addEventListener("click", () => this.exportMarkdown());
       }
 
+      openAuthModal(view = "signin") {
+        if (!this.requireAccounts()) return;
+        this.authModal.classList.add("active");
+        this.setAuthView(view);
+      }
+
+      closeAuthModal() {
+        this.authModal.classList.remove("active");
+      }
+
+      setAuthView(view) {
+        const copy = {
+          signin: ["Sign in to StockWatcher", "Your watchlist and research sync across every device."],
+          register: ["Create your StockWatcher account", "Free. Save your watchlist, theses, and research levels."],
+          reset: ["Reset your password", "We'll email you a secure link to choose a new one."]
+        };
+        this.authModal.dataset.view = view;
+        [this.authTitle.textContent, this.authSubtitle.textContent] = copy[view];
+        this.authModal.querySelectorAll("[data-auth-error]").forEach(el => { el.hidden = true; el.textContent = ""; });
+        this.authModal.querySelectorAll("[aria-invalid]").forEach(el => el.removeAttribute("aria-invalid"));
+
+        if (view === "reset") {
+          const resetEmail = document.getElementById("resetEmail");
+          resetEmail.value ||= document.getElementById("loginEmail").value;
+          this.resetForm.querySelectorAll("[data-reset-request]").forEach(el => { el.hidden = false; });
+          this.resetForm.querySelector("[data-reset-sent]").hidden = true;
+        }
+        this.authModal.querySelector(`[data-panel="${view}"] input`)?.focus();
+      }
+
+      showAuthError(form, message, input = null) {
+        const errorEl = form.querySelector("[data-auth-error]");
+        errorEl.textContent = message;
+        errorEl.hidden = false;
+        if (input) {
+          input.setAttribute("aria-invalid", "true");
+          input.focus();
+        }
+      }
+
+      /** Runs an auth call with the dialog's buttons disabled; shows a friendly error in `form` on failure. */
+      async runAuthAction(form, action) {
+        const buttons = this.authModal.querySelectorAll(".auth-submit, [data-google-signin]");
+        form.querySelector("[data-auth-error]").hidden = true;
+        buttons.forEach(b => { b.disabled = true; });
+        try {
+          await action();
+          return true;
+        } catch (err) {
+          if (!SILENT_AUTH_ERRORS.has(err.code)) {
+            if (!(err.code in AUTH_ERROR_MESSAGES)) console.error(err);
+            this.showAuthError(form, describeError(err));
+          }
+          return false;
+        } finally {
+          buttons.forEach(b => { b.disabled = false; });
+        }
+      }
+
+      async handleGoogleSignIn() {
+        const form = this.authModal.querySelector(`[data-panel="${this.authModal.dataset.view}"]`);
+        if (await this.runAuthAction(form, () => this.accountManager.loginWithGoogle())) {
+          this.showToast("Signed in with Google.");
+        }
+      }
+
+      async handleLoginSubmit() {
+        const email = document.getElementById("loginEmail");
+        const password = document.getElementById("loginPassword");
+        if (!email.value.trim() || !email.checkValidity()) return this.showAuthError(this.loginForm, "Enter a valid email address.", email);
+        if (!password.value) return this.showAuthError(this.loginForm, "Enter your password.", password);
+
+        if (await this.runAuthAction(this.loginForm, () => this.accountManager.login(email.value, password.value))) {
+          this.loginForm.reset();
+          this.showToast("Welcome back!");
+        }
+      }
+
+      async handleRegisterSubmit() {
+        const name = document.getElementById("regName");
+        const email = document.getElementById("regEmail");
+        const password = document.getElementById("regPassword");
+        const confirm = document.getElementById("regPasswordConfirm");
+        if (!name.value.trim()) return this.showAuthError(this.registerForm, "Enter your name.", name);
+        if (!email.value.trim() || !email.checkValidity()) return this.showAuthError(this.registerForm, "Enter a valid email address.", email);
+        if (password.value.length < 6) return this.showAuthError(this.registerForm, "Password must be at least 6 characters.", password);
+        if (password.value !== confirm.value) return this.showAuthError(this.registerForm, "Passwords don't match.", confirm);
+
+        if (await this.runAuthAction(this.registerForm, () => this.accountManager.register(name.value, email.value, password.value))) {
+          this.registerForm.reset();
+          this.showToast("Account created! Your watchlist now saves automatically.");
+        }
+      }
+
+      async handleResetSubmit() {
+        const email = document.getElementById("resetEmail");
+        if (!email.value.trim() || !email.checkValidity()) return this.showAuthError(this.resetForm, "Enter a valid email address.", email);
+
+        if (await this.runAuthAction(this.resetForm, () => this.accountManager.sendPasswordReset(email.value))) {
+          this.resetForm.querySelectorAll("[data-reset-request]").forEach(el => { el.hidden = true; });
+          this.resetForm.querySelector("[data-reset-email]").textContent = email.value.trim();
+          this.resetForm.querySelector("[data-reset-sent]").hidden = false;
+        }
+      }
+
       showToast(msg) {
         this.toastMessage.textContent = msg;
         this.toastNotification.classList.add("show");
@@ -1931,17 +2428,24 @@
       }
 
       renderAuthUI() {
+        if (!this.authResolved) {
+          this.heroAccountName.textContent = "Loading…";
+          this.authPillContainer.innerHTML = `<span style="font-size:12px; color:var(--text-muted); font-family:var(--font-mono);">Checking session…</span>`;
+          return;
+        }
+
         if (this.currentUser) {
           this.heroAccountName.textContent = this.currentUser.name;
-          const count = (this.currentUser.watchlist || []).length;
+          const count = this.currentUser.watchlist.length;
           this.headerWlCountText.textContent = `My Watchlist (${count})`;
           this.heroWlStats.innerHTML = `Monitoring <strong>${count}</strong> stocks in your account`;
 
           this.authPillContainer.innerHTML = `
             <div class="user-pill" id="userAccountPill">
-              <div class="user-avatar">${this.currentUser.name.charAt(0)}</div>
-              <span class="user-name">${this.currentUser.name}</span>
+              <div class="user-avatar">${escapeHtml(this.currentUser.name.charAt(0))}</div>
+              <span class="user-name">${escapeHtml(this.currentUser.name)}</span>
               <div class="user-menu-dropdown" id="userMenuDropdown">
+                <div class="dropdown-item" style="cursor:default; font-size:11px; color:var(--text-muted);">${escapeHtml(this.currentUser.email)}</div>
                 <div class="dropdown-item" id="btnMenuEditWl">Edit My Watchlist (${count})</div>
                 <div class="dropdown-item" id="btnMenuSwitchUser">Switch Account</div>
                 <div class="dropdown-item" id="btnMenuLogout" style="color:#f87171;">Sign Out</div>
@@ -1949,27 +2453,23 @@
             </div>
           `;
 
-          const pill = document.getElementById("userAccountPill");
           const menu = document.getElementById("userMenuDropdown");
-          pill.addEventListener("click", (e) => {
+          document.getElementById("userAccountPill").addEventListener("click", (e) => {
             e.stopPropagation();
             menu.classList.toggle("show");
           });
-          document.addEventListener("click", () => menu.classList.remove("show"));
 
           document.getElementById("btnMenuEditWl").addEventListener("click", () => {
             this.renderWatchlistModalGrid();
             this.watchlistModal.classList.add("active");
           });
-          document.getElementById("btnMenuSwitchUser").addEventListener("click", () => {
-            this.loginModal.classList.add("active");
+          document.getElementById("btnMenuSwitchUser").addEventListener("click", async () => {
+            await this.accountManager.logout();
+            this.openAuthModal("signin");
           });
-          document.getElementById("btnMenuLogout").addEventListener("click", () => {
-            this.accountManager.logout();
-            this.currentUser = null;
-            this.renderAuthUI();
+          document.getElementById("btnMenuLogout").addEventListener("click", async () => {
+            await this.accountManager.logout();
             this.showToast("Signed out.");
-            this.executeScan(false);
           });
         } else {
           this.heroAccountName.textContent = "Guest";
@@ -1982,22 +2482,39 @@
               <button class="btn-primary-blue" id="btnNavRegister">Create Account</button>
             </div>
           `;
-          document.getElementById("btnNavLogin").addEventListener("click", () => this.loginModal.classList.add("active"));
-          document.getElementById("btnNavRegister").addEventListener("click", () => this.registerModal.classList.add("active"));
+          document.getElementById("btnNavLogin").addEventListener("click", () => this.openAuthModal("signin"));
+          document.getElementById("btnNavRegister").addEventListener("click", () => this.openAuthModal("register"));
         }
       }
 
+      getWatchlistTickers() {
+        return this.currentUser ? this.currentUser.watchlist : this.dataset.map(x => x.ticker);
+      }
+
       renderWatchlistModalGrid() {
-        const watched = new Set(this.currentUser ? this.currentUser.watchlist : this.dataset.map(x => x.ticker));
-        this.wlSelectionContainer.innerHTML = this.dataset.map(item => {
-          const isWatched = watched.has(item.ticker);
+        const watched = new Set(this.getWatchlistTickers());
+        const addedStocks = this.currentUser ? this.currentUser.addedStocks : {};
+        const datasetTickers = new Set(this.dataset.map(x => x.ticker));
+        const entries = [
+          ...this.dataset.map(item => ({ ticker: item.ticker, name: item.name, isPrimary: item.isPrimary, removable: item.ticker in addedStocks })),
+          ...Object.entries(addedStocks)
+            .filter(([ticker]) => !datasetTickers.has(ticker))
+            .map(([ticker, s]) => ({ ticker, name: `${s.name} (not scored)`, isPrimary: false, removable: true }))
+        ];
+
+        this.wlSelectionContainer.innerHTML = entries.map(entry => {
+          const isWatched = watched.has(entry.ticker);
+          const ticker = escapeHtml(entry.ticker);
           return `
-            <div class="wl-stock-item ${isWatched ? 'watched' : ''}" data-ticker="${item.ticker}" data-primary="${item.isPrimary}">
-              <div>
-                <strong style="font-family:var(--font-mono); color:#fff;">${item.ticker}</strong>
-                <div style="font-size:11px; color:var(--text-muted);">${item.name}</div>
+            <div class="wl-stock-item ${isWatched ? 'watched' : ''}" data-ticker="${ticker}" data-primary="${entry.isPrimary}">
+              <div style="min-width:0;">
+                <strong style="font-family:var(--font-mono); color:#fff;">${ticker}</strong>
+                <div style="font-size:11px; color:var(--text-muted);">${escapeHtml(entry.name)}</div>
               </div>
-              <input type="checkbox" class="wl-toggle-cb" data-ticker="${item.ticker}" ${isWatched ? 'checked' : ''} style="accent-color:var(--accent-cyan); width:18px; height:18px; cursor:pointer;">
+              <div style="display:flex; align-items:center; gap:6px;">
+                ${entry.removable ? `<button type="button" class="btn-remove-stock" data-ticker="${ticker}" title="Remove from your account">&times;</button>` : ''}
+                <input type="checkbox" class="wl-toggle-cb" data-ticker="${ticker}" ${isWatched ? 'checked' : ''} style="accent-color:var(--accent-cyan); width:18px; height:18px; cursor:pointer;">
+              </div>
             </div>
           `;
         }).join("");
@@ -2019,66 +2536,178 @@
         this.wlSelectedCount.textContent = checked;
       }
 
-      saveWatchlistSelection() {
-        const selected = [];
-        document.querySelectorAll(".wl-toggle-cb:checked").forEach(cb => {
-          selected.push(cb.dataset.ticker);
-        });
+      /** Returns true when the selection was persisted to the signed-in account. */
+      async saveWatchlistSelection() {
+        const selected = [...document.querySelectorAll(".wl-toggle-cb:checked")].map(cb => cb.dataset.ticker);
+        if (!this.currentUser) return false;
 
-        if (this.currentUser) {
-          this.currentUser.watchlist = selected;
-          this.accountManager.updateUserWatchlist(this.currentUser.username, selected);
-        }
+        this.currentUser.watchlist = selected;
         this.renderAuthUI();
+        return this.persistProfile();
       }
 
-      handleAddTickerSubmit() {
-        const symbol = document.getElementById("addSymbol").value.trim().toUpperCase();
-        const name = document.getElementById("addName").value.trim();
-        const type = document.getElementById("addType").value.trim();
-        const price = parseFloat(document.getElementById("addPrice").value);
-        const high52 = parseFloat(document.getElementById("addHigh52").value);
-        const support = parseFloat(document.getElementById("addSupport").value);
-        const resistance = parseFloat(document.getElementById("addResistance").value);
-        const sma20 = parseFloat(document.getElementById("addSma20").value);
-        const sma50 = parseFloat(document.getElementById("addSma50").value);
-        const sma200 = parseFloat(document.getElementById("addSma200").value);
-        const rsi = parseFloat(document.getElementById("addRsi").value);
-        const revGrowth = parseFloat(document.getElementById("addRevGrowth").value) / 100;
-        const fwdPe = parseFloat(document.getElementById("addFwdPe").value);
-        const peg = parseFloat(document.getElementById("addPeg").value);
-        const direction = document.getElementById("addDirection").value;
-        const whyAttention = document.getElementById("addWhyAttention").value.trim();
-
-        const newStock = {
-          ticker: symbol, name: name, isPrimary: false, type: type || "Discovered Opportunity",
-          price: price, high52: high52 || price * 1.15, low52: support * 0.9,
-          sma20: sma20 || price * 0.98, sma50: sma50 || price * 0.95, sma200: sma200 || price * 0.90,
-          rsi14: rsi || 50, volume: 15000000, avgVolume20: 16000000, majorSupport: support, majorResistance: resistance || high52, secondarySupport: support * 0.92,
-          fundamentals: { revenueGrowthYoY: revGrowth || 0.15, earningsGrowthYoY: revGrowth * 1.2, freeCashFlow: 10.0, fcfTrend: "growing", operatingMargin: 0.22, netDebtToEbitda: 0.5, guidanceTrend: "positive", analystRevisions: "positive", competitivePosition: whyAttention, direction: direction },
-          valuation: { forwardPe: fwdPe || 25, historical5yPe: (fwdPe || 25) * 1.1, pegRatio: peg || 1.2, priceToFcf: (fwdPe || 25) * 1.05, evToEbitda: (fwdPe || 25) * 0.65, fcfYield: 0.035, valuationStatus: peg <= 1.2 ? "attractive" : "fair" },
-          catalysts: { daysToEarnings: 45, nextEarningsDate: "Quarterly Schedule", recentEarningsOutcome: "beat", keyCatalysts: [whyAttention], majorRisks: ["Multiple compression"], specificFactor: whyAttention },
-          options: { impliedVolatility: 0.35, ivRank: 32, daysToExpiration: 52, atmCallStrike: Math.round(price), atmCallBid: Math.round(price * 0.05 * 100) / 100, atmCallAsk: Math.round(price * 0.054 * 100) / 100, atmCallVolume: 8500, atmCallOpenInterest: 22000, atmCallDelta: 0.50, atmCallTheta: -0.08, expectedMovePct: 0.075 },
-          historicalSeries: [price * 0.94, price * 0.96, price * 0.98, price]
-        };
-
-        this.dataset = this.dataset.filter(x => x.ticker !== symbol);
-        this.dataset.push(newStock);
-
-        if (this.currentUser && !this.currentUser.watchlist.includes(symbol)) {
-          this.currentUser.watchlist.push(symbol);
-          this.accountManager.updateUserWatchlist(this.currentUser.username, this.currentUser.watchlist);
-        }
-
-        this.addTickerForm.reset();
-        this.addTickerModal.classList.remove("active");
-        this.showToast(`Added ${symbol} to library and active watchlist!`);
+      async removeAddedStock(ticker) {
+        if (!this.currentUser) return;
+        delete this.currentUser.addedStocks[ticker];
+        this.currentUser.watchlist = this.currentUser.watchlist.filter(t => t !== ticker);
+        this.dataset = this.buildDataset();
+        this.renderWatchlistModalGrid();
         this.renderAuthUI();
+        if (await this.persistProfile()) this.showToast(`Removed ${ticker} from your account.`);
         this.executeScan(false);
       }
 
+      async openAddStockModal(ticker = null) {
+        if (!this.currentUser) {
+          this.showToast("Sign in to add stocks to your account.");
+          if (this.accountManager) {
+            this.watchlistModal.classList.remove("active");
+            this.openAuthModal("signin");
+          }
+          return;
+        }
+
+        this.watchlistModal.classList.remove("active");
+        this.addTickerForm.reset();
+        this.addErrorMsg.hidden = true;
+        this.clearSelectedStock();
+        this.addTickerModal.classList.add("active");
+
+        const existing = ticker ? this.currentUser.addedStocks[ticker] : null;
+        if (existing) {
+          this.selectedStock = { symbol: ticker, name: existing.name, exchange: existing.exchange, etf: existing.etf };
+          this.renderSelectedStock();
+          document.getElementById("addWhyAttention").value = existing.thesis;
+          this.addResearchDetails.open = true;
+        } else {
+          this.addSearch.focus();
+        }
+
+        this.addSearchStatus.textContent = "Loading US-listed symbols…";
+        try {
+          await this.symbolDirectory.load();
+          this.addSearchStatus.textContent = `${this.symbolDirectory.symbols.length.toLocaleString()} US-listed stocks & ETFs available.`;
+          this.renderSymbolResults();
+        } catch (err) {
+          console.error(err);
+          this.addSearchStatus.textContent = "Could not load the symbol list. Refresh the page to try again.";
+        }
+      }
+
+      renderSymbolResults() {
+        const results = this.symbolDirectory.search(this.addSearch.value);
+        this.addSearchResults.hidden = results.length === 0;
+        this.addSearchResults.innerHTML = results.map(s => `
+          <button type="button" class="symbol-result" data-symbol="${escapeHtml(s.symbol)}">
+            <span class="symbol-result-ticker">${escapeHtml(s.symbol)}</span>
+            <span class="symbol-result-name">${escapeHtml(s.name)}</span>
+            <span class="symbol-result-meta">${escapeHtml(s.exchange)}${s.etf ? ' · ETF' : ''}</span>
+          </button>
+        `).join("");
+      }
+
+      selectStock(symbol) {
+        this.selectedStock = this.symbolDirectory.get(symbol);
+        this.addSearch.value = "";
+        this.addSearchResults.hidden = true;
+        this.addErrorMsg.hidden = true;
+        this.renderSelectedStock();
+        document.getElementById("addWhyAttention").focus();
+      }
+
+      renderSelectedStock() {
+        const s = this.selectedStock;
+        this.addSelectedStock.hidden = false;
+        this.addSearch.closest(".symbol-search").hidden = true;
+        const alreadyWatched = this.currentUser.watchlist.includes(s.symbol);
+        this.addSelectedStock.innerHTML = `
+          <div style="min-width:0;">
+            <strong style="font-family:var(--font-mono); font-size:16px; color:#fff;">${escapeHtml(s.symbol)}</strong>
+            <span style="font-size:11px; color:var(--text-muted); font-family:var(--font-mono); margin-left:6px;">${escapeHtml(s.exchange)}${s.etf ? ' · ETF' : ''}</span>
+            <div style="font-size:12px; color:var(--text-secondary);">${escapeHtml(s.name)}</div>
+            ${alreadyWatched ? '<div style="font-size:11px; color:var(--amber); margin-top:2px;">Already in your watchlist. Saving updates your thesis and research levels.</div>' : ''}
+          </div>
+          <button type="button" id="btnChangeSelectedStock" class="btn-secondary" style="font-size:11px; padding:4px 8px;">Change</button>
+        `;
+      }
+
+      clearSelectedStock() {
+        this.selectedStock = null;
+        this.addSelectedStock.hidden = true;
+        this.addSelectedStock.innerHTML = "";
+        this.addSearch.closest(".symbol-search").hidden = false;
+        this.addSearch.value = "";
+        this.addSearchResults.hidden = true;
+      }
+
+      async handleAddTickerSubmit() {
+        const showError = (msg) => { this.addErrorMsg.textContent = msg; this.addErrorMsg.hidden = false; };
+        if (!this.currentUser) return showError("Sign in to add stocks.");
+        if (!this.selectedStock) return showError("Search for and select a real stock first.");
+
+        const { symbol, name, exchange, etf } = this.selectedStock;
+        const num = (id) => parseFloat(document.getElementById(id).value);
+        const type = document.getElementById("addType").value.trim();
+        const price = num("addPrice");
+        const high52 = num("addHigh52");
+        const support = num("addSupport");
+        const resistance = num("addResistance");
+        const sma20 = num("addSma20");
+        const sma50 = num("addSma50");
+        const sma200 = num("addSma200");
+        const rsi = num("addRsi");
+        const revGrowth = num("addRevGrowth") / 100;
+        const fwdPe = num("addFwdPe");
+        const peg = num("addPeg");
+        const direction = document.getElementById("addDirection").value;
+        const whyAttention = document.getElementById("addWhyAttention").value.trim();
+
+        const hasPrice = price > 0;
+        const hasSupport = support > 0;
+        if (hasPrice !== hasSupport) {
+          this.addResearchDetails.open = true;
+          return showError("To enable scoring, enter both Price and Major Support (or leave both blank).");
+        }
+
+        let research = null;
+        if (hasPrice) {
+          const pe = fwdPe || 25;
+          const pegRatio = peg || 1.2;
+          const growth = Number.isFinite(revGrowth) ? revGrowth : 0.15;
+          research = {
+            ticker: symbol, name: name, isPrimary: false, type: type || (etf ? "ETF" : "Discovered Opportunity"),
+            price: price, high52: high52 || price * 1.15, low52: support * 0.9,
+            sma20: sma20 || price * 0.98, sma50: sma50 || price * 0.95, sma200: sma200 || price * 0.90,
+            rsi14: rsi || 50, volume: 15000000, avgVolume20: 16000000, majorSupport: support, majorResistance: resistance || high52 || price * 1.15, secondarySupport: support * 0.92,
+            fundamentals: { revenueGrowthYoY: growth, earningsGrowthYoY: growth * 1.2, freeCashFlow: 10.0, fcfTrend: "growing", operatingMargin: 0.22, netDebtToEbitda: 0.5, guidanceTrend: "positive", analystRevisions: "positive", competitivePosition: whyAttention, direction: direction },
+            valuation: { forwardPe: pe, historical5yPe: pe * 1.1, pegRatio: pegRatio, priceToFcf: pe * 1.05, evToEbitda: pe * 0.65, fcfYield: 0.035, valuationStatus: pegRatio <= 1.2 ? "attractive" : "fair" },
+            catalysts: { daysToEarnings: 45, nextEarningsDate: "Quarterly Schedule", recentEarningsOutcome: "beat", keyCatalysts: [whyAttention], majorRisks: ["Multiple compression"], specificFactor: whyAttention },
+            options: { impliedVolatility: 0.35, ivRank: 32, daysToExpiration: 52, atmCallStrike: Math.round(price), atmCallBid: Math.round(price * 0.05 * 100) / 100, atmCallAsk: Math.round(price * 0.054 * 100) / 100, atmCallVolume: 8500, atmCallOpenInterest: 22000, atmCallDelta: 0.50, atmCallTheta: -0.08, expectedMovePct: 0.075 },
+            historicalSeries: [price * 0.94, price * 0.96, price * 0.98, price]
+          };
+        }
+
+        const previous = this.currentUser.addedStocks[symbol];
+        this.currentUser.addedStocks[symbol] = {
+          name, exchange, etf, thesis: whyAttention,
+          addedAt: previous?.addedAt || new Date().toISOString(),
+          research: research || previous?.research || null
+        };
+        if (!this.currentUser.watchlist.includes(symbol)) {
+          this.currentUser.watchlist.push(symbol);
+        }
+
+        this.addTickerModal.classList.remove("active");
+        this.dataset = this.buildDataset();
+        this.renderAuthUI();
+        this.executeScan(false);
+        if (await this.persistProfile()) {
+          this.showToast(`Saved ${symbol} to your watchlist${research ? " with research levels" : ""}.`);
+        }
+      }
+
       applyScenario(scenario) {
-        this.dataset = JSON.parse(JSON.stringify(SEED_WATCHLIST));
+        this.dataset = this.buildDataset();
         if (scenario === "pullback") {
           this.dataset.forEach(item => {
             if (item.type.includes("Tech") || item.type.includes("Semi")) {
@@ -2190,8 +2819,8 @@
                 <div class="ticker-spotlight">
                   <div class="spotlight-symbol">${item.ticker}</div>
                   <div>
-                    <div style="font-size:15px; font-weight:700; color:#fff;">${item.name}</div>
-                    <div class="spotlight-name">${item.type} | Current Price: <strong>$${item.price.toFixed(2)}</strong></div>
+                    <div style="font-size:15px; font-weight:700; color:#fff;">${escapeHtml(item.name)}</div>
+                    <div class="spotlight-name">${escapeHtml(item.type)} | Current Price: <strong>$${item.price.toFixed(2)}</strong></div>
                   </div>
                 </div>
                 <div class="score-badge-huge">
@@ -2287,17 +2916,40 @@
           </tr>
         `).join("");
 
+        this.renderTrackedNoData();
+
         // Watch Next
         const watchNext = filtered.slice(0, 5);
         this.watchNextTableBody.innerHTML = watchNext.map(e => `
           <tr onclick="window.stockApp.showDetailModal('${e.item.ticker}')" style="cursor:pointer;">
             <td class="table-symbol">${e.item.ticker}</td>
-            <td>${e.item.catalysts.keyCatalysts[0] || 'Quarterly Financials'}</td>
+            <td>${escapeHtml(e.item.catalysts.keyCatalysts[0] || 'Quarterly Financials')}</td>
             <td>${e.item.catalysts.daysToEarnings < 900 ? e.item.catalysts.daysToEarnings + ' days' : 'Continuous'}</td>
             <td><strong style="color:var(--emerald);">$${e.item.majorSupport.toFixed(2)}</strong></td>
             <td>IV Rank: ${e.item.options.ivRank}%</td>
           </tr>
         `).join("");
+      }
+
+      renderTrackedNoData() {
+        const datasetTickers = new Set(this.dataset.map(x => x.ticker));
+        const rows = this.currentUser
+          ? this.currentUser.watchlist.filter(t => !datasetTickers.has(t) && this.currentUser.addedStocks[t])
+          : [];
+        this.trackedNoDataSection.hidden = rows.length === 0;
+        this.trackedNoDataTableBody.innerHTML = rows.map(ticker => {
+          const s = this.currentUser.addedStocks[ticker];
+          return `
+            <tr>
+              <td class="table-symbol">${escapeHtml(ticker)}</td>
+              <td>${escapeHtml(s.name)}${s.etf ? ' <span class="stat-pill">ETF</span>' : ''}</td>
+              <td style="font-family:var(--font-mono); font-size:11px;">${escapeHtml(s.exchange)}</td>
+              <td style="max-width:420px;">${escapeHtml(s.thesis)}</td>
+              <td style="font-family:var(--font-mono); font-size:11px;">${escapeHtml(new Date(s.addedAt).toLocaleDateString())}</td>
+              <td><button type="button" class="btn-manage-wl btn-add-research" data-ticker="${escapeHtml(ticker)}">Enter Levels</button></td>
+            </tr>
+          `;
+        }).join("");
       }
 
       showDetailModal(ticker) {
@@ -2338,7 +2990,7 @@
         document.getElementById("modalFundamentalDetails").innerHTML = `
           <div><strong>Rev Growth YoY:</strong> +${(item.fundamentals.revenueGrowthYoY * 100).toFixed(1)}% | <strong>Operating Margin:</strong> ${(item.fundamentals.operatingMargin * 100).toFixed(1)}%</div>
           <div><strong>Trajectory:</strong> <span style="color:var(--emerald); font-weight:700;">${e.fund.assessment}</span> | <strong>Net Debt/EBITDA:</strong> ${item.fundamentals.netDebtToEbitda}x</div>
-          <div><strong>Moat:</strong> ${item.fundamentals.competitivePosition}</div>
+          <div><strong>Moat:</strong> ${escapeHtml(item.fundamentals.competitivePosition)}</div>
         `;
 
         document.getElementById("modalValuationDetails").innerHTML = `
@@ -2348,7 +3000,7 @@
 
         document.getElementById("modalCatalystDetails").innerHTML = `
           <div><strong>Earnings Date:</strong> ${item.catalysts.nextEarningsDate} (${item.catalysts.daysToEarnings < 900 ? item.catalysts.daysToEarnings + ' days away' : 'ETF'})</div>
-          <div><strong>Factor:</strong> ${item.catalysts.specificFactor}</div>
+          <div><strong>Factor:</strong> ${escapeHtml(item.catalysts.specificFactor)}</div>
         `;
 
         document.getElementById("modalOptionsDetails").innerHTML = `
@@ -2369,7 +3021,7 @@
         `;
 
         document.getElementById("modalBearCaseDetails").innerHTML = `
-          <div><strong>Bear Case:</strong> ${e.bearCase.bearCase}</div>
+          <div><strong>Bear Case:</strong> ${escapeHtml(e.bearCase.bearCase)}</div>
           <div><strong>Invalidation Level:</strong> ${e.bearCase.invalidationLevel}</div>
         `;
 
@@ -2399,9 +3051,16 @@
       }
     }
 
-    document.addEventListener("DOMContentLoaded", () => {
-      window.stockApp = new StockWatcherApp();
-    });
+    const firebaseConfigured = !Object.values(firebaseConfig).some(v => String(v).includes("YOUR_"));
+    let accountManager = null;
+    if (firebaseConfigured) {
+      const firebaseApp = initializeApp(firebaseConfig);
+      accountManager = new AccountManager(getAuth(firebaseApp), getFirestore(firebaseApp));
+    } else {
+      console.warn("Firebase is not configured (firebase-config.js). Running in guest-only mode.");
+    }
+
+    window.stockApp = new StockWatcherApp(accountManager, new SymbolDirectory(SYMBOLS_URL));
   </script>
 </body>
 </html>

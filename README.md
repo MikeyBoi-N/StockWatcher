@@ -25,13 +25,28 @@ Once pushed, enable GitHub Pages in your repository settings:
 
 ---
 
+## 🔐 Firebase Setup (User Accounts & Saved Watchlists)
+
+Accounts use **Firebase Authentication** (Google or email/password) and each user's watchlist is stored in **Cloud Firestore**. The free Spark plan is enough. Until this is done, the site runs in guest-only mode.
+
+1. Create a project at [console.firebase.google.com](https://console.firebase.google.com/).
+2. **Authentication** → *Get started* → *Sign-in method* → enable **Email/Password** and **Google**.
+3. **Authentication** → *Settings* → *Authorized domains* → add `mikeyboi-n.github.io`.
+4. **Firestore Database** → *Create database* (production mode, any region).
+5. **Firestore Database** → *Rules* → paste the contents of [`firestore.rules`](firestore.rules) → *Publish*.
+6. **Project settings** → *General* → *Your apps* → add a **Web app**, copy its config values into [`firebase-config.js`](firebase-config.js), commit, and push.
+
+The web config values are public identifiers, not secrets; `firestore.rules` is what restricts each user to their own `users/{uid}` document.
+
+---
+
 ## ✨ Features
 
 ### 1. User Accounts & Personalized Watchlists
-- **Account Profiles:** Sign up, log in, or use the 1-click Demo Account (`demo_trader`).
+- **Account Profiles:** Continue with Google, or create an account with email and password and reset it by email (Firebase Authentication).
 - **Personalized Watchlist:** Choose exactly which stocks your account tracks from the institutional library (`SPY`, `QQQ`, `MSFT`, `NVDA`, `SPCX`, `XOM`, `SNDK`, `GOOGL`, `AMZN`, `META`, `AVGO`, `TSM`, `JPM`, `COST`, `AMD`, `AAPL`, `LLY`, `TSLA`, `PLTR`).
-- **Custom Candidate Ingestion:** Add any custom stock with full technical levels, fundamentals, and a mandatory written justification (*"Why it deserves attention"*).
-- **Persistent Sessions:** Your selected watchlist and preferences automatically save and persist across visits.
+- **Add Real Stocks:** Search ~11,800 US-listed stocks and ETFs (NASDAQ, NYSE, NYSE American, NYSE Arca, Cboe BZX, IEX) by ticker or company name, with a mandatory written justification (*"Why it deserves attention"*). Optionally enter your own technical levels and fundamentals to have the stock scored.
+- **Synced Across Devices:** Your watchlist, added stocks, and research levels are saved to your account in Cloud Firestore.
 
 ### 2. Large "RUN MARKET SCAN" Button & Diagnostic Terminal
 - A prominent, tactile **RUN MARKET SCAN** button audits your active watchlist in `< 200ms`.
@@ -77,7 +92,17 @@ To test locally without installing dependencies:
    ```bash
    git clone https://github.com/MikeyBoi-N/StockWatcher.git
    ```
-2. Double-click `index.html` to open it in any web browser!
+2. Serve the folder (opening `index.html` directly won't load modules or the symbol list):
+   ```bash
+   python -m http.server 8000
+   ```
+3. Open [http://localhost:8000](http://localhost:8000). `localhost` is an authorized Firebase domain by default.
+
+### Refreshing the symbol list
+`data/symbols.json` is generated from Nasdaq Trader's public symbol directories. The deploy workflow refreshes it on every push and weekly; to refresh it locally:
+```bash
+python scripts/fetch_symbols.py
+```
 
 ---
 
