@@ -1,8 +1,8 @@
 rules_version = '2';
 
-// Each signed-in user can only read and write their own profile document: users/{uid}
 service cloud.firestore {
   match /databases/{database}/documents {
+    // Each signed-in user can only read and write their own profile document.
     match /users/{uid} {
       allow read, delete: if request.auth != null && request.auth.uid == uid;
       allow create, update: if request.auth != null
@@ -11,6 +11,16 @@ service cloud.firestore {
         && request.resource.data.watchlist is list
         && request.resource.data.watchlist.size() <= 500
         && request.resource.data.addedStocks is map;
+    }
+
+    // Tickers users added, so the scheduled data build knows what to fetch. Public read (the build reads it
+    // with the web API key); signed-in users may only record a well-formed ticker with a server timestamp.
+    match /tickerRequests/{ticker} {
+      allow read: if true;
+      allow create, update: if request.auth != null
+        && ticker.matches('^[A-Z0-9][A-Z0-9.-]{0,9}$')
+        && request.resource.data.keys().hasOnly(['requestedAt'])
+        && request.resource.data.requestedAt == request.time;
     }
   }
 }

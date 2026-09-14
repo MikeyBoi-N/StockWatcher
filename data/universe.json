@@ -1,0 +1,4 @@
+{
+  "primary": ["SPY", "QQQ", "MSFT", "NVDA", "XOM", "SNDK", "GOOGL", "AMZN", "META", "AVGO", "TSM"],
+  "secondary": ["JPM", "COST", "AMD", "AAPL", "LLY", "TSLA", "PLTR"]
+}

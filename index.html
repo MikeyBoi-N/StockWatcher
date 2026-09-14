@@ -812,12 +812,15 @@
       padding: 10px 14px;
     }
 
-    .research-details {
-      border: 1px solid var(--border-subtle);
-      border-radius: 8px;
-      padding: 10px 14px;
+    .data-freshness {
+      margin-top: 8px;
+      font-size: 11px;
+      font-family: var(--font-mono);
+      color: var(--text-muted);
     }
-    .research-details summary { cursor: pointer; font-size: 12px; color: var(--accent-cyan); }
+    .data-freshness strong { color: var(--text-secondary); }
+    .detail-line { margin-bottom: 2px; }
+    .muted { color: var(--text-muted); }
 
     /* Auth Dialog */
     .auth-card { max-width: 420px; }
@@ -999,7 +1002,7 @@
           <h1>Deterministic Stock & Options Scanner</h1>
           <p>
             Personalized research assistant enforcing institutional skepticism. Scans your selected watchlist across 
-            <strong>Technicals</strong>, <strong>Fundamentals</strong>, <strong>Valuation Reality</strong>, <strong>Catalysts</strong>, and <strong>Options Greeks (IV Rank, Delta, Theta)</strong>.
+            <strong>Technicals</strong>, <strong>Fundamentals</strong>, <strong>Valuation Reality</strong>, <strong>Catalysts</strong>, and <strong>Options (Implied vs Realized Volatility, Delta, Theta)</strong>.
           </p>
           <div class="watchlist-status-bar">
             <span>Account: <strong id="heroAccountName" style="color:var(--accent-cyan);">Guest</strong></span>
@@ -1007,6 +1010,7 @@
             <span id="heroWlStats">Monitoring <strong>17</strong> stocks</span>
             <button class="btn-manage-wl" id="btnHeroEditWl">Change Monitored Stocks</button>
           </div>
+          <div id="dataFreshness" class="data-freshness">Loading real market data…</div>
         </div>
 
         <!-- The Large Run Button -->
@@ -1037,16 +1041,16 @@
     <section class="controls-strip">
       <div class="filter-group">
         <button class="filter-btn active" data-filter="my_watchlist">My Watchlist Only</button>
-        <button class="filter-btn" data-filter="all">Full Market Library (19+)</button>
-        <button class="filter-btn" data-filter="primary">Primary Core (12)</button>
+        <button class="filter-btn" data-filter="all" id="filterAllBtn">Full Library</button>
+        <button class="filter-btn" data-filter="primary" id="filterPrimaryBtn">Primary Core</button>
         <button class="filter-btn" data-filter="alerts">Triggered Alerts Only</button>
       </div>
       <div style="display:flex; align-items:center; gap: 8px;">
         <label style="font-size:11px; color:var(--text-muted); font-family:var(--font-mono);">Stress Test:</label>
         <select id="scenarioSelector" style="background:var(--bg-main); border:1px solid var(--border-subtle); color:#fff; font-size:11px; font-family:var(--font-mono); padding:4px 8px; border-radius:4px;">
-          <option value="baseline">Baseline Market Snapshot</option>
+          <option value="baseline">Real Market Data (No Simulation)</option>
           <option value="pullback">Simulate -8% Tech Pullback (Tests Support)</option>
-          <option value="high_iv">Simulate High IV Spike (IVP > 75%)</option>
+          <option value="high_iv">Simulate IV Spike (IV x1.6)</option>
           <option value="overbought">Simulate Extended Rally (FOMO Resistance)</option>
         </select>
       </div>
@@ -1056,16 +1060,16 @@
     <section id="marketConditionsSection" class="market-banner neutral">
       <div>
         <div class="market-status-title">Market Regime Assessment (SPY & QQQ Multi-Trend)</div>
-        <div id="marketRegimeText" class="market-status-value"><span>NEUTRAL / CAUTIOUS</span></div>
+        <div id="marketRegimeText" class="market-status-value"><span>LOADING…</span></div>
       </div>
       <div class="market-indices">
         <div class="index-stat">
           <span class="index-name">SPY (S&P 500 ETF)</span>
-          <span id="spySummary" class="index-val">$578.40 | Above 200d SMA | RSI 53</span>
+          <span id="spySummary" class="index-val">Loading…</span>
         </div>
         <div class="index-stat">
           <span class="index-name">QQQ (Nasdaq-100 ETF)</span>
-          <span id="qqqSummary" class="index-val">$494.20 | Testing 50d SMA | RSI 51</span>
+          <span id="qqqSummary" class="index-val">Loading…</span>
         </div>
       </div>
     </section>
@@ -1088,14 +1092,14 @@
       <div id="topOpportunitiesGrid" class="top-three-grid"></div>
     </section>
 
-    <!-- TRACKED STOCKS WITHOUT ANALYTICS DATA -->
-    <section id="trackedNoDataSection" hidden>
+    <!-- WATCHLIST STOCKS AWAITING THEIR FIRST DATA REFRESH -->
+    <section id="pendingSection" hidden>
       <div class="section-headline" style="color: var(--text-secondary);">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14"></path><path d="M5 12h14"></path></svg>
-        TRACKED IN YOUR WATCHLIST — AWAITING RESEARCH LEVELS (NOT SCORED)
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+        ADDED TO YOUR WATCHLIST — MARKET DATA PENDING (NOT SCORED YET)
       </div>
       <div class="table-panel">
-        <table class="data-table" id="trackedNoDataTable">
+        <table class="data-table" id="pendingTable">
           <thead>
             <tr>
               <th>Ticker</th>
@@ -1103,7 +1107,7 @@
               <th>Exchange</th>
               <th>Your Thesis</th>
               <th>Added</th>
-              <th></th>
+              <th>Status</th>
             </tr>
           </thead>
           <tbody></tbody>
@@ -1173,7 +1177,7 @@
               <th>Upcoming Milestone</th>
               <th>Days to Event</th>
               <th>Conditional Price Level</th>
-              <th>Options / IV Impact</th>
+              <th>Options: IV vs Realized Vol</th>
             </tr>
           </thead>
           <tbody></tbody>
@@ -1204,7 +1208,7 @@
           </div>
           <div style="display:flex; gap:8px;">
             <button class="btn-secondary" id="btnSelectAllWl" style="font-size:11px; padding:4px 8px;">Select All</button>
-            <button class="btn-secondary" id="btnSelectPrimaryOnly" style="font-size:11px; padding:4px 8px;">Primary (12) Only</button>
+            <button class="btn-secondary" id="btnSelectPrimaryOnly" style="font-size:11px; padding:4px 8px;">Primary Only</button>
             <button class="btn-secondary" id="btnOpenAddCustom" style="font-size:11px; padding:4px 8px; color:var(--accent-cyan);">+ Add Stock</button>
           </div>
         </div>
@@ -1339,77 +1343,6 @@
           <textarea id="addWhyAttention" required rows="2" maxlength="1000" placeholder="Explain the specific catalyst, moat, or technical development..." style="width:100%; background:var(--bg-card-alt); border:1px solid var(--border-subtle); color:#fff; padding:8px 10px; border-radius:4px; resize:vertical; font-family:var(--font-sans);"></textarea>
         </div>
 
-        <details id="addResearchDetails" class="research-details">
-          <summary>Optional: enter your own research levels to enable scoring</summary>
-          <div style="font-size:11px; color:var(--text-muted); margin:8px 0 10px;">Price and Major Support are to score this stock. Other fields fall back to conservative estimates.</div>
-
-        <div style="margin-bottom:10px;">
-          <label style="color:var(--text-muted); font-size:11px;">Sector / Asset Type</label>
-          <input type="text" id="addType" maxlength="80" placeholder="Enterprise AI & Defense" style="width:100%; background:var(--bg-card-alt); border:1px solid var(--border-subtle); color:#fff; padding:6px 10px; border-radius:4px;">
-        </div>
-
-        <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:10px;">
-          <div>
-            <label style="color:var(--text-muted); font-size:11px;">Price ($)</label>
-            <input type="number" step="0.01" id="addPrice" placeholder="36.50" style="width:100%; background:var(--bg-card-alt); border:1px solid var(--border-subtle); color:#fff; padding:6px 10px; border-radius:4px; font-family:var(--font-mono);">
-          </div>
-          <div>
-            <label style="color:var(--text-muted); font-size:11px;">52w High ($)</label>
-            <input type="number" step="0.01" id="addHigh52" placeholder="38.00" style="width:100%; background:var(--bg-card-alt); border:1px solid var(--border-subtle); color:#fff; padding:6px 10px; border-radius:4px; font-family:var(--font-mono);">
-          </div>
-          <div>
-            <label style="color:var(--text-muted); font-size:11px;">Major Support ($)</label>
-            <input type="number" step="0.01" id="addSupport" placeholder="32.00" style="width:100%; background:var(--bg-card-alt); border:1px solid var(--border-subtle); color:#fff; padding:6px 10px; border-radius:4px; font-family:var(--font-mono);">
-          </div>
-          <div>
-            <label style="color:var(--text-muted); font-size:11px;">Major Resist ($)</label>
-            <input type="number" step="0.01" id="addResistance" placeholder="38.50" style="width:100%; background:var(--bg-card-alt); border:1px solid var(--border-subtle); color:#fff; padding:6px 10px; border-radius:4px; font-family:var(--font-mono);">
-          </div>
-        </div>
-
-        <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:10px;">
-          <div>
-            <label style="color:var(--text-muted); font-size:11px;">20d SMA ($)</label>
-            <input type="number" step="0.01" id="addSma20" placeholder="34.20" style="width:100%; background:var(--bg-card-alt); border:1px solid var(--border-subtle); color:#fff; padding:6px 10px; border-radius:4px; font-family:var(--font-mono);">
-          </div>
-          <div>
-            <label style="color:var(--text-muted); font-size:11px;">50d SMA ($)</label>
-            <input type="number" step="0.01" id="addSma50" placeholder="31.50" style="width:100%; background:var(--bg-card-alt); border:1px solid var(--border-subtle); color:#fff; padding:6px 10px; border-radius:4px; font-family:var(--font-mono);">
-          </div>
-          <div>
-            <label style="color:var(--text-muted); font-size:11px;">200d SMA ($)</label>
-            <input type="number" step="0.01" id="addSma200" placeholder="26.00" style="width:100%; background:var(--bg-card-alt); border:1px solid var(--border-subtle); color:#fff; padding:6px 10px; border-radius:4px; font-family:var(--font-mono);">
-          </div>
-          <div>
-            <label style="color:var(--text-muted); font-size:11px;">14-day RSI</label>
-            <input type="number" step="0.1" id="addRsi" placeholder="54" style="width:100%; background:var(--bg-card-alt); border:1px solid var(--border-subtle); color:#fff; padding:6px 10px; border-radius:4px; font-family:var(--font-mono);">
-          </div>
-        </div>
-
-        <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:10px;">
-          <div>
-            <label style="color:var(--text-muted); font-size:11px;">Rev Growth %</label>
-            <input type="number" step="0.1" id="addRevGrowth" placeholder="27" style="width:100%; background:var(--bg-card-alt); border:1px solid var(--border-subtle); color:#fff; padding:6px 10px; border-radius:4px; font-family:var(--font-mono);">
-          </div>
-          <div>
-            <label style="color:var(--text-muted); font-size:11px;">Forward P/E</label>
-            <input type="number" step="0.1" id="addFwdPe" placeholder="75" style="width:100%; background:var(--bg-card-alt); border:1px solid var(--border-subtle); color:#fff; padding:6px 10px; border-radius:4px; font-family:var(--font-mono);">
-          </div>
-          <div>
-            <label style="color:var(--text-muted); font-size:11px;">PEG Ratio</label>
-            <input type="number" step="0.01" id="addPeg" placeholder="2.8" style="width:100%; background:var(--bg-card-alt); border:1px solid var(--border-subtle); color:#fff; padding:6px 10px; border-radius:4px; font-family:var(--font-mono);">
-          </div>
-          <div>
-            <label style="color:var(--text-muted); font-size:11px;">Trajectory</label>
-            <select id="addDirection" style="width:100%; background:var(--bg-card-alt); border:1px solid var(--border-subtle); color:#fff; padding:6px 10px; border-radius:4px;">
-              <option value="getting_stronger">Getting Stronger</option>
-              <option value="roughly_unchanged">Roughly Unchanged</option>
-              <option value="getting_weaker">Getting Weaker</option>
-            </select>
-          </div>
-        </div>
-
-        </details>
 
         <div id="addErrorMsg" style="color:var(--crimson); font-size:12px;" hidden></div>
 
@@ -1482,6 +1415,12 @@
           <div class="sub-box-title" style="color: var(--crimson);">Bear Case & Strict Invalidation Trigger (Rule 8)</div>
           <div id="modalBearCaseDetails"></div>
         </div>
+
+        <!-- Score Breakdown, Data Gaps and Sources -->
+        <div class="sub-box">
+          <div class="sub-box-title">Score Breakdown, Data Sources & Freshness</div>
+          <div id="modalSourcesDetails" style="display:flex; flex-direction:column; gap:4px;"></div>
+        </div>
       </div>
     </div>
   </div>
@@ -1502,212 +1441,29 @@
     import { getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, signOut, updateProfile, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js";
     import { getFirestore, doc, getDoc, setDoc, updateDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
     import { firebaseConfig } from "./firebase-config.js";
+    import {
+      RULES, applyScenario as simulateScenario, classifyEvaluations, determineMarketRegime, evaluateAsset
+    } from "./js/engine.js";
 
     const SYMBOLS_URL = "data/symbols.json";
+    const MARKET_URL = "data/market.json";
+    const REFRESH_NOTE = "refreshes every 4 hours on weekdays";
     const DEFAULT_WATCHLIST = ["SPY", "QQQ", "MSFT", "NVDA", "GOOGL", "AMZN", "AAPL"];
 
     const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, ch => (
       { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]
     ));
 
-    // --- SEED DATABASE OF 19 PRE-CALIBRATED ASSETS ---
-    const SEED_WATCHLIST = [
-      // PRIMARY WATCHLIST (12)
-      {
-        ticker: "SPY", name: "SPDR S&P 500 ETF Trust", isPrimary: true, type: "Broad Market ETF",
-        price: 578.40, high52: 585.10, low52: 485.20, sma20: 575.20, sma50: 564.80, sma200: 532.10,
-        rsi14: 53.4, volume: 48200000, avgVolume20: 52000000, majorSupport: 560.00, majorResistance: 585.00, secondarySupport: 540.00,
-        fundamentals: { revenueGrowthYoY: 0.052, earningsGrowthYoY: 0.098, freeCashFlow: 0, fcfTrend: "growing", operatingMargin: 0.125, netDebtToEbitda: 1.2, guidanceTrend: "reaffirmed", analystRevisions: "neutral", competitivePosition: "Broad market proxy", direction: "roughly_unchanged" },
-        valuation: { forwardPe: 22.4, historical5yPe: 19.8, pegRatio: 2.28, priceToFcf: 24.5, evToEbitda: 15.2, fcfYield: 0.041, valuationStatus: "moderately_stretched" },
-        catalysts: { daysToEarnings: 999, nextEarningsDate: "N/A", recentEarningsOutcome: "N/A", keyCatalysts: ["FOMC rate trajectory", "Corporate margin resilience"], majorRisks: ["Geopolitical escalation", "Bond yield spike"], specificFactor: "Broad index barometer. 68% of S&P members trade above 50d SMA." },
-        options: { impliedVolatility: 0.138, ivRank: 22, daysToExpiration: 45, atmCallStrike: 580, atmCallBid: 9.80, atmCallAsk: 10.05, atmCallVolume: 24500, atmCallOpenInterest: 68200, atmCallDelta: 0.52, atmCallTheta: -0.11, expectedMovePct: 0.038 },
-        historicalSeries: [562, 564, 567, 570, 568, 571, 574, 575, 572, 576, 577, 575, 577, 579, 576, 578.4]
-      },
-      {
-        ticker: "QQQ", name: "Invesco QQQ Trust (Nasdaq-100)", isPrimary: true, type: "Tech Index ETF",
-        price: 494.20, high52: 503.50, low52: 400.10, sma20: 492.10, sma50: 483.50, sma200: 452.80,
-        rsi14: 51.2, volume: 38500000, avgVolume20: 41000000, majorSupport: 475.00, majorResistance: 503.50, secondarySupport: 460.00,
-        fundamentals: { revenueGrowthYoY: 0.115, earningsGrowthYoY: 0.174, freeCashFlow: 0, fcfTrend: "growing", operatingMargin: 0.245, netDebtToEbitda: 0.8, guidanceTrend: "positive", analystRevisions: "positive", competitivePosition: "Top-tier tech monopoly cohort", direction: "getting_stronger" },
-        valuation: { forwardPe: 26.8, historical5yPe: 25.1, pegRatio: 1.54, priceToFcf: 28.2, evToEbitda: 18.4, fcfYield: 0.035, valuationStatus: "fair" },
-        catalysts: { daysToEarnings: 999, nextEarningsDate: "N/A", recentEarningsOutcome: "N/A", keyCatalysts: ["Hyperscaler AI capex deployment", "Semiconductor trade regulations"], majorRisks: ["Extreme concentration in top 7 names"], specificFactor: "Nasdaq-100 tech leadership testing 50d SMA support." },
-        options: { impliedVolatility: 0.182, ivRank: 31, daysToExpiration: 45, atmCallStrike: 495, atmCallBid: 12.10, atmCallAsk: 12.40, atmCallVolume: 31200, atmCallOpenInterest: 79500, atmCallDelta: 0.51, atmCallTheta: -0.15, expectedMovePct: 0.048 },
-        historicalSeries: [480, 483, 488, 491, 489, 492, 495, 496, 491, 494, 495, 492, 495, 497, 492, 494.2]
-      },
-      {
-        ticker: "MSFT", name: "Microsoft Corporation", isPrimary: true, type: "MegaCap Tech / SaaS",
-        price: 432.50, high52: 468.35, low52: 366.50, sma20: 428.10, sma50: 431.20, sma200: 419.40,
-        rsi14: 48.6, volume: 18200000, avgVolume20: 21500000, majorSupport: 415.00, majorResistance: 455.00, secondarySupport: 400.00,
-        fundamentals: { revenueGrowthYoY: 0.152, earningsGrowthYoY: 0.185, freeCashFlow: 74.1, fcfTrend: "growing", operatingMargin: 0.446, netDebtToEbitda: 0.25, guidanceTrend: "reaffirmed", analystRevisions: "positive", competitivePosition: "Enterprise cloud & OpenAI partner moat", direction: "getting_stronger" },
-        valuation: { forwardPe: 31.2, historical5yPe: 32.8, pegRatio: 1.68, priceToFcf: 35.1, evToEbitda: 21.8, fcfYield: 0.028, valuationStatus: "fair" },
-        catalysts: { daysToEarnings: 38, nextEarningsDate: "Late October", recentEarningsOutcome: "beat", keyCatalysts: ["Azure AI revenue run rate passing $15B", "M365 Copilot enterprise monetization"], majorRisks: ["Heavy AI capex ($19B/qtr) depressing short-term FCF"], specificFactor: "Cloud & enterprise anchor. Fortress balance sheet." },
-        options: { impliedVolatility: 0.215, ivRank: 26, daysToExpiration: 52, atmCallStrike: 435, atmCallBid: 14.80, atmCallAsk: 15.15, atmCallVolume: 12400, atmCallOpenInterest: 28400, atmCallDelta: 0.50, atmCallTheta: -0.16, expectedMovePct: 0.054 },
-        historicalSeries: [442, 439, 435, 430, 428, 431, 435, 432, 428, 430, 434, 435, 436, 431, 433, 432.5]
-      },
-      {
-        ticker: "NVDA", name: "Nvidia Corporation", isPrimary: true, type: "Semiconductors / AI",
-        price: 122.80, high52: 140.76, low52: 39.23, sma20: 118.40, sma50: 119.20, sma200: 92.60,
-        rsi14: 54.1, volume: 68400000, avgVolume20: 84000000, majorSupport: 104.00, majorResistance: 132.00, secondarySupport: 94.00,
-        fundamentals: { revenueGrowthYoY: 1.22, earningsGrowthYoY: 1.52, freeCashFlow: 49.8, fcfTrend: "growing", operatingMargin: 0.621, netDebtToEbitda: -0.4, guidanceTrend: "raised", analystRevisions: "positive", competitivePosition: "Dominant AI accelerator computing moat (CUDA)", direction: "getting_stronger" },
-        valuation: { forwardPe: 34.6, historical5yPe: 46.2, pegRatio: 0.88, priceToFcf: 38.2, evToEbitda: 28.4, fcfYield: 0.026, valuationStatus: "attractive" },
-        catalysts: { daysToEarnings: 68, nextEarningsDate: "Late November", recentEarningsOutcome: "beat_and_raised", keyCatalysts: ["Blackwell volume ramp in Q4", "Hyperscaler capex above $200B"], majorRisks: ["TSMC CoWoS packaging bottlenecks", "Export curbs"], specificFactor: "Incredible growth rate keeps PEG at 0.88 despite high dollar valuation." },
-        options: { impliedVolatility: 0.442, ivRank: 38, daysToExpiration: 52, atmCallStrike: 125, atmCallBid: 7.95, atmCallAsk: 8.15, atmCallVolume: 89000, atmCallOpenInterest: 215000, atmCallDelta: 0.51, atmCallTheta: -0.11, expectedMovePct: 0.098 },
-        historicalSeries: [128, 122, 114, 105, 107, 112, 118, 116, 119, 121, 117, 120, 124, 120, 121, 122.8]
-      },
-      {
-        ticker: "SPCX", name: "SpaceX Tracking Proxy (SPCX)", isPrimary: true, type: "Aerospace & Satellite",
-        price: 27.80, high52: 34.50, low52: 18.20, sma20: 28.40, sma50: 29.10, sma200: 25.60,
-        rsi14: 42.1, volume: 3400000, avgVolume20: 4100000, majorSupport: 25.00, majorResistance: 32.00, secondarySupport: 22.00,
-        fundamentals: { revenueGrowthYoY: 0.48, earningsGrowthYoY: 0.85, freeCashFlow: 3.2, fcfTrend: "growing", operatingMargin: 0.22, netDebtToEbitda: 1.8, guidanceTrend: "raised", analystRevisions: "positive", competitivePosition: "Global orbital launch monopoly & Starlink network", direction: "getting_stronger" },
-        valuation: { forwardPe: 42.0, historical5yPe: 55.0, pegRatio: 1.15, priceToFcf: 31.0, evToEbitda: 22.5, fcfYield: 0.032, valuationStatus: "attractive" },
-        catalysts: { daysToEarnings: 45, nextEarningsDate: "Q3 Update", recentEarningsOutcome: "beat", keyCatalysts: ["Starlink 4.2M active subscribers", "Starship orbital flight test milestones"], majorRisks: ["FAA licensing delays"], specificFactor: "140+ launches/year. Commercial Starlink generating cash flow." },
-        options: { impliedVolatility: 0.52, ivRank: 34, daysToExpiration: 48, atmCallStrike: 28, atmCallBid: 2.10, atmCallAsk: 2.30, atmCallVolume: 5800, atmCallOpenInterest: 14200, atmCallDelta: 0.53, atmCallTheta: -0.04, expectedMovePct: 0.125 },
-        historicalSeries: [32, 31, 29.5, 29, 30.1, 29, 28.5, 28.7, 28.1, 27.6, 28.0, 28.2, 27.5, 27.6, 27.8]
-      },
-      {
-        ticker: "XOM", name: "Exxon Mobil Corporation", isPrimary: true, type: "Integrated Energy",
-        price: 114.60, high52: 126.34, low52: 95.77, sma20: 115.80, sma50: 116.90, sma200: 112.40,
-        rsi14: 46.2, volume: 14200000, avgVolume20: 16800000, majorSupport: 111.00, majorResistance: 122.00, secondarySupport: 106.00,
-        fundamentals: { revenueGrowthYoY: -0.045, earningsGrowthYoY: -0.112, freeCashFlow: 36.2, fcfTrend: "stable", operatingMargin: 0.158, netDebtToEbitda: 0.45, guidanceTrend: "reaffirmed", analystRevisions: "neutral", competitivePosition: "Low-cost Guyana and Permian upstream", direction: "roughly_unchanged" },
-        valuation: { forwardPe: 13.2, historical5yPe: 12.8, pegRatio: 2.10, priceToFcf: 12.8, evToEbitda: 6.8, fcfYield: 0.078, valuationStatus: "fair" },
-        catalysts: { daysToEarnings: 42, nextEarningsDate: "Late October", recentEarningsOutcome: "in_line", keyCatalysts: ["Guyana breakeven $35/bbl", "Pioneer integration synergies"], majorRisks: ["Crude oil dropping below $68/bbl"], specificFactor: "High 7.8% FCF yield cushions dividend and buybacks." },
-        options: { impliedVolatility: 0.195, ivRank: 21, daysToExpiration: 52, atmCallStrike: 115, atmCallBid: 3.45, atmCallAsk: 3.65, atmCallVolume: 8400, atmCallOpenInterest: 29500, atmCallDelta: 0.49, atmCallTheta: -0.045, expectedMovePct: 0.046 },
-        historicalSeries: [118, 119, 116, 114.2, 115.1, 116.8, 114.8, 114.0, 114.2, 114.8, 113.9, 114.6]
-      },
-      {
-        ticker: "SNDK", name: "SanDisk (WDC Flash Memory Proxy)", isPrimary: true, type: "Flash Memory / Storage",
-        price: 66.40, high52: 81.55, low52: 41.20, sma20: 67.20, sma50: 68.80, sma200: 63.50,
-        rsi14: 43.8, volume: 6800000, avgVolume20: 7900000, majorSupport: 62.50, majorResistance: 76.00, secondarySupport: 56.00,
-        fundamentals: { revenueGrowthYoY: 0.41, earningsGrowthYoY: 1.80, freeCashFlow: 1.15, fcfTrend: "growing", operatingMargin: 0.185, netDebtToEbitda: 2.1, guidanceTrend: "raised", analystRevisions: "positive", competitivePosition: "Enterprise SSD & NAND flash pure-play spin-off", direction: "getting_stronger" },
-        valuation: { forwardPe: 10.8, historical5yPe: 16.5, pegRatio: 0.62, priceToFcf: 14.5, evToEbitda: 7.2, fcfYield: 0.069, valuationStatus: "attractive" },
-        catalysts: { daysToEarnings: 40, nextEarningsDate: "Late October", recentEarningsOutcome: "beat_and_raised", keyCatalysts: ["Flash separation pure-play spin-off", "Enterprise 60TB SSD AI storage"], majorRisks: ["Memory cyclical downturn oversupply"], specificFactor: "Cyclical memory turning from trough to peak. PEG 0.62." },
-        options: { impliedVolatility: 0.465, ivRank: 32, daysToExpiration: 52, atmCallStrike: 67.5, atmCallBid: 4.60, atmCallAsk: 4.85, atmCallVolume: 6100, atmCallOpenInterest: 19800, atmCallDelta: 0.48, atmCallTheta: -0.065, expectedMovePct: 0.105 },
-        historicalSeries: [74, 71.5, 68.2, 65.8, 68.0, 67.5, 67.9, 65.9, 67.2, 66.1, 66.8, 66.4]
-      },
-      {
-        ticker: "GOOGL", name: "Alphabet Inc. (Google)", isPrimary: true, type: "MegaCap Tech / Search",
-        price: 156.80, high52: 191.75, low52: 129.40, sma20: 158.20, sma50: 164.50, sma200: 158.90,
-        rsi14: 39.5, volume: 24500000, avgVolume20: 28000000, majorSupport: 152.00, majorResistance: 172.00, secondarySupport: 144.00,
-        fundamentals: { revenueGrowthYoY: 0.138, earningsGrowthYoY: 0.285, freeCashFlow: 60.8, fcfTrend: "growing", operatingMargin: 0.324, netDebtToEbitda: -0.65, guidanceTrend: "reaffirmed", analystRevisions: "positive", competitivePosition: "Global Search monopoly & Google Cloud margin expansion", direction: "getting_stronger" },
-        valuation: { forwardPe: 19.8, historical5yPe: 24.2, pegRatio: 1.12, priceToFcf: 21.4, evToEbitda: 13.8, fcfYield: 0.047, valuationStatus: "attractive" },
-        catalysts: { daysToEarnings: 37, nextEarningsDate: "Late October", recentEarningsOutcome: "beat", keyCatalysts: ["Gemini 1.5 enterprise adoption", "Cloud operating margin >11%", "$70B buybacks"], majorRisks: ["DOJ antitrust remedies trial"], specificFactor: "Trading at historical discount to P/E due to DOJ fear; core growth accelerating." },
-        options: { impliedVolatility: 0.265, ivRank: 34, daysToExpiration: 52, atmCallStrike: 157.5, atmCallBid: 6.25, atmCallAsk: 6.45, atmCallVolume: 22000, atmCallOpenInterest: 54000, atmCallDelta: 0.50, atmCallTheta: -0.075, expectedMovePct: 0.062 },
-        historicalSeries: [172, 165, 160, 155.5, 159, 156, 159.2, 155.8, 158.0, 156.2, 157.0, 156.8]
-      },
-      {
-        ticker: "AMZN", name: "Amazon.com, Inc.", isPrimary: true, type: "E-Commerce & AWS",
-        price: 184.20, high52: 201.20, low52: 118.35, sma20: 179.50, sma50: 181.20, sma200: 171.80,
-        rsi14: 53.8, volume: 32000000, avgVolume20: 39000000, majorSupport: 174.00, majorResistance: 195.00, secondarySupport: 165.00,
-        fundamentals: { revenueGrowthYoY: 0.112, earningsGrowthYoY: 0.95, freeCashFlow: 52.8, fcfTrend: "growing", operatingMargin: 0.098, netDebtToEbitda: 0.38, guidanceTrend: "reaffirmed", analystRevisions: "neutral", competitivePosition: "AWS compute infrastructure and retail fulfillment moat", direction: "getting_stronger" },
-        valuation: { forwardPe: 33.2, historical5yPe: 48.0, pegRatio: 1.28, priceToFcf: 36.5, evToEbitda: 14.8, fcfYield: 0.027, valuationStatus: "fair" },
-        catalysts: { daysToEarnings: 44, nextEarningsDate: "Late October", recentEarningsOutcome: "beat", keyCatalysts: ["AWS revenue re-acceleration toward 19%", "Cost-to-serve regional logistics cuts"], majorRisks: ["Consumer discretionary trade-down"], specificFactor: "Operating income inflection across North American retail." },
-        options: { impliedVolatility: 0.285, ivRank: 28, daysToExpiration: 52, atmCallStrike: 185, atmCallBid: 8.20, atmCallAsk: 8.45, atmCallVolume: 28000, atmCallOpenInterest: 62000, atmCallDelta: 0.50, atmCallTheta: -0.10, expectedMovePct: 0.068 },
-        historicalSeries: [178, 172, 177, 180, 179, 183, 182, 184, 181, 185, 182, 184.2]
-      },
-      {
-        ticker: "META", name: "Meta Platforms, Inc.", isPrimary: true, type: "Digital Ads & AI",
-        price: 524.50, high52: 544.23, low52: 279.40, sma20: 512.40, sma50: 498.20, sma200: 452.10,
-        rsi14: 62.1, volume: 9800000, avgVolume20: 12400000, majorSupport: 480.00, majorResistance: 544.00, secondarySupport: 440.00,
-        fundamentals: { revenueGrowthYoY: 0.221, earningsGrowthYoY: 0.732, freeCashFlow: 49.2, fcfTrend: "growing", operatingMargin: 0.381, netDebtToEbitda: -0.5, guidanceTrend: "raised", analystRevisions: "positive", competitivePosition: "3.27B daily active users across Instagram/FB/WhatsApp", direction: "getting_stronger" },
-        valuation: { forwardPe: 23.8, historical5yPe: 23.5, pegRatio: 1.18, priceToFcf: 26.5, evToEbitda: 14.1, fcfYield: 0.038, valuationStatus: "fair" },
-        catalysts: { daysToEarnings: 44, nextEarningsDate: "Late October", recentEarningsOutcome: "beat_and_raised", keyCatalysts: ["Llama 3.2 open model adoption", "Advantage+ AI ad ROI gains"], majorRisks: ["Reality Labs annual operating loss of -$16B"], specificFactor: "Outstanding monetization, but technically near all-time peak." },
-        options: { impliedVolatility: 0.295, ivRank: 32, daysToExpiration: 52, atmCallStrike: 525, atmCallBid: 24.80, atmCallAsk: 25.40, atmCallVolume: 14500, atmCallOpenInterest: 38200, atmCallDelta: 0.50, atmCallTheta: -0.28, expectedMovePct: 0.072 },
-        historicalSeries: [488, 495, 505, 508, 510, 520, 518, 522, 519, 526, 520, 524.5]
-      },
-      {
-        ticker: "AVGO", name: "Broadcom Inc.", isPrimary: true, type: "AI Networking & Custom Silicon",
-        price: 168.40, high52: 185.16, low52: 79.50, sma20: 156.80, sma50: 158.40, sma200: 136.20,
-        rsi14: 58.4, volume: 18500000, avgVolume20: 24000000, majorSupport: 148.00, majorResistance: 178.00, secondarySupport: 135.00,
-        fundamentals: { revenueGrowthYoY: 0.47, earningsGrowthYoY: 0.32, freeCashFlow: 19.5, fcfTrend: "growing", operatingMargin: 0.585, netDebtToEbitda: 2.4, guidanceTrend: "raised", analystRevisions: "positive", competitivePosition: "Tomahawk Ethernet switches & Google/Meta custom ASICs", direction: "getting_stronger" },
-        valuation: { forwardPe: 27.5, historical5yPe: 21.0, pegRatio: 1.48, priceToFcf: 34.0, evToEbitda: 22.0, fcfYield: 0.029, valuationStatus: "fair" },
-        catalysts: { daysToEarnings: 82, nextEarningsDate: "Early December", recentEarningsOutcome: "beat_and_raised", keyCatalysts: ["VMware subscription transition", "Custom AI accelerator revenue >$12B"], majorRisks: ["Elevated debt load post-VMware ($71B)"], specificFactor: "Essential cluster networking. High post-split liquidity." },
-        options: { impliedVolatility: 0.412, ivRank: 36, daysToExpiration: 52, atmCallStrike: 170, atmCallBid: 10.10, atmCallAsk: 10.45, atmCallVolume: 22400, atmCallOpenInterest: 51000, atmCallDelta: 0.48, atmCallTheta: -0.12, expectedMovePct: 0.092 },
-        historicalSeries: [152, 145, 153, 151, 158, 163, 164, 166, 163, 167, 166, 168.4]
-      },
-      {
-        ticker: "TSM", name: "Taiwan Semiconductor (TSMC)", isPrimary: true, type: "Semiconductor Foundry",
-        price: 171.20, high52: 193.47, low52: 84.50, sma20: 167.50, sma50: 168.20, sma200: 141.60,
-        rsi14: 52.8, volume: 11200000, avgVolume20: 14500000, majorSupport: 158.00, majorResistance: 185.00, secondarySupport: 142.00,
-        fundamentals: { revenueGrowthYoY: 0.328, earningsGrowthYoY: 0.362, freeCashFlow: 28.5, fcfTrend: "growing", operatingMargin: 0.425, netDebtToEbitda: -0.3, guidanceTrend: "raised", analystRevisions: "positive", competitivePosition: "Global monopoly producing >90% of sub-5nm advanced chips", direction: "getting_stronger" },
-        valuation: { forwardPe: 22.1, historical5yPe: 21.8, pegRatio: 1.05, priceToFcf: 28.1, evToEbitda: 12.4, fcfYield: 0.036, valuationStatus: "attractive" },
-        catalysts: { daysToEarnings: 31, nextEarningsDate: "Mid October", recentEarningsOutcome: "beat_and_raised", keyCatalysts: ["CoWoS capacity doubling", "3nm fully booked by Apple, Nvidia, AMD"], majorRisks: ["Geopolitical Taiwan Strait tensions"], specificFactor: "Foundational hardware tollbooth of AI. Gross margins above 53%." },
-        options: { impliedVolatility: 0.335, ivRank: 29, daysToExpiration: 52, atmCallStrike: 172.5, atmCallBid: 8.80, atmCallAsk: 9.10, atmCallVolume: 12800, atmCallOpenInterest: 34100, atmCallDelta: 0.49, atmCallTheta: -0.10, expectedMovePct: 0.076 },
-        historicalSeries: [168, 160, 165, 167, 171, 166, 172, 168, 171, 173, 170, 171.2]
-      },
-
-      // SECONDARY WATCHLIST (5)
-      {
-        ticker: "JPM", name: "JPMorgan Chase & Co.", isPrimary: false, type: "Banking / Financials",
-        price: 212.50, high52: 225.48, low52: 140.25, sma20: 214.20, sma50: 212.80, sma200: 194.50,
-        rsi14: 49.5, volume: 7800000, avgVolume20: 9200000, majorSupport: 204.00, majorResistance: 225.00, secondarySupport: 195.00,
-        fundamentals: { revenueGrowthYoY: 0.082, earningsGrowthYoY: 0.125, freeCashFlow: 38.0, fcfTrend: "stable", operatingMargin: 0.365, netDebtToEbitda: 0.0, guidanceTrend: "reaffirmed", analystRevisions: "neutral", competitivePosition: "Premier global bank with fortress deposit franchise", direction: "roughly_unchanged" },
-        valuation: { forwardPe: 12.4, historical5yPe: 11.2, pegRatio: 1.82, priceToFcf: 14.2, evToEbitda: 9.8, fcfYield: 0.068, valuationStatus: "fair" },
-        catalysts: { daysToEarnings: 27, nextEarningsDate: "October 11", recentEarningsOutcome: "beat", keyCatalysts: ["Investment banking M&A fees recovery", "NII guidance $91B"], majorRisks: ["Net interest margin compression as Fed cuts rates"], specificFactor: "Best of breed bank. Shareholder total yield ~5.2%." },
-        options: { impliedVolatility: 0.205, ivRank: 25, daysToExpiration: 52, atmCallStrike: 215, atmCallBid: 6.20, atmCallAsk: 6.45, atmCallVolume: 6400, atmCallOpenInterest: 21200, atmCallDelta: 0.47, atmCallTheta: -0.065, expectedMovePct: 0.048 },
-        historicalSeries: [218, 215, 214, 218, 211, 215, 210, 214, 211.5, 212.5]
-      },
-      {
-        ticker: "COST", name: "Costco Wholesale Corp", isPrimary: false, type: "Retail / Staples",
-        price: 888.50, high52: 923.83, low52: 546.00, sma20: 882.10, sma50: 864.50, sma200: 778.20,
-        rsi14: 58.2, volume: 1800000, avgVolume20: 2100000, majorSupport: 840.00, majorResistance: 924.00, secondarySupport: 800.00,
-        fundamentals: { revenueGrowthYoY: 0.091, earningsGrowthYoY: 0.134, freeCashFlow: 7.8, fcfTrend: "growing", operatingMargin: 0.038, netDebtToEbitda: -0.35, guidanceTrend: "positive", analystRevisions: "positive", competitivePosition: "93% membership renewal rate & immense purchasing volume", direction: "getting_stronger" },
-        valuation: { forwardPe: 48.5, historical5yPe: 36.5, pegRatio: 4.10, priceToFcf: 49.5, evToEbitda: 28.2, fcfYield: 0.020, valuationStatus: "stretched" },
-        catalysts: { daysToEarnings: 12, nextEarningsDate: "September 26", recentEarningsOutcome: "beat", keyCatalysts: ["Annual membership fee increase", "E-commerce +15%"], majorRisks: ["Earnings in 12 days; 48x P/E invites beat-and-selloff reaction"], specificFactor: "Superb company, but valuation is in 99th historical percentile." },
-        options: { impliedVolatility: 0.285, ivRank: 62, daysToExpiration: 52, atmCallStrike: 890, atmCallBid: 32.50, atmCallAsk: 33.80, atmCallVolume: 3200, atmCallOpenInterest: 8900, atmCallDelta: 0.50, atmCallTheta: -0.42, expectedMovePct: 0.065 },
-        historicalSeries: [845, 860, 865, 875, 880, 885, 884, 887, 885, 888.5]
-      },
-      {
-        ticker: "AMD", name: "Advanced Micro Devices", isPrimary: false, type: "Semiconductors / GPUs",
-        price: 148.60, high52: 227.30, low52: 94.04, sma20: 147.10, sma50: 149.80, sma200: 156.40,
-        rsi14: 45.1, volume: 46000000, avgVolume20: 52000000, majorSupport: 135.00, majorResistance: 165.00, secondarySupport: 122.00,
-        fundamentals: { revenueGrowthYoY: 0.089, earningsGrowthYoY: 0.192, freeCashFlow: 1.85, fcfTrend: "growing", operatingMargin: 0.118, netDebtToEbitda: -0.2, guidanceTrend: "raised", analystRevisions: "positive", competitivePosition: "Server EPYC CPU share gains & Instinct MI300/MI325 accelerators", direction: "getting_stronger" },
-        valuation: { forwardPe: 27.2, historical5yPe: 34.0, pegRatio: 1.15, priceToFcf: 58.0, evToEbitda: 24.5, fcfYield: 0.017, valuationStatus: "fair" },
-        catalysts: { daysToEarnings: 45, nextEarningsDate: "Late October", recentEarningsOutcome: "beat_and_raised", keyCatalysts: ["Advancing AI Event (Oct 10) Turin CPUs", "MI300 guided >$4.5B"], majorRisks: ["Gaming console revenue down >50% YoY"], specificFactor: "Down 34.6% from 52w high. Base building between $135 and $155." },
-        options: { impliedVolatility: 0.455, ivRank: 33, daysToExpiration: 52, atmCallStrike: 150, atmCallBid: 10.40, atmCallAsk: 10.75, atmCallVolume: 38000, atmCallOpenInterest: 94000, atmCallDelta: 0.50, atmCallTheta: -0.13, expectedMovePct: 0.102 },
-        historicalSeries: [158, 149, 140, 146, 152, 148, 153, 144, 151, 148.6]
-      },
-      {
-        ticker: "AAPL", name: "Apple Inc.", isPrimary: false, type: "Consumer Tech & Services",
-        price: 222.40, high52: 237.23, low52: 164.08, sma20: 223.50, sma50: 222.10, sma200: 196.80,
-        rsi14: 50.8, volume: 48000000, avgVolume20: 55000000, majorSupport: 215.00, majorResistance: 235.00, secondarySupport: 200.00,
-        fundamentals: { revenueGrowthYoY: 0.049, earningsGrowthYoY: 0.111, freeCashFlow: 104.2, fcfTrend: "growing", operatingMargin: 0.308, netDebtToEbitda: 0.45, guidanceTrend: "reaffirmed", analystRevisions: "neutral", competitivePosition: "2.2B active installed base & $85B/yr high-margin Services", direction: "roughly_unchanged" },
-        valuation: { forwardPe: 30.8, historical5yPe: 27.5, pegRatio: 2.85, priceToFcf: 31.5, evToEbitda: 23.4, fcfYield: 0.031, valuationStatus: "moderately_stretched" },
-        catalysts: { daysToEarnings: 45, nextEarningsDate: "Late October", recentEarningsOutcome: "beat", keyCatalysts: ["Apple Intelligence iOS 18.1 rollout", "Services double digit growth"], majorRisks: ["China smartphone revenue contraction"], specificFactor: "Titan quality, but forward P/E of 30.8x on 5% top line growth demands patience." },
-        options: { impliedVolatility: 0.224, ivRank: 24, daysToExpiration: 52, atmCallStrike: 225, atmCallBid: 8.10, atmCallAsk: 8.35, atmCallVolume: 42000, atmCallOpenInterest: 110000, atmCallDelta: 0.48, atmCallTheta: -0.09, expectedMovePct: 0.052 },
-        historicalSeries: [226, 221, 218, 225, 221, 224, 220, 225, 221, 222.4]
-      },
-      {
-        ticker: "LLY", name: "Eli Lilly and Company", isPrimary: false, type: "Pharmaceuticals / GLP-1",
-        price: 938.20, high52: 972.53, low52: 540.00, sma20: 935.10, sma50: 910.40, sma200: 785.20,
-        rsi14: 56.4, volume: 2400000, avgVolume20: 3100000, majorSupport: 880.00, majorResistance: 975.00, secondarySupport: 820.00,
-        fundamentals: { revenueGrowthYoY: 0.36, earningsGrowthYoY: 0.68, freeCashFlow: 5.2, fcfTrend: "growing", operatingMargin: 0.342, netDebtToEbitda: 1.6, guidanceTrend: "raised", analystRevisions: "positive", competitivePosition: "GLP-1 duopoly (Mounjaro/Zepbound) & Kisunla Alzheimer's", direction: "getting_stronger" },
-        valuation: { forwardPe: 52.4, historical5yPe: 38.0, pegRatio: 2.25, priceToFcf: 65.0, evToEbitda: 36.2, fcfYield: 0.015, valuationStatus: "stretched" },
-        catalysts: { daysToEarnings: 45, nextEarningsDate: "Late October", recentEarningsOutcome: "beat_and_raised", keyCatalysts: ["Manufacturing capacity ramping", "Oral GLP-1 Phase 3 in 2025"], majorRisks: ["Congressional drug price hearings"], specificFactor: "Metabolic market leader, but 52x forward multiple prices in years of perfection." },
-        options: { impliedVolatility: 0.315, ivRank: 30, daysToExpiration: 52, atmCallStrike: 940, atmCallBid: 41.50, atmCallAsk: 43.20, atmCallVolume: 2800, atmCallOpenInterest: 7900, atmCallDelta: 0.50, atmCallTheta: -0.45, expectedMovePct: 0.068 },
-        historicalSeries: [910, 930, 938, 955, 939, 944, 942, 946, 935, 938.2]
-      },
-
-      // BONUS POPULAR ASSETS IN THE LIBRARY
-      {
-        ticker: "TSLA", name: "Tesla, Inc.", isPrimary: false, type: "EV & Autonomous Robotics",
-        price: 228.50, high52: 271.00, low52: 138.80, sma20: 221.40, sma50: 218.60, sma200: 202.10,
-        rsi14: 55.4, volume: 64000000, avgVolume20: 72000000, majorSupport: 200.00, majorResistance: 260.00, secondarySupport: 180.00,
-        fundamentals: { revenueGrowthYoY: 0.021, earningsGrowthYoY: -0.45, freeCashFlow: 1.34, fcfTrend: "stable", operatingMargin: 0.063, netDebtToEbitda: -0.85, guidanceTrend: "reaffirmed", analystRevisions: "neutral", competitivePosition: "EV global volume leader, Dojo compute, Megapack energy", direction: "roughly_unchanged" },
-        valuation: { forwardPe: 78.0, historical5yPe: 65.0, pegRatio: 3.80, priceToFcf: 92.0, evToEbitda: 42.0, fcfYield: 0.008, valuationStatus: "stretched" },
-        catalysts: { daysToEarnings: 38, nextEarningsDate: "Late October", recentEarningsOutcome: "in_line", keyCatalysts: ["Robotaxi unveil event (10/10)", "Energy storage deployment doubling"], majorRisks: ["Automotive gross margin compression from price cuts"], specificFactor: "High retail beta. High multiple requires extreme patience." },
-        options: { impliedVolatility: 0.585, ivRank: 48, daysToExpiration: 52, atmCallStrike: 230, atmCallBid: 16.20, atmCallAsk: 16.65, atmCallVolume: 92000, atmCallOpenInterest: 240000, atmCallDelta: 0.50, atmCallTheta: -0.22, expectedMovePct: 0.115 },
-        historicalSeries: [210, 205, 218, 224, 215, 222, 230, 226, 224, 228.5]
-      },
-      {
-        ticker: "PLTR", name: "Palantir Technologies", isPrimary: false, type: "Enterprise AI / Defense",
-        price: 36.80, high52: 38.20, low52: 14.48, sma20: 34.10, sma50: 30.80, sma200: 25.40,
-        rsi14: 64.2, volume: 54000000, avgVolume20: 58000000, majorSupport: 31.00, majorResistance: 38.50, secondarySupport: 26.00,
-        fundamentals: { revenueGrowthYoY: 0.272, earningsGrowthYoY: 0.88, freeCashFlow: 0.78, fcfTrend: "growing", operatingMargin: 0.162, netDebtToEbitda: -1.2, guidanceTrend: "raised", analystRevisions: "positive", competitivePosition: "AIP enterprise ontology platform & US Defense dominance", direction: "getting_stronger" },
-        valuation: { forwardPe: 74.5, historical5yPe: 60.0, pegRatio: 2.80, priceToFcf: 88.0, evToEbitda: 52.0, fcfYield: 0.012, valuationStatus: "stretched" },
-        catalysts: { daysToEarnings: 52, nextEarningsDate: "Early November", recentEarningsOutcome: "beat_and_raised", keyCatalysts: ["S&P 500 inclusion index fund buying", "US commercial customer count +83% YoY"], majorRisks: ["Extreme valuation leaves zero cushion if multiple compresses"], specificFactor: "Tremendous business momentum, but technically extended +19% above 50d SMA." },
-        options: { impliedVolatility: 0.485, ivRank: 42, daysToExpiration: 52, atmCallStrike: 37, atmCallBid: 2.45, atmCallAsk: 2.60, atmCallVolume: 44000, atmCallOpenInterest: 120000, atmCallDelta: 0.50, atmCallTheta: -0.045, expectedMovePct: 0.108 },
-        historicalSeries: [31, 30, 32.5, 34, 33.2, 35, 36.4, 35.8, 36.2, 36.8]
-      }
-    ];
+    const isNum = (v) => typeof v === "number" && Number.isFinite(v);
+    const money = (v) => isNum(v) ? `$${v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "N/A";
+    const percent = (v, digits = 1) => isNum(v) ? `${(v * 100).toFixed(digits)}%` : "N/A";
+    const signedPercent = (v, digits = 1) => isNum(v) ? `${v >= 0 ? "+" : ""}${(v * 100).toFixed(digits)}%` : "N/A";
+    const multiple = (v) => isNum(v) ? `${v.toFixed(1)}x` : "N/A";
+    const fixed = (v, digits = 1) => isNum(v) ? v.toFixed(digits) : "N/A";
+    const compactUsd = (v) => isNum(v)
+      ? new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", notation: "compact", maximumFractionDigits: 1 }).format(v)
+      : "N/A";
+    const shortDateTime = (iso) => iso ? new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : "N/A";
 
     /**
      * ACCOUNT & AUTH STORAGE ENGINE (Firebase Auth + Firestore)
@@ -1762,7 +1518,9 @@
         const snap = await getDoc(ref);
         if (snap.exists()) {
           const data = snap.data();
-          return { uid: fbUser.uid, name: data.name, email: data.email, watchlist: data.watchlist || [], addedStocks: data.addedStocks || {}, createdAt: data.createdAt };
+          // Older profiles may carry manually entered `research` levels; scores now use real data only.
+          const addedStocks = Object.fromEntries(Object.entries(data.addedStocks || {}).map(([ticker, { research, ...meta }]) => [ticker, meta]));
+          return { uid: fbUser.uid, name: data.name, email: data.email, watchlist: data.watchlist || [], addedStocks, createdAt: data.createdAt };
         }
         // First sign-in for this account: create its profile document.
         const profile = {
@@ -1801,6 +1559,11 @@
 
       logout() {
         return signOut(this.auth);
+      }
+
+      /** Adds a ticker to the public list the scheduled data build fetches (see scripts/build_market_data.py). */
+      requestTicker(ticker) {
+        return setDoc(doc(this.db, "tickerRequests", ticker), { requestedAt: serverTimestamp() });
       }
 
       saveProfile(profile) {
@@ -1865,196 +1628,40 @@
     }
 
     /**
-     * DETERMINISTIC QUANTITATIVE RULES ENGINE
+     * REAL MARKET DATA (data/market.json, built by scripts/build_market_data.py in GitHub Actions)
      */
-    class QuantitativeRulesEngine {
-      static evaluateTechnicals(item) {
-        let score = 15;
-        const flags = [];
-        const drawdownPct = ((item.high52 - item.price) / item.high52) * 100;
-        const above200 = item.price > item.sma200;
-        
-        if (above200) score += 4;
-        else { score -= 6; flags.push("Below 200d SMA downtrend"); }
-
-        const dist50 = (item.price - item.sma50) / item.sma50;
-        const dist200 = (item.price - item.sma200) / item.sma200;
-        const isExtended = dist50 > 0.12 || dist200 > 0.22;
-
-        if (isExtended) {
-          score -= 8;
-          flags.push(`Price extended (+${(dist50 * 100).toFixed(1)}% above 50d SMA)`);
-        }
-
-        const distSupport = Math.abs(item.price - item.majorSupport) / item.price;
-        const nearSupport = distSupport <= 0.035 && item.price >= (item.majorSupport * 0.985);
-
-        if (nearSupport) {
-          score += 7;
-          flags.push(`At verified structural support ($${item.majorSupport.toFixed(2)})`);
-        }
-
-        if (item.rsi14 < 38) {
-          if (nearSupport && above200) { score += 3; flags.push(`RSI (${item.rsi14}) oversold at support`); }
-          else { score -= 2; flags.push(`RSI (${item.rsi14}) weak without support`); }
-        } else if (item.rsi14 > 68) {
-          score -= 5; flags.push(`RSI (${item.rsi14}) overbought zone`);
-        }
-
-        return { score: Math.max(0, Math.min(30, Math.round(score))), flags, isExtended, nearSupport, drawdownPct };
+    class MarketDataStore {
+      constructor(url) {
+        this.url = url;
+        this.data = null;
       }
 
-      static evaluateFundamentals(item) {
-        let score = 12;
-        const flags = [];
-        const f = item.fundamentals;
-        if (f.revenueGrowthYoY >= 0.20) score += 5;
-        else if (f.revenueGrowthYoY >= 0.10) score += 3;
-        else if (f.revenueGrowthYoY < 0) score -= 4;
-
-        if (f.operatingMargin >= 0.30) score += 4;
-        else if (f.operatingMargin < 0.08) score -= 3;
-
-        if (f.netDebtToEbitda <= 0.5) score += 3;
-        else if (f.netDebtToEbitda > 2.5) score -= 4;
-
-        let assessment = "Roughly Unchanged";
-        if (f.direction === "getting_stronger") { score += 3; assessment = "Getting Stronger"; }
-        else if (f.direction === "getting_weaker") { score -= 5; assessment = "Getting Weaker"; }
-
-        return { score: Math.max(0, Math.min(25, Math.round(score))), assessment, flags };
+      async load() {
+        const res = await fetch(this.url, { cache: "no-cache" });
+        if (!res.ok) throw new Error(`Market data request failed (${res.status})`);
+        this.data = await res.json();
+        return this.data;
       }
 
-      static evaluateValuation(item) {
-        let score = 10;
-        const flags = [];
-        const v = item.valuation;
-        if (v.forwardPe > 0 && v.historical5yPe > 0) {
-          const discountPct = ((v.historical5yPe - v.forwardPe) / v.historical5yPe) * 100;
-          if (discountPct >= 15) score += 4;
-          else if (discountPct <= -25) score -= 4;
-        }
-
-        if (v.pegRatio > 0) {
-          if (v.pegRatio <= 1.2) score += 4;
-          else if (v.pegRatio > 2.5) score -= 5;
-        }
-
-        if (v.fcfYield >= 0.05) score += 3;
-        else if (v.fcfYield < 0.02) score -= 2;
-
-        return { score: Math.max(0, Math.min(20, Math.round(score))), assessment: v.valuationStatus, flags };
+      get universe() {
+        return this.data?.universe ?? { primary: [], secondary: [] };
       }
 
-      static evaluateCatalysts(item) {
-        let score = 8;
-        const flags = [];
-        const c = item.catalysts;
-        let earningsWarning = false;
-
-        if (c.daysToEarnings <= 14) {
-          score -= 4;
-          earningsWarning = true;
-          flags.push(`CRITICAL: Earnings in ${c.daysToEarnings} days (${c.nextEarningsDate}). High binary gap risk.`);
-        }
-
-        if (item.ticker === "NVDA" || item.ticker === "AVGO" || item.ticker === "TSM") score += 2;
-        if (item.ticker === "SPCX" || item.ticker === "SNDK") score += 2;
-
-        return { score: Math.max(0, Math.min(15, Math.round(score))), flags, earningsWarning };
+      get coreTickers() {
+        return [...this.universe.primary, ...this.universe.secondary];
       }
 
-      static evaluateOptions(item, totalScore, earningsWarning) {
-        const o = item.options;
-        if (!o) return { recommendation: "SHARES", reason: "No options data available." };
-
-        const isHighIV = o.ivRank > 65;
-        const isLowIV = o.ivRank < 30;
-        const bidAskSpreadPct = ((o.atmCallAsk - o.atmCallBid) / o.atmCallAsk) * 100;
-        const isLiquid = o.atmCallOpenInterest > 1000 && bidAskSpreadPct <= 6.0;
-
-        let recommendation = "WAIT";
-        let reason = "";
-        let tradeSpecs = null;
-
-        if (totalScore < 70) {
-          recommendation = "WAIT";
-          reason = "Risk/reward asymmetry is not attractive today. Capital preservation is priority #1.";
-        } else if (earningsWarning) {
-          recommendation = "SHARES ONLY (OR WAIT)";
-          reason = `Earnings is in ${item.catalysts.daysToEarnings} days. Long options subject capital to IV crush.`;
-        } else if (!isLiquid) {
-          recommendation = "SHARES";
-          reason = `Options spread is wide (${bidAskSpreadPct.toFixed(1)}%). Trade shares to minimize slippage.`;
-        } else if (isHighIV) {
-          recommendation = "CASH-SECURED PUT OR SHARES";
-          reason = `IV Rank is high (${o.ivRank}%). Sell Cash-Secured Puts at major support $${item.majorSupport.toFixed(2)} or hold shares.`;
-          tradeSpecs = { strategy: "Cash-Secured Put", strike: item.majorSupport, dte: 45, targetDelta: -0.30 };
-        } else if (isLowIV) {
-          recommendation = "LONG CALL OR CALL DEBIT SPREAD";
-          reason = `IV Rank is low (${o.ivRank}%). 45-60 DTE contract offers asymmetric upside with limited risk.`;
-          tradeSpecs = { strategy: "45-60 DTE Long Call", longStrike: o.atmCallStrike, dte: o.daysToExpiration, delta: o.atmCallDelta, theta: o.atmCallTheta, breakeven: (o.atmCallStrike + o.atmCallAsk).toFixed(2) };
-        } else {
-          recommendation = "CALL DEBIT SPREAD";
-          reason = `IV Rank is moderate (${o.ivRank}%). Vertical spread mitigates theta drag.`;
-          tradeSpecs = { strategy: "Vertical Call Debit Spread", longStrike: o.atmCallStrike, shortStrike: Math.round(o.atmCallStrike * 1.06), dte: o.daysToExpiration };
-        }
-
-        return { recommendation, reason, ivRank: o.ivRank, tradeSpecs };
+      records() {
+        const primary = new Set(this.universe.primary);
+        return Object.values(this.data?.stocks ?? {}).map(r => ({ ...r, isPrimary: primary.has(r.ticker) }));
       }
 
-      static synthesizeBearCase(item) {
-        let bearCase = `Macro economic softening, multiple compression, or unexpected guidance cut in ${item.type}.`;
-        let invalidationLevel = `A decisive weekly close below major support at $${item.majorSupport.toFixed(2)}.`;
-        return { bearCase, invalidationLevel };
+      has(ticker) {
+        return Boolean(this.data?.stocks?.[ticker]);
       }
 
-      static evaluateAsset(item, marketRegime) {
-        const tech = this.evaluateTechnicals(item);
-        const fund = this.evaluateFundamentals(item);
-        const val = this.evaluateValuation(item);
-        const cat = this.evaluateCatalysts(item);
-
-        let marketBonus = 5;
-        if (marketRegime === "BULLISH") marketBonus = 9;
-        else if (marketRegime === "NEUTRAL") marketBonus = 6;
-        else if (marketRegime === "CAUTIOUS") marketBonus = 3;
-
-        let totalScore = tech.score + fund.score + val.score + cat.score + marketBonus;
-        if (tech.isExtended) totalScore -= 12;
-        if (cat.earningsWarning) totalScore -= 8;
-
-        totalScore = Math.max(0, Math.min(100, Math.round(totalScore)));
-
-        let tierLabel = "Neutral / Wait";
-        if (totalScore >= 90) tierLabel = "Exceptional Setup (Rare)";
-        else if (totalScore >= 80) tierLabel = "Strong Opportunity";
-        else if (totalScore >= 70) tierLabel = "Interesting; Watch Closely";
-        else if (totalScore < 55) tierLabel = "Not Attractive / Avoid";
-
-        const optionsEval = this.evaluateOptions(item, totalScore, cat.earningsWarning);
-        const bearCase = this.synthesizeBearCase(item);
-
-        return { item, totalScore, tierLabel, tech, fund, val, cat, optionsEval, bearCase };
-      }
-
-      static determineMarketRegime(db) {
-        const spy = db.find(x => x.ticker === "SPY");
-        const qqq = db.find(x => x.ticker === "QQQ");
-        if (!spy || !qqq) return { regime: "NEUTRAL", description: "Market data baseline active." };
-
-        const spyAbove200 = spy.price > spy.sma200;
-        const qqqAbove200 = qqq.price > qqq.sma200;
-        const spyAbove50 = spy.price > spy.sma50;
-        const qqqAbove50 = qqq.price > qqq.sma50;
-
-        if (spyAbove200 && qqqAbove200 && spyAbove50 && qqqAbove50) {
-          return { regime: "BULLISH", description: "Both SPY and QQQ maintain healthy moving average spacing above 50d and 200d SMAs." };
-        } else if (spyAbove200 && qqqAbove200) {
-          return { regime: "NEUTRAL", description: "Indices in long-term uptrends, digesting intermediate moving average support." };
-        } else {
-          return { regime: "CAUTIOUS", description: "Index divergence or distribution signals detected. Capital preservation priority." };
-        }
+      failed(ticker) {
+        return Boolean(this.data?.failures?.[ticker]);
       }
     }
 
@@ -2065,22 +1672,24 @@
       /**
        * @param {AccountManager|null} accountManager null when Firebase isn't configured (guest-only mode)
        * @param {SymbolDirectory} symbolDirectory source of real tickers for the add-stock picker
+       * @param {MarketDataStore} marketData real prices, fundamentals, analyst and options data
        */
-      constructor(accountManager, symbolDirectory) {
+      constructor(accountManager, symbolDirectory, marketData) {
         this.accountManager = accountManager;
         this.symbolDirectory = symbolDirectory;
+        this.marketData = marketData;
         this.currentUser = null;
         this.authResolved = !accountManager;
         this.selectedStock = null;
-        this.dataset = this.buildDataset();
+        this.dataset = [];
         this.currentEvaluations = [];
         this.currentFilter = "my_watchlist";
-        this.marketRegime = "BULLISH";
+        this.marketRegime = "NEUTRAL";
 
         this.initDOM();
         this.attachEvents();
         this.renderAuthUI();
-        this.executeScan(false);
+        this.loadMarketData(false);
 
         if (accountManager) {
           accountManager.onSessionChange(
@@ -2105,13 +1714,36 @@
         this.executeScan(false);
       }
 
-      /** Seed library plus any stocks the signed-in user has entered research levels for. */
       buildDataset() {
-        const researched = this.currentUser
-          ? Object.values(this.currentUser.addedStocks).map(s => s.research).filter(Boolean)
-          : [];
-        const researchedTickers = new Set(researched.map(r => r.ticker));
-        return structuredClone([...SEED_WATCHLIST.filter(x => !researchedTickers.has(x.ticker)), ...researched]);
+        return simulateScenario(this.marketData.records(), this.scenarioSelector.value);
+      }
+
+      /** Fetches the latest data/market.json (picks up scheduled refreshes without a page reload), then scans. */
+      async loadMarketData(animate) {
+        this.diagnosticText.textContent = "Loading real market data…";
+        this.scanDiagnostic.classList.add("active");
+        try {
+          await this.marketData.load();
+        } catch (err) {
+          console.error(err);
+          this.dataFreshness.textContent = "Market data could not be loaded. Refresh the page to try again.";
+          this.diagnosticText.textContent = "Market data unavailable.";
+          return;
+        }
+        this.dataset = this.buildDataset();
+        this.filterAllBtn.textContent = `Full Library (${this.dataset.length})`;
+        this.filterPrimaryBtn.textContent = `Primary Core (${this.marketData.universe.primary.length})`;
+        this.renderFreshness();
+        this.renderAuthUI();
+        await this.executeScan(animate);
+      }
+
+      renderFreshness() {
+        const { generatedAt, stocks } = this.marketData.data;
+        const quoteTimes = Object.values(stocks).map(r => r.asOf).filter(Boolean).sort();
+        const hoursOld = (Date.now() - new Date(generatedAt).getTime()) / 36e5;
+        const stale = hoursOld > 96 ? ` · <span style="color:var(--amber);">last refresh was ${Math.round(hoursOld / 24)} days ago</span>` : "";
+        this.dataFreshness.innerHTML = `Real market data · prices as of <strong>${escapeHtml(shortDateTime(quoteTimes[quoteTimes.length - 1]))}</strong> · built ${escapeHtml(shortDateTime(generatedAt))} · ${REFRESH_NOTE}${stale}`;
       }
 
       async persistProfile() {
@@ -2171,7 +1803,6 @@
         this.addSearchResults = document.getElementById("addSearchResults");
         this.addSearchStatus = document.getElementById("addSearchStatus");
         this.addSelectedStock = document.getElementById("addSelectedStock");
-        this.addResearchDetails = document.getElementById("addResearchDetails");
         this.addErrorMsg = document.getElementById("addErrorMsg");
 
         this.detailModal = document.getElementById("detailModal");
@@ -2186,12 +1817,15 @@
         this.notReadyTableBody = document.querySelector("#notReadyTable tbody");
         this.avoidTableBody = document.querySelector("#avoidTable tbody");
         this.watchNextTableBody = document.querySelector("#watchNextTable tbody");
-        this.trackedNoDataSection = document.getElementById("trackedNoDataSection");
-        this.trackedNoDataTableBody = document.querySelector("#trackedNoDataTable tbody");
+        this.pendingSection = document.getElementById("pendingSection");
+        this.pendingTableBody = document.querySelector("#pendingTable tbody");
+        this.dataFreshness = document.getElementById("dataFreshness");
+        this.filterAllBtn = document.getElementById("filterAllBtn");
+        this.filterPrimaryBtn = document.getElementById("filterPrimaryBtn");
       }
 
       attachEvents() {
-        this.btnRunScan.addEventListener("click", () => this.executeScan(true));
+        this.btnRunScan.addEventListener("click", () => this.loadMarketData(true));
 
         this.scenarioSelector.addEventListener("change", (e) => {
           this.applyScenario(e.target.value);
@@ -2300,11 +1934,6 @@
           if (!e.target.closest("#btnChangeSelectedStock")) return;
           this.clearSelectedStock();
           this.addSearch.focus();
-        });
-
-        this.trackedNoDataTableBody.addEventListener("click", (e) => {
-          const btn = e.target.closest(".btn-add-research");
-          if (btn) this.openAddStockModal(btn.dataset.ticker);
         });
 
         this.addTickerForm.addEventListener("submit", (e) => {
@@ -2487,19 +2116,22 @@
         }
       }
 
+      /** Signed-in users see their saved watchlist; guests see the core universe. */
       getWatchlistTickers() {
-        return this.currentUser ? this.currentUser.watchlist : this.dataset.map(x => x.ticker);
+        return this.currentUser ? this.currentUser.watchlist : this.marketData.coreTickers;
       }
 
       renderWatchlistModalGrid() {
         const watched = new Set(this.getWatchlistTickers());
         const addedStocks = this.currentUser ? this.currentUser.addedStocks : {};
-        const datasetTickers = new Set(this.dataset.map(x => x.ticker));
+        const records = new Map(this.marketData.records().map(r => [r.ticker, r]));
+        const core = this.marketData.coreTickers;
+        const primary = new Set(this.marketData.universe.primary);
         const entries = [
-          ...this.dataset.map(item => ({ ticker: item.ticker, name: item.name, isPrimary: item.isPrimary, removable: item.ticker in addedStocks })),
+          ...core.map(ticker => ({ ticker, name: records.get(ticker)?.name ?? ticker, isPrimary: primary.has(ticker), removable: ticker in addedStocks })),
           ...Object.entries(addedStocks)
-            .filter(([ticker]) => !datasetTickers.has(ticker))
-            .map(([ticker, s]) => ({ ticker, name: `${s.name} (not scored)`, isPrimary: false, removable: true }))
+            .filter(([ticker]) => !core.includes(ticker))
+            .map(([ticker, s]) => ({ ticker, name: records.has(ticker) ? s.name : `${s.name} (data pending)`, isPrimary: false, removable: true }))
         ];
 
         this.wlSelectionContainer.innerHTML = entries.map(entry => {
@@ -2521,9 +2153,7 @@
 
         document.querySelectorAll(".wl-toggle-cb").forEach(cb => {
           cb.addEventListener("change", (e) => {
-            const parent = e.target.closest(".wl-stock-item");
-            if (e.target.checked) parent.classList.add("watched");
-            else parent.classList.remove("watched");
+            e.target.closest(".wl-stock-item").classList.toggle("watched", e.target.checked);
             this.updateWlCountBadge();
           });
         });
@@ -2550,14 +2180,13 @@
         if (!this.currentUser) return;
         delete this.currentUser.addedStocks[ticker];
         this.currentUser.watchlist = this.currentUser.watchlist.filter(t => t !== ticker);
-        this.dataset = this.buildDataset();
         this.renderWatchlistModalGrid();
         this.renderAuthUI();
         if (await this.persistProfile()) this.showToast(`Removed ${ticker} from your account.`);
         this.executeScan(false);
       }
 
-      async openAddStockModal(ticker = null) {
+      async openAddStockModal() {
         if (!this.currentUser) {
           this.showToast("Sign in to add stocks to your account.");
           if (this.accountManager) {
@@ -2572,16 +2201,7 @@
         this.addErrorMsg.hidden = true;
         this.clearSelectedStock();
         this.addTickerModal.classList.add("active");
-
-        const existing = ticker ? this.currentUser.addedStocks[ticker] : null;
-        if (existing) {
-          this.selectedStock = { symbol: ticker, name: existing.name, exchange: existing.exchange, etf: existing.etf };
-          this.renderSelectedStock();
-          document.getElementById("addWhyAttention").value = existing.thesis;
-          this.addResearchDetails.open = true;
-        } else {
-          this.addSearch.focus();
-        }
+        this.addSearch.focus();
 
         this.addSearchStatus.textContent = "Loading US-listed symbols…";
         try {
@@ -2625,7 +2245,7 @@
             <strong style="font-family:var(--font-mono); font-size:16px; color:#fff;">${escapeHtml(s.symbol)}</strong>
             <span style="font-size:11px; color:var(--text-muted); font-family:var(--font-mono); margin-left:6px;">${escapeHtml(s.exchange)}${s.etf ? ' · ETF' : ''}</span>
             <div style="font-size:12px; color:var(--text-secondary);">${escapeHtml(s.name)}</div>
-            ${alreadyWatched ? '<div style="font-size:11px; color:var(--amber); margin-top:2px;">Already in your watchlist. Saving updates your thesis and research levels.</div>' : ''}
+            ${alreadyWatched ? '<div style="font-size:11px; color:var(--amber); margin-top:2px;">Already in your watchlist. Saving updates your thesis.</div>' : ''}
           </div>
           <button type="button" id="btnChangeSelectedStock" class="btn-secondary" style="font-size:11px; padding:4px 8px;">Change</button>
         `;
@@ -2646,104 +2266,49 @@
         if (!this.selectedStock) return showError("Search for and select a real stock first.");
 
         const { symbol, name, exchange, etf } = this.selectedStock;
-        const num = (id) => parseFloat(document.getElementById(id).value);
-        const type = document.getElementById("addType").value.trim();
-        const price = num("addPrice");
-        const high52 = num("addHigh52");
-        const support = num("addSupport");
-        const resistance = num("addResistance");
-        const sma20 = num("addSma20");
-        const sma50 = num("addSma50");
-        const sma200 = num("addSma200");
-        const rsi = num("addRsi");
-        const revGrowth = num("addRevGrowth") / 100;
-        const fwdPe = num("addFwdPe");
-        const peg = num("addPeg");
-        const direction = document.getElementById("addDirection").value;
-        const whyAttention = document.getElementById("addWhyAttention").value.trim();
-
-        const hasPrice = price > 0;
-        const hasSupport = support > 0;
-        if (hasPrice !== hasSupport) {
-          this.addResearchDetails.open = true;
-          return showError("To enable scoring, enter both Price and Major Support (or leave both blank).");
-        }
-
-        let research = null;
-        if (hasPrice) {
-          const pe = fwdPe || 25;
-          const pegRatio = peg || 1.2;
-          const growth = Number.isFinite(revGrowth) ? revGrowth : 0.15;
-          research = {
-            ticker: symbol, name: name, isPrimary: false, type: type || (etf ? "ETF" : "Discovered Opportunity"),
-            price: price, high52: high52 || price * 1.15, low52: support * 0.9,
-            sma20: sma20 || price * 0.98, sma50: sma50 || price * 0.95, sma200: sma200 || price * 0.90,
-            rsi14: rsi || 50, volume: 15000000, avgVolume20: 16000000, majorSupport: support, majorResistance: resistance || high52 || price * 1.15, secondarySupport: support * 0.92,
-            fundamentals: { revenueGrowthYoY: growth, earningsGrowthYoY: growth * 1.2, freeCashFlow: 10.0, fcfTrend: "growing", operatingMargin: 0.22, netDebtToEbitda: 0.5, guidanceTrend: "positive", analystRevisions: "positive", competitivePosition: whyAttention, direction: direction },
-            valuation: { forwardPe: pe, historical5yPe: pe * 1.1, pegRatio: pegRatio, priceToFcf: pe * 1.05, evToEbitda: pe * 0.65, fcfYield: 0.035, valuationStatus: pegRatio <= 1.2 ? "attractive" : "fair" },
-            catalysts: { daysToEarnings: 45, nextEarningsDate: "Quarterly Schedule", recentEarningsOutcome: "beat", keyCatalysts: [whyAttention], majorRisks: ["Multiple compression"], specificFactor: whyAttention },
-            options: { impliedVolatility: 0.35, ivRank: 32, daysToExpiration: 52, atmCallStrike: Math.round(price), atmCallBid: Math.round(price * 0.05 * 100) / 100, atmCallAsk: Math.round(price * 0.054 * 100) / 100, atmCallVolume: 8500, atmCallOpenInterest: 22000, atmCallDelta: 0.50, atmCallTheta: -0.08, expectedMovePct: 0.075 },
-            historicalSeries: [price * 0.94, price * 0.96, price * 0.98, price]
-          };
-        }
-
+        const thesis = document.getElementById("addWhyAttention").value.trim();
         const previous = this.currentUser.addedStocks[symbol];
-        this.currentUser.addedStocks[symbol] = {
-          name, exchange, etf, thesis: whyAttention,
-          addedAt: previous?.addedAt || new Date().toISOString(),
-          research: research || previous?.research || null
-        };
-        if (!this.currentUser.watchlist.includes(symbol)) {
-          this.currentUser.watchlist.push(symbol);
-        }
+        this.currentUser.addedStocks[symbol] = { name, exchange, etf, thesis, addedAt: previous?.addedAt || new Date().toISOString() };
+        if (!this.currentUser.watchlist.includes(symbol)) this.currentUser.watchlist.push(symbol);
 
         this.addTickerModal.classList.remove("active");
-        this.dataset = this.buildDataset();
         this.renderAuthUI();
-        this.executeScan(false);
-        if (await this.persistProfile()) {
-          this.showToast(`Saved ${symbol} to your watchlist${research ? " with research levels" : ""}.`);
+        this.renderOutput();
+        if (!await this.persistProfile()) return;
+
+        if (!this.marketData.coreTickers.includes(symbol)) {
+          try {
+            await this.accountManager.requestTicker(symbol);
+          } catch (err) {
+            console.error("Failed to request market data for", symbol, err);
+          }
         }
+        this.showToast(this.marketData.has(symbol)
+          ? `Saved ${symbol} to your watchlist.`
+          : `Saved ${symbol}. Its market data arrives with the next refresh (${REFRESH_NOTE}).`);
       }
 
       applyScenario(scenario) {
+        if (!this.marketData.data) return;
         this.dataset = this.buildDataset();
-        if (scenario === "pullback") {
-          this.dataset.forEach(item => {
-            if (item.type.includes("Tech") || item.type.includes("Semi")) {
-              item.price = Math.round(item.price * 0.92 * 100) / 100;
-              item.rsi14 = Math.max(28, item.rsi14 - 14);
-            }
-          });
-          this.showToast("Applied Stress Test: -8% Tech Pullback");
-        } else if (scenario === "high_iv") {
-          this.dataset.forEach(item => {
-            if (item.options) item.options.ivRank = Math.min(95, item.options.ivRank + 45);
-          });
-          this.showToast("Applied Stress Test: High IV Spike");
-        } else if (scenario === "overbought") {
-          this.dataset.forEach(item => {
-            item.price = Math.round(item.price * 1.08 * 100) / 100;
-            item.rsi14 = Math.min(84, item.rsi14 + 18);
-          });
-          this.showToast("Applied Stress Test: Extended Rally");
-        }
+        const labels = { pullback: "-8% Tech Pullback", high_iv: "IV Spike (x1.6)", overbought: "Extended Rally (+8%)" };
+        if (labels[scenario]) this.showToast(`Stress test applied: ${labels[scenario]}. Simulated prices, not real data.`);
         this.executeScan(true);
       }
 
       async executeScan(animate = false) {
+        if (!this.marketData.data) return;
         this.btnRunScan.classList.add("scanning");
         this.scanDiagnostic.classList.add("active");
         this.progressBarFill.style.width = "0%";
 
         const steps = [
-          "Verifying account watchlist parameters...",
-          "Auditing 20d, 50d, and 200d Moving Averages...",
-          "Inspecting balance sheet leverage & FCF yields...",
-          "Evaluating options IV rank and contract Greeks...",
+          "Loading real prices, filings, analyst estimates and options chains...",
+          "Auditing 20d, 50d, and 200d Moving Averages against swing-point support...",
+          "Inspecting revenue growth, margins, FCF and leverage from SEC filings...",
+          "Comparing ATM implied volatility with 30-day realized volatility...",
           "Applying strict skepticism bias & synthesizing Opportunity Scores..."
         ];
-
         if (animate) {
           for (let i = 0; i < steps.length; i++) {
             this.diagnosticText.textContent = steps[i];
@@ -2752,47 +2317,68 @@
           }
         }
 
-        const regimeObj = QuantitativeRulesEngine.determineMarketRegime(this.dataset);
-        this.marketRegime = regimeObj.regime;
-        this.marketRegimeDesc = regimeObj.description;
-
-        this.currentEvaluations = this.dataset.map(item => {
-          return QuantitativeRulesEngine.evaluateAsset(item, this.marketRegime);
-        });
-
-        this.currentEvaluations.sort((a, b) => b.totalScore - a.totalScore);
+        const regime = determineMarketRegime(this.dataset);
+        this.marketRegime = regime.regime;
+        this.marketRegimeDesc = regime.description;
+        this.currentEvaluations = this.dataset.map(item => evaluateAsset(item, this.marketRegime));
         this.renderOutput();
 
-        this.diagnosticText.textContent = `Scan complete. ${this.currentEvaluations.length} assets audited deterministically.`;
+        const simulated = this.scenarioSelector.value !== "baseline" ? " Stress test active: prices are simulated." : "";
+        this.diagnosticText.textContent = `Scan complete. ${this.currentEvaluations.length} assets scored from real market data.${simulated}`;
         this.progressBarFill.style.width = "100%";
         this.btnRunScan.classList.remove("scanning");
       }
 
       getFilteredEvaluations() {
-        const userWatchlist = this.currentUser ? new Set(this.currentUser.watchlist) : new Set(this.dataset.map(x => x.ticker));
         if (this.currentFilter === "my_watchlist") {
-          return this.currentEvaluations.filter(e => userWatchlist.has(e.item.ticker));
-        } else if (this.currentFilter === "primary") {
-          return this.currentEvaluations.filter(e => e.item.isPrimary);
-        } else if (this.currentFilter === "alerts") {
-          return this.currentEvaluations.filter(e => e.totalScore >= 75 || e.tech.nearSupport);
+          const watchlist = new Set(this.getWatchlistTickers());
+          return this.currentEvaluations.filter(e => watchlist.has(e.item.ticker));
+        }
+        if (this.currentFilter === "primary") return this.currentEvaluations.filter(e => e.item.isPrimary);
+        if (this.currentFilter === "alerts") {
+          return this.currentEvaluations.filter(e => e.tech.nearSupport || e.cat.earningsWarning || e.totalScore >= RULES.actionableScore);
         }
         return this.currentEvaluations;
       }
 
+      /** The weakest pillar relative to its maximum, used to explain what is holding a score back. */
+      weakestPillar(e) {
+        const pillars = [
+          ["technicals", e.tech.score / 30], ["fundamentals", e.fund.available ? e.fund.score / 25 : 1],
+          ["valuation", e.val.available ? e.val.score / 20 : 1], ["catalysts", e.cat.score / 15]
+        ];
+        return pillars.sort((a, b) => a[1] - b[1])[0][0];
+      }
+
+      thesisFor(ticker) {
+        return this.currentUser?.addedStocks[ticker]?.thesis;
+      }
+
+      supportDistance(item) {
+        return (item.price - item.majorSupport) / item.price;
+      }
+
       renderOutput() {
-        // Market Conditions
+        if (!this.marketData.data) return;
+
         const sec = document.getElementById("marketConditionsSection");
         sec.className = `market-banner ${this.marketRegime.toLowerCase()}`;
         document.getElementById("marketRegimeText").innerHTML = `
           <span>${this.marketRegime}</span>
-          <span style="font-size:12px; font-weight:400; color:var(--text-secondary); margin-left:8px;">${this.marketRegimeDesc}</span>
+          <span style="font-size:12px; font-weight:400; color:var(--text-secondary); margin-left:8px;">${escapeHtml(this.marketRegimeDesc)}</span>
         `;
+        const indexSummary = (ticker) => {
+          const r = this.dataset.find(x => x.ticker === ticker);
+          if (!r) return "N/A";
+          const vs200 = isNum(r.sma200) ? `${r.price > r.sma200 ? "Above" : "Below"} 200d SMA` : "200d SMA N/A";
+          const vs50 = isNum(r.sma50) ? `${r.price > r.sma50 ? "above" : "below"} 50d` : "";
+          return `${money(r.price)} | ${vs200}, ${vs50} | RSI ${fixed(r.rsi14)}`;
+        };
+        document.getElementById("spySummary").textContent = indexSummary("SPY");
+        document.getElementById("qqqSummary").textContent = indexSummary("QQQ");
 
-        const filtered = this.getFilteredEvaluations();
-        const best = filtered.find(e => e.totalScore >= 75 && !e.tech.isExtended && !e.cat.earningsWarning);
+        const { best, actionable, notReady, avoid } = classifyEvaluations(this.getFilteredEvaluations());
 
-        // Best Opportunity
         if (!best) {
           this.bestOpportunityContainer.innerHTML = `
             <div class="best-opportunity-card none-found">
@@ -2801,7 +2387,7 @@
                   <div class="spotlight-symbol" style="color:var(--text-muted);">NONE TODAY</div>
                   <div>
                     <div style="font-size:15px; font-weight:700; color:#fff;">Recommendation: PATIENT WAIT</div>
-                    <div class="spotlight-name">No asset on your monitored watchlist satisfies all multi-pillar risk/reward conditions.</div>
+                    <div class="spotlight-name">Nothing on this list scores ${RULES.bestScore}+ while sitting at major support with no earnings inside ${RULES.earningsWarningDays} days.</div>
                   </div>
                 </div>
                 <div class="score-badge-huge wait">
@@ -2813,14 +2399,15 @@
           `;
         } else {
           const item = best.item;
+          const thesis = this.thesisFor(item.ticker);
           this.bestOpportunityContainer.innerHTML = `
             <div class="best-opportunity-card">
               <div class="card-top-row">
                 <div class="ticker-spotlight">
-                  <div class="spotlight-symbol">${item.ticker}</div>
+                  <div class="spotlight-symbol">${escapeHtml(item.ticker)}</div>
                   <div>
                     <div style="font-size:15px; font-weight:700; color:#fff;">${escapeHtml(item.name)}</div>
-                    <div class="spotlight-name">${escapeHtml(item.type)} | Current Price: <strong>$${item.price.toFixed(2)}</strong></div>
+                    <div class="spotlight-name">${escapeHtml([item.sector, item.industry].filter(Boolean).join(" · ") || (item.etf ? "ETF" : ""))} | Price: <strong>${money(item.price)}</strong></div>
                   </div>
                 </div>
                 <div class="score-badge-huge">
@@ -2832,113 +2419,131 @@
               <div class="grid-2col">
                 <div class="sub-box">
                   <div class="sub-box-title">Why It Deserves Attention</div>
-                  <div><span class="epistemic-tag tag-fact">FACT</span> Price $${item.price.toFixed(2)} (Drawdown: -${best.tech.drawdownPct.toFixed(1)}%).</div>
-                  <div style="margin-top:4px;"><span class="epistemic-tag tag-interpretation">INTERPRETATION</span> ${best.tech.flags.join(". ") || "Confluent support structure."}</div>
+                  <div><span class="epistemic-tag tag-fact">FACT</span> ${money(item.price)}, ${percent(this.supportDistance(item))} above support ${money(item.majorSupport)}, ${fixed(best.tech.drawdownPct)}% below the 52w high.</div>
+                  <div style="margin-top:4px;"><span class="epistemic-tag tag-interpretation">INTERPRETATION</span> ${escapeHtml([...best.tech.flags, `Fundamentals: ${best.fund.assessment}`].join(". "))}.</div>
+                  ${thesis ? `<div style="margin-top:4px;"><span class="epistemic-tag tag-speculation">YOUR THESIS</span> ${escapeHtml(thesis)}</div>` : ''}
                 </div>
                 <div class="sub-box">
                   <div class="sub-box-title">Key Levels & Wait Thresholds</div>
-                  <div><strong>Major Support:</strong> $${item.majorSupport.toFixed(2)} | <strong>Resistance:</strong> $${item.majorResistance.toFixed(2)}</div>
-                  <div><strong>What Would Make Me Wait:</strong> ${best.tech.nearSupport ? "A high-volume breakdown below $" + item.majorSupport.toFixed(2) : "Wait for pullback to test $" + item.majorSupport.toFixed(2)}.</div>
+                  <div><strong>Major Support:</strong> ${money(item.majorSupport)} | <strong>Resistance:</strong> ${money(item.majorResistance)}</div>
+                  <div><strong>What Would Make Me Wait:</strong> a daily close below ${money(item.majorSupport)}${isNum(item.catalysts.daysToEarnings) ? `, or earnings drawing within ${RULES.earningsWarningDays} days (currently ${item.catalysts.daysToEarnings})` : ''}.</div>
                 </div>
               </div>
 
               <div class="vehicle-preference-box">
                 <div class="sub-box-title">Vehicle Preference: Stock vs Options</div>
-                <div style="font-weight:700; color:var(--emerald);">${best.optionsEval.recommendation}</div>
-                <div style="font-size:12px; color:var(--text-secondary);">${best.optionsEval.reason}</div>
+                <div style="font-weight:700; color:var(--emerald);">${escapeHtml(best.optionsEval.recommendation)}</div>
+                <div style="font-size:12px; color:var(--text-secondary);">${escapeHtml(best.optionsEval.reason)}</div>
               </div>
 
               <div style="display:flex; justify-content:flex-end;">
-                <button class="btn-secondary" onclick="window.stockApp.showDetailModal('${item.ticker}')">Inspect Quantitative Breakdown & Chart →</button>
+                <button class="btn-secondary" onclick="window.stockApp.showDetailModal('${escapeHtml(item.ticker)}')">Inspect Quantitative Breakdown & Chart →</button>
               </div>
             </div>
           `;
         }
 
-        // Top 3 Grid
-        const top3 = filtered.slice(0, 3);
-        this.topOpportunitiesGrid.innerHTML = top3.map((e, idx) => {
+        const top3 = actionable.slice(0, 3);
+        this.topOpportunitiesGrid.innerHTML = top3.length ? top3.map((e, idx) => {
           const item = e.item;
-          let chipClass = "high";
-          if (e.totalScore < 70) chipClass = "wait";
-          if (e.totalScore < 55) chipClass = "avoid";
-
           return `
-            <div class="stock-card" onclick="window.stockApp.showDetailModal('${item.ticker}')">
+            <div class="stock-card" onclick="window.stockApp.showDetailModal('${escapeHtml(item.ticker)}')">
               <div class="card-header-flex">
                 <div>
-                  <span class="card-symbol">#${idx + 1} ${item.ticker}</span>
-                  <span class="card-price">$${item.price.toFixed(2)}</span>
+                  <span class="card-symbol">#${idx + 1} ${escapeHtml(item.ticker)}</span>
+                  <span class="card-price">${money(item.price)}</span>
                 </div>
-                <span class="score-chip ${chipClass}">Score: ${e.totalScore}</span>
+                <span class="score-chip high">Score: ${e.totalScore}</span>
               </div>
               <div class="stat-pills-row">
-                <span class="stat-pill">50d: $${item.sma50.toFixed(2)}</span>
-                <span class="stat-pill">RSI: ${item.rsi14.toFixed(1)}</span>
-                <span class="stat-pill">Fwd P/E: ${item.valuation.forwardPe}x</span>
+                <span class="stat-pill">Support: ${money(item.majorSupport)}</span>
+                <span class="stat-pill">RSI: ${fixed(item.rsi14)}</span>
+                <span class="stat-pill">Fwd P/E: ${multiple(item.valuation.forwardPe)}</span>
               </div>
-              <div style="font-size:12px; color:var(--text-secondary); line-height:1.4;">
-                ${e.tech.flags[0] || "Orderly technical structure."}
-              </div>
+              <div style="font-size:12px; color:var(--text-secondary); line-height:1.4;">${escapeHtml(e.tech.flags[0] || "Orderly technical structure.")}</div>
               <div style="margin-top:auto; padding-top:8px; border-top:1px solid var(--border-subtle); display:flex; justify-content:space-between; font-size:11px;">
-                <span style="color:var(--text-muted);">VEHICLE: <strong style="color:#fff;">${e.optionsEval.recommendation}</strong></span>
+                <span style="color:var(--text-muted);">VEHICLE: <strong style="color:#fff;">${escapeHtml(e.optionsEval.recommendation)}</strong></span>
                 <span style="color:var(--accent-cyan); font-weight:600;">Inspect →</span>
               </div>
             </div>
           `;
+        }).join("") : `
+          <div class="stock-card" style="cursor:default;">
+            <div class="card-symbol" style="color:var(--text-muted);">Nothing actionable today</div>
+            <div style="font-size:12px; color:var(--text-secondary);">An actionable setup needs a score of ${RULES.actionableScore}+, price within ${percent(RULES.nearSupportPct)} of major support, and no earnings inside ${RULES.earningsWarningDays} days. ${notReady.length} name(s) are waiting for that test in Section 4.</div>
+          </div>
+        `;
+
+        this.notReadyTableBody.innerHTML = notReady.map(e => {
+          const item = e.item;
+          let missing;
+          if (e.cat.earningsWarning) missing = `Earnings in ${item.catalysts.daysToEarnings} days`;
+          else if (!e.tech.nearSupport) missing = `Price ${percent(this.supportDistance(item))} above support`;
+          else missing = `Score below ${RULES.actionableScore} (weakest: ${this.weakestPillar(e)})`;
+          return `
+            <tr onclick="window.stockApp.showDetailModal('${escapeHtml(item.ticker)}')" style="cursor:pointer;">
+              <td class="table-symbol">${escapeHtml(item.ticker)}</td>
+              <td>${money(item.price)}</td>
+              <td><span class="score-chip ${e.totalScore >= RULES.actionableScore ? 'medium' : 'wait'}" style="display:inline-block; padding:2px 6px; font-size:11px;">${e.totalScore}</span></td>
+              <td>${escapeHtml(missing)}</td>
+              <td>${money(item.majorSupport)}</td>
+              <td>Close below ${money(item.majorSupport)}</td>
+              <td><span style="color:var(--purple); font-family:var(--font-mono); font-size:11px;">Set alert at ${money(item.majorSupport * 1.015)}</span></td>
+            </tr>
+          `;
         }).join("");
 
-        // Not Ready Yet
-        const notReady = filtered.filter(e => e.totalScore >= 55 && e.totalScore < 75);
-        this.notReadyTableBody.innerHTML = notReady.map(e => `
-          <tr onclick="window.stockApp.showDetailModal('${e.item.ticker}')" style="cursor:pointer;">
-            <td class="table-symbol">${e.item.ticker}</td>
-            <td>$${e.item.price.toFixed(2)}</td>
-            <td><span class="score-chip wait" style="display:inline-block; padding:2px 6px; font-size:11px;">${e.totalScore}</span></td>
-            <td>${e.tech.isExtended ? 'Extended; needs multiple contraction' : 'Awaiting retest of structural floor'}</td>
-            <td>$${e.item.majorSupport.toFixed(2)}</td>
-            <td>Close below $${e.item.majorSupport.toFixed(2)}</td>
-            <td><span style="color:var(--purple); font-family:var(--font-mono); font-size:11px;">Set alert at $${(e.item.majorSupport * 1.015).toFixed(2)}</span></td>
-          </tr>
-        `).join("");
+        this.avoidTableBody.innerHTML = avoid.map(e => {
+          const item = e.item;
+          const redFlag = [...e.tech.flags.filter(f => f.startsWith("Price extended") || f.startsWith("Below 200d")), ...e.fund.flags, ...e.val.flags, ...e.cat.flags][0]
+            || `Score ${e.totalScore} below ${RULES.avoidScore} (weakest: ${this.weakestPillar(e)})`;
+          return `
+            <tr onclick="window.stockApp.showDetailModal('${escapeHtml(item.ticker)}')" style="cursor:pointer;">
+              <td class="table-symbol" style="color:var(--crimson);">${escapeHtml(item.ticker)}</td>
+              <td>${money(item.price)}</td>
+              <td><span class="score-chip avoid" style="display:inline-block; padding:2px 6px; font-size:11px;">${e.totalScore}</span></td>
+              <td style="color:#f87171;">${escapeHtml(redFlag)}</td>
+              <td>${signedPercent(e.tech.dist50)} vs 50d SMA</td>
+              <td>Fwd P/E ${multiple(item.valuation.forwardPe)} · PEG ${fixed(item.valuation.pegRatio, 2)}</td>
+              <td>${e.tech.isExtended ? "Do not chase. Wait for a pullback toward the 50d SMA." : "Pass. Revisit if the score recovers."}</td>
+            </tr>
+          `;
+        }).join("");
 
-        // Avoid
-        const avoid = filtered.filter(e => e.totalScore < 55 || e.tech.isExtended);
-        this.avoidTableBody.innerHTML = avoid.map(e => `
-          <tr onclick="window.stockApp.showDetailModal('${e.item.ticker}')" style="cursor:pointer;">
-            <td class="table-symbol" style="color:var(--crimson);">${e.item.ticker}</td>
-            <td>$${e.item.price.toFixed(2)}</td>
-            <td><span class="score-chip avoid" style="display:inline-block; padding:2px 6px; font-size:11px;">${e.totalScore}</span></td>
-            <td style="color:#f87171;">${e.tech.isExtended ? 'Technically extended from moving averages' : 'Asymmetric downside / high multiple'}</td>
-            <td>+${(((e.item.price - e.item.sma50) / e.item.sma50) * 100).toFixed(1)}% vs 50d SMA</td>
-            <td>Fwd P/E: ${e.item.valuation.forwardPe}x</td>
-            <td>Do not chase. Maintain patience.</td>
-          </tr>
-        `).join("");
+        this.renderPending();
 
-        this.renderTrackedNoData();
-
-        // Watch Next
-        const watchNext = filtered.slice(0, 5);
-        this.watchNextTableBody.innerHTML = watchNext.map(e => `
-          <tr onclick="window.stockApp.showDetailModal('${e.item.ticker}')" style="cursor:pointer;">
-            <td class="table-symbol">${e.item.ticker}</td>
-            <td>${escapeHtml(e.item.catalysts.keyCatalysts[0] || 'Quarterly Financials')}</td>
-            <td>${e.item.catalysts.daysToEarnings < 900 ? e.item.catalysts.daysToEarnings + ' days' : 'Continuous'}</td>
-            <td><strong style="color:var(--emerald);">$${e.item.majorSupport.toFixed(2)}</strong></td>
-            <td>IV Rank: ${e.item.options.ivRank}%</td>
-          </tr>
-        `).join("");
+        const watchNext = [...actionable, ...notReady]
+          .sort((a, b) => (a.item.catalysts.daysToEarnings ?? 999) - (b.item.catalysts.daysToEarnings ?? 999) || this.supportDistance(a.item) - this.supportDistance(b.item))
+          .slice(0, 5);
+        this.watchNextTableBody.innerHTML = watchNext.map(e => {
+          const { item } = e;
+          const c = item.catalysts;
+          const o = item.options;
+          const milestone = c.nextEarningsDate ? `Earnings ${c.nextEarningsDate}${c.earningsDateEstimated ? " (estimated)" : ""}` : `Support test at ${money(item.majorSupport)}`;
+          const days = isNum(c.daysToEarnings) ? `${c.daysToEarnings} days` : `${percent(this.supportDistance(item))} away`;
+          const iv = o && isNum(o.ivHvRatio) ? `IV ${percent(o.impliedVolatility)} = ${o.ivHvRatio.toFixed(2)}x realized` : "No options data";
+          return `
+            <tr onclick="window.stockApp.showDetailModal('${escapeHtml(item.ticker)}')" style="cursor:pointer;">
+              <td class="table-symbol">${escapeHtml(item.ticker)}</td>
+              <td>${escapeHtml(milestone)}</td>
+              <td>${escapeHtml(days)}</td>
+              <td><strong style="color:var(--emerald);">${money(item.majorSupport)}</strong></td>
+              <td>${escapeHtml(iv)}</td>
+            </tr>
+          `;
+        }).join("");
       }
 
-      renderTrackedNoData() {
-        const datasetTickers = new Set(this.dataset.map(x => x.ticker));
-        const rows = this.currentUser
-          ? this.currentUser.watchlist.filter(t => !datasetTickers.has(t) && this.currentUser.addedStocks[t])
+      renderPending() {
+        const pending = this.currentUser
+          ? this.currentUser.watchlist.filter(t => !this.marketData.has(t) && this.currentUser.addedStocks[t])
           : [];
-        this.trackedNoDataSection.hidden = rows.length === 0;
-        this.trackedNoDataTableBody.innerHTML = rows.map(ticker => {
+        this.pendingSection.hidden = pending.length === 0;
+        this.pendingTableBody.innerHTML = pending.map(ticker => {
           const s = this.currentUser.addedStocks[ticker];
+          const status = this.marketData.failed(ticker)
+            ? '<span style="color:var(--amber);">Sources returned no data on the last refresh</span>'
+            : `Queued: data arrives with the next refresh (${REFRESH_NOTE})`;
           return `
             <tr>
               <td class="table-symbol">${escapeHtml(ticker)}</td>
@@ -2946,7 +2551,7 @@
               <td style="font-family:var(--font-mono); font-size:11px;">${escapeHtml(s.exchange)}</td>
               <td style="max-width:420px;">${escapeHtml(s.thesis)}</td>
               <td style="font-family:var(--font-mono); font-size:11px;">${escapeHtml(new Date(s.addedAt).toLocaleDateString())}</td>
-              <td><button type="button" class="btn-manage-wl btn-add-research" data-ticker="${escapeHtml(ticker)}">Enter Levels</button></td>
+              <td style="font-size:12px;">${status}</td>
             </tr>
           `;
         }).join("");
@@ -2955,98 +2560,130 @@
       showDetailModal(ticker) {
         const e = this.currentEvaluations.find(x => x.item.ticker === ticker);
         if (!e) return;
-
         const item = e.item;
+        const f = item.fundamentals;
+        const v = item.valuation;
+        const c = item.catalysts;
+        const o = item.options;
+
         document.getElementById("modalSymbol").textContent = item.ticker;
-        document.getElementById("modalName").textContent = `${item.name} (${item.type})`;
+        document.getElementById("modalName").textContent = [item.name, item.sector, item.industry].filter(Boolean).join(" · ");
 
-        // Chart
         const svg = document.getElementById("modalSvgChart");
-        const series = item.historicalSeries || [item.price * 0.95, item.price * 0.98, item.price];
-        const minVal = Math.min(...series, item.sma200, item.majorSupport) * 0.96;
-        const maxVal = Math.max(...series, item.high52) * 1.03;
-        const range = maxVal - minVal;
+        const series = item.historicalSeries?.length > 1 ? item.historicalSeries : [item.price, item.price];
+        const levels = [item.sma20, item.sma50, item.sma200, item.majorSupport, item.majorResistance].filter(isNum);
+        const minVal = Math.min(...series, ...levels) * 0.98;
+        const maxVal = Math.max(...series, ...levels) * 1.02;
         const w = 800, h = 180;
-        const getY = (val) => h - ((val - minVal) / range) * (h - 20) - 10;
+        const getY = (val) => h - ((val - minVal) / (maxVal - minVal)) * (h - 20) - 10;
         const getX = (idx) => (idx / (series.length - 1)) * w;
-        const points = series.map((val, idx) => `${getX(idx)},${getY(val)}`).join(" ");
-
+        const hline = (val, color, width, dash = "") => isNum(val)
+          ? `<line x1="0" y1="${getY(val)}" x2="${w}" y2="${getY(val)}" stroke="${color}" stroke-width="${width}" ${dash ? `stroke-dasharray="${dash}"` : ""} />` : "";
         svg.innerHTML = `
-          <line x1="0" y1="${getY(item.majorSupport)}" x2="${w}" y2="${getY(item.majorSupport)}" stroke="#ef4444" stroke-width="2" stroke-dasharray="6,4" />
-          <line x1="0" y1="${getY(item.sma200)}" x2="${w}" y2="${getY(item.sma200)}" stroke="#8b5cf6" stroke-width="1.5" stroke-dasharray="4,4" />
-          <line x1="0" y1="${getY(item.sma50)}" x2="${w}" y2="${getY(item.sma50)}" stroke="#10b981" stroke-width="1.5" />
-          <line x1="0" y1="${getY(item.sma20)}" x2="${w}" y2="${getY(item.sma20)}" stroke="#f59e0b" stroke-width="1" />
-          <polyline fill="none" stroke="#38bdf8" stroke-width="3" points="${points}" />
+          ${hline(item.majorSupport, "#ef4444", 2, "6,4")}
+          ${hline(item.sma200, "#8b5cf6", 1.5, "4,4")}
+          ${hline(item.sma50, "#10b981", 1.5)}
+          ${hline(item.sma20, "#f59e0b", 1)}
+          <polyline fill="none" stroke="#38bdf8" stroke-width="2.5" points="${series.map((val, idx) => `${getX(idx)},${getY(val)}`).join(" ")}" />
           <circle cx="${w}" cy="${getY(series[series.length - 1])}" r="5" fill="#38bdf8" />
-          <text x="${w - 75}" y="${getY(series[series.length - 1]) - 8}" fill="#38bdf8" font-size="11" font-weight="bold" font-family="monospace">$${item.price.toFixed(2)}</text>
+          <text x="${w - 80}" y="${getY(series[series.length - 1]) - 8}" fill="#38bdf8" font-size="11" font-weight="bold" font-family="monospace">${money(item.price)}</text>
+          <text x="0" y="${h + 12}" fill="#6b7280" font-size="10" font-family="monospace">Daily closes since ${escapeHtml(item.historicalStart || "")} · lines show current SMA levels</text>
         `;
 
-        document.getElementById("modalTechnicalDetails").innerHTML = `
-          <div><strong>Price:</strong> $${item.price.toFixed(2)} | <strong>52w Range:</strong> $${item.low52.toFixed(2)} – $${item.high52.toFixed(2)}</div>
-          <div><strong>SMAs:</strong> 20d: $${item.sma20.toFixed(2)} | 50d: $${item.sma50.toFixed(2)} | 200d: $${item.sma200.toFixed(2)}</div>
-          <div><strong>RSI:</strong> ${item.rsi14.toFixed(1)} | <strong>Major Support:</strong> $${item.majorSupport.toFixed(2)} | <strong>Resistance:</strong> $${item.majorResistance.toFixed(2)}</div>
-        `;
+        const line = (label, value) => `<div class="detail-line"><strong>${label}:</strong> ${value}</div>`;
+        document.getElementById("modalTechnicalDetails").innerHTML = [
+          line("Price", `${money(item.price)} | <strong>52w Range:</strong> ${money(item.low52)} – ${money(item.high52)}`),
+          line("SMAs", `20d ${money(item.sma20)} | 50d ${money(item.sma50)} (${signedPercent(e.tech.dist50)}) | 200d ${money(item.sma200)} (${signedPercent(e.tech.dist200)})`),
+          line("RSI(14)", `${fixed(item.rsi14)} | <strong>30d Realized Vol:</strong> ${percent(item.hv30)}`),
+          line("Support", `${money(item.majorSupport)} (next ${money(item.secondarySupport)}) | <strong>Resistance:</strong> ${money(item.majorResistance)}`),
+          `<div class="muted" style="font-size:11px;">Levels from ${item.supportMethod === "swing_low_cluster" ? "one-year swing-point clusters" : "52-week extremes (no qualifying swing)"}. Volume ${isNum(item.volume) ? item.volume.toLocaleString() : "N/A"} vs 20d avg ${isNum(item.avgVolume20) ? item.avgVolume20.toLocaleString() : "N/A"}.</div>`
+        ].join("");
 
-        document.getElementById("modalFundamentalDetails").innerHTML = `
-          <div><strong>Rev Growth YoY:</strong> +${(item.fundamentals.revenueGrowthYoY * 100).toFixed(1)}% | <strong>Operating Margin:</strong> ${(item.fundamentals.operatingMargin * 100).toFixed(1)}%</div>
-          <div><strong>Trajectory:</strong> <span style="color:var(--emerald); font-weight:700;">${e.fund.assessment}</span> | <strong>Net Debt/EBITDA:</strong> ${item.fundamentals.netDebtToEbitda}x</div>
-          <div><strong>Moat:</strong> ${escapeHtml(item.fundamentals.competitivePosition)}</div>
-        `;
+        document.getElementById("modalFundamentalDetails").innerHTML = f ? [
+          line("Revenue Growth", `${signedPercent(f.revenueGrowthYoY)} | <strong>Earnings Growth:</strong> ${signedPercent(f.earningsGrowthYoY)}`),
+          line("Operating Margin", `${percent(f.operatingMargin)}${isNum(f.operatingMarginChange) ? ` (${signedPercent(f.operatingMarginChange)} YoY)` : ""}`),
+          line("Free Cash Flow", `${f.reportingCurrency === "USD" ? compactUsd(f.freeCashFlow) : "N/A"}${f.fcfTrend ? ` (${f.fcfTrend})` : ""} | <strong>Net Debt/EBITDA:</strong> ${multiple(f.netDebtToEbitda)}`),
+          line("Trajectory", `<span style="color:var(--emerald); font-weight:700;">${escapeHtml(e.fund.assessment)}</span>`),
+          `<div class="muted" style="font-size:11px;">${f.basis === "ttm" ? "Trailing twelve months" : "Latest quarter vs same quarter last year"} ending ${escapeHtml(f.periodEnd)}${f.foreignFiler ? " (foreign filer)" : ""}. Source: SEC EDGAR filings.</div>`
+        ].join("") : `<div>${escapeHtml(e.fund.assessment)}</div>`;
 
-        document.getElementById("modalValuationDetails").innerHTML = `
-          <div><strong>Forward P/E:</strong> ${item.valuation.forwardPe}x (5y Avg: ${item.valuation.historical5yPe}x)</div>
-          <div><strong>PEG Ratio:</strong> ${item.valuation.pegRatio}x | <strong>FCF Yield:</strong> ${(item.valuation.fcfYield * 100).toFixed(1)}%</div>
-        `;
+        const upside = isNum(c.oneYearTarget) ? c.oneYearTarget / item.price - 1 : null;
+        document.getElementById("modalValuationDetails").innerHTML = [
+          line("Forward P/E (NTM)", `${multiple(v.forwardPe)} | <strong>Trailing:</strong> ${multiple(v.trailingPe)} | <strong>5y Avg:</strong> ${multiple(v.historical5yPe)}`),
+          line("PEG", `${fixed(v.pegRatio, 2)} | <strong>FCF Yield:</strong> ${percent(v.fcfYield)} | <strong>Market Cap:</strong> ${compactUsd(item.marketCap)}`),
+          line("Assessment", escapeHtml(e.val.assessment))
+        ].join("");
 
-        document.getElementById("modalCatalystDetails").innerHTML = `
-          <div><strong>Earnings Date:</strong> ${item.catalysts.nextEarningsDate} (${item.catalysts.daysToEarnings < 900 ? item.catalysts.daysToEarnings + ' days away' : 'ETF'})</div>
-          <div><strong>Factor:</strong> ${escapeHtml(item.catalysts.specificFactor)}</div>
-        `;
+        document.getElementById("modalCatalystDetails").innerHTML = [
+          line("Next Earnings", c.nextEarningsDate ? `${escapeHtml(c.nextEarningsDate)} (${c.daysToEarnings} days${c.earningsDateEstimated ? ", estimated" : ""})` : (item.etf ? "N/A (ETF)" : "Not announced")),
+          line("Analysts", isNum(c.analystCount) ? `${c.analystCount} | <strong>4-week EPS revisions:</strong> ${c.revisionsUp} up / ${c.revisionsDown} down` : "N/A"),
+          line("1y Price Target", isNum(c.oneYearTarget) ? `${money(c.oneYearTarget)} (${signedPercent(upside)})` : "N/A")
+        ].join("");
 
+        const spec = (k, val) => `<div class="spec-item"><div class="spec-k">${k}</div><div class="spec-v">${val}</div></div>`;
         document.getElementById("modalOptionsDetails").innerHTML = `
-          <div style="font-weight:700; color:var(--emerald); margin-bottom:4px;">Vehicle: ${e.optionsEval.recommendation}</div>
-          <div style="font-size:12px; color:var(--text-secondary); margin-bottom:8px;">${e.optionsEval.reason}</div>
-          <div class="options-specs-grid">
-            <div class="spec-item"><div class="spec-k">IV Rank</div><div class="spec-v">${item.options.ivRank}%</div></div>
-            <div class="spec-item"><div class="spec-k">ATM Strike</div><div class="spec-v">$${item.options.atmCallStrike}</div></div>
-            <div class="spec-item"><div class="spec-k">Delta</div><div class="spec-v">${item.options.atmCallDelta}</div></div>
-            <div class="spec-item"><div class="spec-k">Theta</div><div class="spec-v">${item.options.atmCallTheta}</div></div>
+          <div style="font-weight:700; color:var(--emerald); margin-bottom:4px;">Vehicle: ${escapeHtml(e.optionsEval.recommendation)}</div>
+          <div style="font-size:12px; color:var(--text-secondary); margin-bottom:8px;">${escapeHtml(e.optionsEval.reason)}</div>
+          ${o ? `<div class="options-specs-grid">
+            ${spec("Expiration", `${escapeHtml(o.expiration)} (${o.daysToExpiration}d)`)}
+            ${spec("ATM Call Strike", money(o.atmCallStrike))}
+            ${spec("Bid / Ask", `${money(o.atmCallBid)} / ${money(o.atmCallAsk)}`)}
+            ${spec("Open Interest", isNum(o.atmCallOpenInterest) ? o.atmCallOpenInterest.toLocaleString() : "N/A")}
+            ${spec("Delta / Theta", `${fixed(o.atmCallDelta, 2)} / ${fixed(o.atmCallTheta, 3)}`)}
+            ${spec("ATM IV", percent(o.impliedVolatility))}
+            ${spec("IV / 30d Realized", isNum(o.ivHvRatio) ? `${o.ivHvRatio.toFixed(2)}x` : "N/A")}
+            ${spec("Expected Move", `±${percent(o.expectedMovePct)}`)}
           </div>
+          <div class="muted" style="font-size:11px; margin-top:6px;">Cboe delayed quotes as of ${escapeHtml(o.quoteTime)} (quotes outside market hours can be wide).</div>` : ""}
         `;
 
+        const target = isNum(item.majorResistance) ? (item.majorResistance / item.price - 1) : null;
         document.getElementById("modalEpistemicDetails").innerHTML = `
-          <div><span class="epistemic-tag tag-fact">FACT</span> Price is $${item.price.toFixed(2)}, trading with forward P/E of ${item.valuation.forwardPe}x and RSI of ${item.rsi14.toFixed(1)}.</div>
-          <div><span class="epistemic-tag tag-interpretation">INTERPRETATION</span> ${e.tech.flags.join(", ") || "Consolidating within technical parameters."}</div>
-          <div><span class="epistemic-tag tag-speculation">SPECULATION</span> If support holds at $${item.majorSupport.toFixed(2)}, upside target tests $${item.majorResistance.toFixed(2)}.</div>
+          <div><span class="epistemic-tag tag-fact">FACT</span> ${money(item.price)} as of ${escapeHtml(shortDateTime(item.asOf))} (${escapeHtml(item.sources.prices)}); forward P/E ${multiple(v.forwardPe)}; RSI ${fixed(item.rsi14)}.</div>
+          <div><span class="epistemic-tag tag-interpretation">INTERPRETATION</span> ${escapeHtml([...e.tech.flags, ...e.fund.flags, ...e.val.flags, ...e.cat.flags].join("; ") || "No technical, fundamental or valuation flags triggered.")}</div>
+          <div><span class="epistemic-tag tag-speculation">SPECULATION</span> If support ${money(item.majorSupport)} holds, a move back to resistance ${money(item.majorResistance)} would be ${signedPercent(target)}.</div>
+          ${this.thesisFor(item.ticker) ? `<div><span class="epistemic-tag tag-speculation">YOUR THESIS</span> ${escapeHtml(this.thesisFor(item.ticker))}</div>` : ""}
         `;
 
         document.getElementById("modalBearCaseDetails").innerHTML = `
           <div><strong>Bear Case:</strong> ${escapeHtml(e.bearCase.bearCase)}</div>
-          <div><strong>Invalidation Level:</strong> ${e.bearCase.invalidationLevel}</div>
+          <div><strong>Invalidation Level:</strong> ${escapeHtml(e.bearCase.invalidationLevel)}</div>
+        `;
+
+        const sources = Object.entries(item.sources).filter(([, name]) => name).map(([kind, name]) => `${kind}: ${name}`).join(" · ");
+        document.getElementById("modalSourcesDetails").innerHTML = `
+          <div><strong>Score ${e.totalScore}</strong> = Technicals ${e.tech.score}/30 + Fundamentals ${e.fund.score}/25 + Valuation ${e.val.score}/20 + Catalysts ${e.cat.score}/15 + Market ${e.marketBonus}/10${e.tech.isExtended ? " − 12 extension penalty" : ""}${e.cat.earningsWarning ? " − 8 earnings penalty" : ""} (${escapeHtml(e.tierLabel)})</div>
+          <div class="muted">Missing data (scored neutral): ${escapeHtml(e.dataGaps.join(", ") || "none")}</div>
+          <div class="muted">Sources: ${escapeHtml(sources)}</div>
+          ${item.errors?.length ? `<div style="color:var(--amber);">Last refresh warnings: ${escapeHtml(item.errors.join("; "))}</div>` : ""}
+          ${this.scenarioSelector.value !== "baseline" ? '<div style="color:var(--amber);">Stress test active: price and volatility figures are simulated.</div>' : ""}
         `;
 
         this.detailModal.classList.add("active");
       }
 
       exportMarkdown() {
-        const filtered = this.getFilteredEvaluations();
-        const best = filtered.find(e => e.totalScore >= 75 && !e.tech.isExtended && !e.cat.earningsWarning);
+        if (!this.marketData.data) return;
+        const { best, actionable, notReady, avoid } = classifyEvaluations(this.getFilteredEvaluations());
+        const row = (e) => `- **${e.item.ticker}** ${money(e.item.price)}: Score ${e.totalScore} | Support ${money(e.item.majorSupport)} | Vehicle: ${e.optionsEval.recommendation}\n`;
         let md = `# StockWatcher Research Report\n\n`;
-        md += `**Account:** ${this.currentUser ? this.currentUser.name : 'Guest'}\n`;
-        md += `**Market Regime:** ${this.marketRegime}\n\n`;
-        md += `## BEST OPPORTUNITY TODAY\n`;
+        md += `**Account:** ${this.currentUser ? this.currentUser.name : "Guest"}\n`;
+        md += `**Data built:** ${shortDateTime(this.marketData.data.generatedAt)} (real market data)\n`;
+        md += `**Market Regime:** ${this.marketRegime}: ${this.marketRegimeDesc}\n`;
+        if (this.scenarioSelector.value !== "baseline") md += `**Stress test active:** ${this.scenarioSelector.selectedOptions[0].text}\n`;
+        md += `\n## BEST OPPORTUNITY TODAY\n`;
         if (best) {
-          md += `- **Ticker:** ${best.item.ticker} ($${best.item.price.toFixed(2)})\n`;
+          md += `- **Ticker:** ${best.item.ticker} (${money(best.item.price)})\n`;
           md += `- **Opportunity Score:** ${best.totalScore} / 100 (${best.tierLabel})\n`;
-          md += `- **Support:** $${best.item.majorSupport.toFixed(2)} | **Resistance:** $${best.item.majorResistance.toFixed(2)}\n`;
-          md += `- **Preferred Vehicle:** ${best.optionsEval.recommendation}\n\n`;
+          md += `- **Support:** ${money(best.item.majorSupport)} | **Resistance:** ${money(best.item.majorResistance)}\n`;
+          md += `- **Preferred Vehicle:** ${best.optionsEval.recommendation}\n`;
+          md += `- **Bear Case:** ${best.bearCase.bearCase}\n\n`;
         } else {
-          md += `*Recommendation:* **WAIT**. No monitored asset currently fulfills all multi-pillar risk/reward conditions.\n\n`;
+          md += `*Recommendation:* **WAIT**. Nothing qualifies today.\n\n`;
         }
-        md += `## WATCHLIST AUDIT\n`;
-        filtered.forEach((e, i) => {
-          md += `${i + 1}. **${e.item.ticker}** — Score: ${e.totalScore} | Support: $${e.item.majorSupport.toFixed(2)} | Vehicle: ${e.optionsEval.recommendation}\n`;
-        });
+        md += `## ACTIONABLE\n${actionable.map(row).join("") || "- None\n"}\n`;
+        md += `## NOT READY YET\n${notReady.map(row).join("") || "- None\n"}\n`;
+        md += `## AVOID / HIGH RISK\n${avoid.map(row).join("") || "- None\n"}`;
         navigator.clipboard.writeText(md).then(() => this.showToast("Markdown report copied to clipboard!"));
       }
     }
@@ -3060,7 +2697,7 @@
       console.warn("Firebase is not configured (firebase-config.js). Running in guest-only mode.");
     }
 
-    window.stockApp = new StockWatcherApp(accountManager, new SymbolDirectory(SYMBOLS_URL));
+    window.stockApp = new StockWatcherApp(accountManager, new SymbolDirectory(SYMBOLS_URL), new MarketDataStore(MARKET_URL));
   </script>
 </body>
 </html>

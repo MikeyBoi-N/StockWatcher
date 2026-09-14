@@ -1,0 +1,16 @@
+{
+ "data": {
+  "symbol": "spy",
+  "quarterlyForecast": null,
+  "yearlyForecast": null
+ },
+ "message": {
+  "QuarterlyForecast": "Quarterly Earnings Forecast is not available",
+  "YearlyForecast": "Yearly Earnings Forecast is not available"
+ },
+ "status": {
+  "rCode": 200,
+  "bCodeMessage": null,
+  "developerMessage": null
+ }
+}

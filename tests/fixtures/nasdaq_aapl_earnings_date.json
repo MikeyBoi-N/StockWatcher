@@ -1,0 +1,23 @@
+{
+ "data": {
+  "reportText": "Apple Inc. Common Stock is estimated to report earnings on  10/29/2026. The upcoming earnings date is derived from an algorithm based on a company's historical reporting dates. Our vendor, Zacks Investment Research, might revise this date in the future, once the company announces the actual earnings date. According to Zacks Investment Research, based on  8 analysts' forecasts, the consensus EPS forecast for the quarter is $1.98.  The reported EPS for the same quarter last year was $1.85.",
+  "heading": "AAPL Earnings Date",
+  "announcement": "Earnings announcement* for AAPL: Oct 29, 2026",
+  "eQRResposeModel": {
+   "text": [
+    "AAPL has a \"high\" Earnings Quality Ranking (EQR) for the 15th consecutive week. Earnings quality refers to the extent to which current earnings predict future earnings. \"High-quality\" earnings are expected to persist, while \"low-quality\" earnings do not. EQR is a weekly ranking of relative earnings quality for a large universe of publicly traded US equities. Companies are compared to peers in their industry. Find out more about EQR data."
+   ],
+   "boldText": null,
+   "dataLinkUrl": {
+    "label": "Find out more about EQR data",
+    "value": "https://data.nasdaq.com/databases/EQR"
+   }
+  }
+ },
+ "message": null,
+ "status": {
+  "rCode": 200,
+  "bCodeMessage": null,
+  "developerMessage": null
+ }
+}
