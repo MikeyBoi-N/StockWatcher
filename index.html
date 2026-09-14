@@ -1,0 +1,2407 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>StockWatcher — Account-Based Stock & Options Research Terminal</title>
+  <style>
+    :root {
+      --bg-main: #0b0f19;
+      --bg-card: #111827;
+      --bg-card-hover: #172236;
+      --bg-card-alt: #1a2333;
+      --border-subtle: #1f293d;
+      --border-focus: #374151;
+      --text-primary: #f3f4f6;
+      --text-secondary: #9ca3af;
+      --text-muted: #6b7280;
+      
+      --accent-cyan: #06b6d4;
+      --accent-cyan-glow: rgba(6, 182, 212, 0.25);
+      --accent-blue: #3b82f6;
+      --emerald: #10b981;
+      --emerald-glow: rgba(16, 185, 129, 0.2);
+      --amber: #f59e0b;
+      --crimson: #ef4444;
+      --purple: #8b5cf6;
+      
+      --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background-color: var(--bg-main);
+      color: var(--text-primary);
+      font-family: var(--font-sans);
+      min-height: 100vh;
+      line-height: 1.5;
+      padding-bottom: 60px;
+      overflow-x: hidden;
+    }
+
+    /* Header */
+    header {
+      background: rgba(17, 24, 39, 0.95);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border-subtle);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      padding: 12px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .brand-logo {
+      width: 32px;
+      height: 32px;
+      background: linear-gradient(135deg, var(--accent-cyan), var(--accent-blue));
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 900;
+      font-size: 16px;
+      color: #0b0f19;
+      box-shadow: 0 0 12px var(--accent-cyan-glow);
+    }
+
+    .brand-title {
+      font-size: 18px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .brand-badge {
+      font-size: 10px;
+      font-family: var(--font-mono);
+      background: rgba(6, 182, 212, 0.12);
+      color: var(--accent-cyan);
+      border: 1px solid rgba(6, 182, 212, 0.3);
+      padding: 2px 6px;
+      border-radius: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .fomo-shield {
+      background: rgba(16, 185, 129, 0.08);
+      border: 1px solid rgba(16, 185, 129, 0.25);
+      color: var(--emerald);
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-family: var(--font-mono);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .fomo-pulse {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--emerald);
+      box-shadow: 0 0 8px var(--emerald);
+      animation: pulseDot 2s infinite;
+    }
+
+    @keyframes pulseDot {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.85); }
+    }
+
+    .btn-secondary {
+      background: var(--bg-card-alt);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-primary);
+      padding: 7px 13px;
+      border-radius: 6px;
+      font-size: 13px;
+      cursor: pointer;
+      font-weight: 500;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .btn-secondary:hover {
+      background: var(--bg-card-hover);
+      border-color: var(--border-focus);
+    }
+
+    .btn-primary-blue {
+      background: linear-gradient(135deg, #0284c7, #2563eb);
+      border: 1px solid #38bdf8;
+      color: #fff;
+      padding: 7px 14px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .btn-primary-blue:hover {
+      box-shadow: 0 0 16px rgba(56, 189, 248, 0.4);
+      transform: translateY(-1px);
+    }
+
+    /* User Account Header Pill */
+    .user-pill {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: var(--bg-card-alt);
+      border: 1px solid var(--border-subtle);
+      border-radius: 999px;
+      padding: 4px 12px 4px 4px;
+      cursor: pointer;
+      position: relative;
+    }
+
+    .user-avatar {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent-cyan), var(--purple));
+      color: #fff;
+      font-weight: 800;
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-transform: uppercase;
+    }
+
+    .user-name {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .user-menu-dropdown {
+      display: none;
+      position: absolute;
+      top: calc(100% + 8px);
+      right: 0;
+      background: var(--bg-card);
+      border: 1px solid var(--border-focus);
+      border-radius: 8px;
+      min-width: 180px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.6);
+      overflow: hidden;
+      z-index: 150;
+    }
+
+    .user-menu-dropdown.show { display: block; }
+
+    .dropdown-item {
+      padding: 10px 14px;
+      font-size: 12px;
+      color: var(--text-secondary);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .dropdown-item:last-child { border-bottom: none; }
+    .dropdown-item:hover { background: var(--bg-card-hover); color: #fff; }
+
+    /* Container */
+    .container {
+      max-width: 1360px;
+      margin: 0 auto;
+      padding: 24px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    /* Hero Panel with Big Run Button */
+    .hero-panel {
+      background: linear-gradient(180deg, #131d2e 0%, #0d1422 100%);
+      border: 1px solid rgba(59, 130, 246, 0.25);
+      border-radius: 12px;
+      padding: 28px 32px;
+      position: relative;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    }
+
+    .hero-content {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 24px;
+      flex-wrap: wrap;
+    }
+
+    .hero-info { max-width: 680px; }
+
+    .hero-info h1 {
+      font-size: 24px;
+      font-weight: 800;
+      color: #ffffff;
+      margin-bottom: 8px;
+      letter-spacing: -0.02em;
+    }
+
+    .hero-info p {
+      color: var(--text-secondary);
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    .watchlist-status-bar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-top: 14px;
+      font-size: 12px;
+      font-family: var(--font-mono);
+      color: var(--text-muted);
+    }
+
+    .btn-manage-wl {
+      background: rgba(6, 182, 212, 0.12);
+      border: 1px solid rgba(6, 182, 212, 0.3);
+      color: var(--accent-cyan);
+      padding: 4px 10px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .btn-manage-wl:hover { background: rgba(6, 182, 212, 0.2); }
+
+    /* LARGE RUN BUTTON */
+    .run-button-wrapper {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .btn-run-scan {
+      position: relative;
+      background: linear-gradient(135deg, #0284c7 0%, #0369a1 50%, #0f766e 100%);
+      color: #ffffff;
+      border: 2px solid rgba(56, 189, 248, 0.5);
+      border-radius: 10px;
+      padding: 16px 42px;
+      font-size: 19px;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      cursor: pointer;
+      box-shadow: 0 0 24px rgba(2, 132, 199, 0.4), inset 0 1px 1px rgba(255, 255, 255, 0.3);
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      text-transform: uppercase;
+    }
+
+    .btn-run-scan:hover {
+      transform: translateY(-2px) scale(1.02);
+      box-shadow: 0 0 36px rgba(14, 165, 233, 0.6);
+      border-color: #38bdf8;
+    }
+
+    .btn-run-scan:active { transform: translateY(1px); }
+
+    .btn-run-scan.scanning {
+      background: linear-gradient(135deg, #0d9488, #059669);
+      pointer-events: none;
+      animation: buttonPulse 1.2s infinite ease-in-out;
+    }
+
+    @keyframes buttonPulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.75; }
+    }
+
+    .btn-run-scan svg { width: 22px; height: 22px; fill: currentColor; }
+
+    .scan-diagnostic {
+      display: none;
+      margin-top: 18px;
+      padding-top: 14px;
+      border-top: 1px solid var(--border-subtle);
+    }
+
+    .scan-diagnostic.active { display: block; }
+
+    .progress-bar-bg {
+      width: 100%;
+      height: 5px;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 999px;
+      overflow: hidden;
+      margin-bottom: 8px;
+    }
+
+    .progress-bar-fill {
+      width: 0%;
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent-cyan), var(--emerald));
+      transition: width 0.15s ease-out;
+    }
+
+    .diagnostic-terminal {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--accent-cyan);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* Controls Strip */
+    .controls-strip {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+      background: var(--bg-card);
+      padding: 10px 16px;
+      border-radius: 8px;
+      border: 1px solid var(--border-subtle);
+    }
+
+    .filter-group { display: flex; gap: 6px; }
+
+    .filter-btn {
+      background: var(--bg-main);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-secondary);
+      font-size: 12px;
+      padding: 5px 12px;
+      border-radius: 5px;
+      cursor: pointer;
+      font-weight: 500;
+    }
+
+    .filter-btn.active {
+      background: rgba(6, 182, 212, 0.12);
+      border-color: var(--accent-cyan);
+      color: var(--accent-cyan);
+    }
+
+    /* Market Overview Banner */
+    .market-banner {
+      background: var(--bg-card);
+      border-radius: 8px;
+      border-left: 5px solid var(--border-subtle);
+      padding: 14px 18px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 14px;
+    }
+
+    .market-banner.bullish { border-left-color: var(--emerald); }
+    .market-banner.neutral { border-left-color: var(--accent-cyan); }
+    .market-banner.cautious { border-left-color: var(--amber); }
+    .market-banner.bearish { border-left-color: var(--crimson); }
+
+    .market-status-title {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+    }
+
+    .market-status-value {
+      font-size: 18px;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .market-indices {
+      display: flex;
+      gap: 18px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+    }
+
+    .index-stat { display: flex; flex-direction: column; }
+    .index-name { color: var(--text-muted); font-size: 10px; }
+    .index-val { font-weight: 700; }
+
+    .section-headline {
+      font-size: 12px;
+      font-family: var(--font-mono);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--accent-cyan);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    /* Cards & Grids */
+    .best-opportunity-card {
+      background: linear-gradient(135deg, #111a2d 0%, #152238 100%);
+      border: 2px solid rgba(16, 185, 129, 0.4);
+      border-radius: 12px;
+      padding: 22px;
+      box-shadow: 0 12px 36px rgba(0, 0, 0, 0.5);
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .best-opportunity-card.none-found {
+      border-color: rgba(156, 163, 175, 0.3);
+      background: var(--bg-card);
+    }
+
+    .card-top-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      flex-wrap: wrap;
+      gap: 14px;
+    }
+
+    .ticker-spotlight { display: flex; align-items: center; gap: 14px; }
+    .spotlight-symbol { font-size: 30px; font-weight: 900; font-family: var(--font-mono); color: #fff; }
+    .spotlight-name { font-size: 13px; color: var(--text-secondary); }
+
+    .score-badge-huge {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid var(--emerald);
+      border-radius: 8px;
+      padding: 8px 16px;
+      min-width: 85px;
+    }
+
+    .score-badge-huge.wait {
+      background: rgba(245, 158, 11, 0.15);
+      border-color: var(--amber);
+      color: var(--amber);
+    }
+
+    .score-num { font-size: 26px; font-weight: 900; font-family: var(--font-mono); color: var(--emerald); line-height: 1; }
+    .score-num.wait { color: var(--amber); }
+    .score-label { font-size: 9px; text-transform: uppercase; font-family: var(--font-mono); color: var(--text-secondary); margin-top: 3px; }
+
+    .grid-2col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+
+    @media (max-width: 860px) { .grid-2col { grid-template-columns: 1fr; } }
+
+    .sub-box {
+      background: rgba(0, 0, 0, 0.25);
+      border: 1px solid var(--border-subtle);
+      border-radius: 8px;
+      padding: 12px 14px;
+      font-size: 13px;
+    }
+
+    .sub-box-title {
+      font-size: 10px;
+      font-family: var(--font-mono);
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 5px;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .vehicle-preference-box {
+      background: rgba(6, 182, 212, 0.06);
+      border: 1px solid rgba(6, 182, 212, 0.25);
+      border-radius: 8px;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .options-specs-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 8px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+    }
+
+    .spec-item {
+      background: rgba(0, 0, 0, 0.3);
+      padding: 6px 8px;
+      border-radius: 4px;
+      border: 1px solid var(--border-subtle);
+    }
+
+    .spec-k { color: var(--text-muted); font-size: 9px; text-transform: uppercase; }
+    .spec-v { color: #fff; font-weight: 700; }
+
+    /* Epistemic Tags */
+    .epistemic-tag {
+      display: inline-block;
+      font-size: 9px;
+      font-family: var(--font-mono);
+      font-weight: 700;
+      padding: 1px 5px;
+      border-radius: 3px;
+      text-transform: uppercase;
+      margin-right: 5px;
+    }
+    .tag-fact { background: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3); }
+    .tag-interpretation { background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.3); }
+    .tag-speculation { background: rgba(139, 92, 246, 0.15); color: #c084fc; border: 1px solid rgba(139, 92, 246, 0.3); }
+
+    /* Grid for Top Opportunities */
+    .top-three-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+      gap: 16px;
+    }
+
+    .stock-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: 10px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .stock-card:hover {
+      border-color: var(--border-focus);
+      background: var(--bg-card-hover);
+      transform: translateY(-2px);
+    }
+
+    .card-header-flex { display: flex; justify-content: space-between; align-items: center; }
+    .card-symbol { font-size: 18px; font-weight: 800; font-family: var(--font-mono); color: #fff; }
+    .card-price { font-size: 13px; font-family: var(--font-mono); color: var(--text-secondary); margin-left: 6px; }
+
+    .score-chip {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 800;
+      padding: 3px 8px;
+      border-radius: 5px;
+    }
+    .score-chip.high { background: rgba(16, 185, 129, 0.15); color: var(--emerald); border: 1px solid var(--emerald); }
+    .score-chip.medium { background: rgba(6, 182, 212, 0.15); color: var(--accent-cyan); border: 1px solid var(--accent-cyan); }
+    .score-chip.wait { background: rgba(245, 158, 11, 0.15); color: var(--amber); border: 1px solid var(--amber); }
+    .score-chip.avoid { background: rgba(239, 68, 68, 0.15); color: var(--crimson); border: 1px solid var(--crimson); }
+
+    .stat-pills-row { display: flex; flex-wrap: wrap; gap: 5px; font-size: 11px; font-family: var(--font-mono); }
+    .stat-pill { background: var(--bg-card-alt); border: 1px solid var(--border-subtle); padding: 2px 7px; border-radius: 4px; color: var(--text-secondary); }
+
+    /* Tables */
+    .table-panel {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    .data-table { width: 100%; border-collapse: collapse; text-align: left; font-size: 13px; }
+    .data-table th {
+      background: var(--bg-card-alt);
+      padding: 9px 12px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    .data-table td { padding: 10px 12px; border-bottom: 1px solid var(--border-subtle); color: var(--text-secondary); }
+    .data-table tr:hover td { background: var(--bg-card-hover); color: #fff; }
+    .table-symbol { font-family: var(--font-mono); font-weight: 700; color: #fff; }
+
+    /* Modals */
+    .modal-backdrop {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.8);
+      backdrop-filter: blur(8px);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+
+    .modal-backdrop.active { display: flex; }
+
+    .modal-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-focus);
+      border-radius: 12px;
+      width: 100%;
+      max-width: 880px;
+      max-height: 90vh;
+      overflow-y: auto;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .modal-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border-subtle);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      background: var(--bg-card);
+      z-index: 10;
+    }
+
+    .modal-close {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-size: 22px;
+      cursor: pointer;
+      line-height: 1;
+    }
+    .modal-close:hover { color: #fff; }
+
+    .modal-content { padding: 20px; display: flex; flex-direction: column; gap: 16px; }
+
+    /* Watchlist Selection Grid */
+    .wl-selection-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 10px;
+      max-height: 420px;
+      overflow-y: auto;
+      padding-right: 6px;
+    }
+
+    .wl-stock-item {
+      background: var(--bg-card-alt);
+      border: 1px solid var(--border-subtle);
+      border-radius: 8px;
+      padding: 10px 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      transition: all 0.15s ease;
+    }
+
+    .wl-stock-item.watched {
+      border-color: rgba(6, 182, 212, 0.5);
+      background: rgba(6, 182, 212, 0.06);
+    }
+
+    .btn-toggle-watch {
+      background: transparent;
+      border: 1px solid var(--border-subtle);
+      color: var(--text-muted);
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      cursor: pointer;
+    }
+
+    .wl-stock-item.watched .btn-toggle-watch {
+      background: rgba(16, 185, 129, 0.15);
+      border-color: var(--emerald);
+      color: var(--emerald);
+      font-weight: 600;
+    }
+
+    /* Toast */
+    .toast {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: #1f2937;
+      border: 1px solid var(--accent-cyan);
+      color: #fff;
+      padding: 10px 16px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-family: var(--font-mono);
+      z-index: 2000;
+      display: none;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+    }
+
+    .toast.show { display: block; animation: fadeIn 0.2s ease-out; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  </style>
+</head>
+<body>
+
+  <!-- Top Utility Navigation -->
+  <header>
+    <div class="brand">
+      <div class="brand-logo">Ω</div>
+      <div class="brand-title">
+        StockWatcher
+        <span class="brand-badge">GitHub Cloud</span>
+      </div>
+    </div>
+    <div class="header-actions">
+      <div class="fomo-shield" title="Skeptical Bias: Most of the time, the correct answer is WAIT.">
+        <div class="fomo-pulse"></div>
+        <span>ANTI-FOMO SHIELD: ACTIVE</span>
+      </div>
+
+      <button class="btn-secondary" id="btnManageWatchlist" title="Choose which stocks you want to monitor">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+        <span id="headerWlCountText">My Watchlist (17)</span>
+      </button>
+
+      <button class="btn-secondary" id="btnExportJournal" title="Copy full markdown report">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg>
+        Copy Journal
+      </button>
+
+      <!-- User Account Controls -->
+      <div id="authPillContainer">
+        <!-- Injected via JavaScript based on session -->
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="container">
+
+    <!-- Hero Panel with Big Run Button -->
+    <section class="hero-panel">
+      <div class="hero-content">
+        <div class="hero-info">
+          <h1>Deterministic Stock & Options Scanner</h1>
+          <p>
+            Personalized research assistant enforcing institutional skepticism. Scans your selected watchlist across 
+            <strong>Technicals</strong>, <strong>Fundamentals</strong>, <strong>Valuation Reality</strong>, <strong>Catalysts</strong>, and <strong>Options Greeks (IV Rank, Delta, Theta)</strong>.
+          </p>
+          <div class="watchlist-status-bar">
+            <span>Account: <strong id="heroAccountName" style="color:var(--accent-cyan);">Demo Trader</strong></span>
+            <span>•</span>
+            <span id="heroWlStats">Monitoring <strong>17</strong> stocks</span>
+            <button class="btn-manage-wl" id="btnHeroEditWl">Change Monitored Stocks</button>
+          </div>
+        </div>
+
+        <!-- The Large Run Button -->
+        <div class="run-button-wrapper">
+          <button id="btnRunScan" class="btn-run-scan" title="Trigger deterministic audit on your watchlist">
+            <svg viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+            <span>RUN MARKET SCAN</span>
+          </button>
+          <div style="font-size:10px; font-family:var(--font-mono); color:var(--text-muted); text-transform:uppercase;">
+            Auditing Your Account Watchlist
+          </div>
+        </div>
+      </div>
+
+      <!-- Live Scan Terminal Diagnostic Log -->
+      <div id="scanDiagnostic" class="scan-diagnostic">
+        <div class="progress-bar-bg">
+          <div id="progressBarFill" class="progress-bar-fill"></div>
+        </div>
+        <div class="diagnostic-terminal">
+          <span>⚙</span>
+          <span id="diagnosticText">Awaiting scan trigger...</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Controls Strip -->
+    <section class="controls-strip">
+      <div class="filter-group">
+        <button class="filter-btn active" data-filter="my_watchlist">My Watchlist Only</button>
+        <button class="filter-btn" data-filter="all">Full Market Library (19+)</button>
+        <button class="filter-btn" data-filter="primary">Primary Core (12)</button>
+        <button class="filter-btn" data-filter="alerts">Triggered Alerts Only</button>
+      </div>
+      <div style="display:flex; align-items:center; gap: 8px;">
+        <label style="font-size:11px; color:var(--text-muted); font-family:var(--font-mono);">Stress Test:</label>
+        <select id="scenarioSelector" style="background:var(--bg-main); border:1px solid var(--border-subtle); color:#fff; font-size:11px; font-family:var(--font-mono); padding:4px 8px; border-radius:4px;">
+          <option value="baseline">Baseline Market Snapshot</option>
+          <option value="pullback">Simulate -8% Tech Pullback (Tests Support)</option>
+          <option value="high_iv">Simulate High IV Spike (IVP > 75%)</option>
+          <option value="overbought">Simulate Extended Rally (FOMO Resistance)</option>
+        </select>
+      </div>
+    </section>
+
+    <!-- SECTION 1: MARKET CONDITIONS -->
+    <section id="marketConditionsSection" class="market-banner neutral">
+      <div>
+        <div class="market-status-title">Market Regime Assessment (SPY & QQQ Multi-Trend)</div>
+        <div id="marketRegimeText" class="market-status-value"><span>NEUTRAL / CAUTIOUS</span></div>
+      </div>
+      <div class="market-indices">
+        <div class="index-stat">
+          <span class="index-name">SPY (S&P 500 ETF)</span>
+          <span id="spySummary" class="index-val">$578.40 | Above 200d SMA | RSI 53</span>
+        </div>
+        <div class="index-stat">
+          <span class="index-name">QQQ (Nasdaq-100 ETF)</span>
+          <span id="qqqSummary" class="index-val">$494.20 | Testing 50d SMA | RSI 51</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 2: BEST OPPORTUNITY TODAY -->
+    <section>
+      <div class="section-headline">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+        SECTION 2 — BEST OPPORTUNITY TODAY (FROM YOUR WATCHLIST)
+      </div>
+      <div id="bestOpportunityContainer"></div>
+    </section>
+
+    <!-- SECTION 3: TOP OPPORTUNITIES -->
+    <section>
+      <div class="section-headline">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 18l6-6-6-6"></path><path d="M8 6l-6 6 6 6"></path></svg>
+        SECTION 3 — TOP OPPORTUNITIES (RANKED BY STRICT RISK/REWARD)
+      </div>
+      <div id="topOpportunitiesGrid" class="top-three-grid"></div>
+    </section>
+
+    <!-- SECTION 4: NOT READY YET -->
+    <section>
+      <div class="section-headline">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+        SECTION 4 — NOT READY YET (PATIENT WATCHLIST: AWAITING SUPPORT TEST OR CONFIRMATION)
+      </div>
+      <div class="table-panel">
+        <table class="data-table" id="notReadyTable">
+          <thead>
+            <tr>
+              <th>Ticker</th>
+              <th>Current Price</th>
+              <th>Score</th>
+              <th>Missing Prerequisite</th>
+              <th>Target Entry Support</th>
+              <th>Invalidation Level</th>
+              <th>Action Needed</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- SECTION 5: AVOID / HIGH RISK -->
+    <section>
+      <div class="section-headline" style="color: var(--crimson);">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="7.86 2 16.14 2 22 7.86 22 16.14 16.14 22 7.86 22 2 16.14 2 7.86 7.86 2"></polygon><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+        SECTION 5 — AVOID / HIGH RISK (EXTENDED OR ASYMMETRIC DOWNSIDE)
+      </div>
+      <div class="table-panel">
+        <table class="data-table" id="avoidTable">
+          <thead>
+            <tr>
+              <th>Ticker</th>
+              <th>Price</th>
+              <th>Score</th>
+              <th>Primary Red Flag</th>
+              <th>Technical Extension</th>
+              <th>Valuation Strain</th>
+              <th>Prescription</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- SECTION 6: WHAT I WOULD WATCH NEXT -->
+    <section>
+      <div class="section-headline" style="color: var(--purple);">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+        SECTION 6 — WHAT I WOULD WATCH NEXT (CONDITIONAL TRIGGERS & CATALYSTS)
+      </div>
+      <div class="table-panel">
+        <table class="data-table" id="watchNextTable">
+          <thead>
+            <tr>
+              <th>Asset</th>
+              <th>Upcoming Milestone</th>
+              <th>Days to Event</th>
+              <th>Conditional Price Level</th>
+              <th>Options / IV Impact</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ========================================================================= -->
+  <!-- MODALS -->
+  <!-- ========================================================================= -->
+
+  <!-- Watchlist Manager Modal -->
+  <div id="watchlistModal" class="modal-backdrop">
+    <div class="modal-card" style="max-width:760px;">
+      <div class="modal-header">
+        <div>
+          <h3 style="font-size:16px;">Customize Your Monitored Watchlist</h3>
+          <div style="font-size:12px; color:var(--text-secondary);">Toggle which stocks your account actively tracks. Changes persist automatically.</div>
+        </div>
+        <button id="wlModalCloseBtn" class="modal-close">&times;</button>
+      </div>
+      <div class="modal-content">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <div style="font-size:12px; font-family:var(--font-mono);" id="wlSelectStats">
+            Selected: <strong id="wlSelectedCount">17</strong> stocks
+          </div>
+          <div style="display:flex; gap:8px;">
+            <button class="btn-secondary" id="btnSelectAllWl" style="font-size:11px; padding:4px 8px;">Select All</button>
+            <button class="btn-secondary" id="btnSelectPrimaryOnly" style="font-size:11px; padding:4px 8px;">Primary (12) Only</button>
+            <button class="btn-secondary" id="btnOpenAddCustom" style="font-size:11px; padding:4px 8px; color:var(--accent-cyan);">+ Add Custom Ticker</button>
+          </div>
+        </div>
+
+        <div class="wl-selection-grid" id="wlSelectionContainer">
+          <!-- Rendered dynamically -->
+        </div>
+
+        <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:10px;">
+          <button id="btnSaveWatchlist" class="btn-primary-blue">Save & Update Dashboard</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Login Modal -->
+  <div id="loginModal" class="modal-backdrop">
+    <div class="modal-card" style="max-width:440px;">
+      <div class="modal-header">
+        <h3 style="font-size:16px;">Sign In to StockWatcher</h3>
+        <button id="loginCloseBtn" class="modal-close">&times;</button>
+      </div>
+      <form id="loginForm" class="modal-content" style="gap:14px;">
+        <div>
+          <label style="color:var(--text-muted); font-size:11px;">Username or Email</label>
+          <input type="text" id="loginUsername" required placeholder="demo_trader" style="width:100%; background:var(--bg-card-alt); border:1px solid var(--border-subtle); color:#fff; padding:8px 12px; border-radius:6px; font-family:var(--font-mono);">
+        </div>
+        <div>
+          <label style="color:var(--text-muted); font-size:11px;">Password</label>
+          <input type="password" id="loginPassword" required placeholder="••••••••" style="width:100%; background:var(--bg-card-alt); border:1px solid var(--border-subtle); color:#fff; padding:8px 12px; border-radius:6px;">
+        </div>
+        <div id="loginErrorMsg" style="color:var(--crimson); font-size:12px; display:none;"></div>
+        <button type="submit" class="btn-primary-blue" style="justify-content:center; padding:10px;">Sign In</button>
+        <button type="button" id="btnDemoQuickLogin" class="btn-secondary" style="justify-content:center; color:var(--accent-cyan);">Instant 1-Click Demo Login</button>
+        <div style="text-align:center; font-size:12px; color:var(--text-muted); margin-top:6px;">
+          Don't have an account? <a href="#" id="linkOpenRegister" style="color:var(--accent-cyan); text-decoration:none;">Create one</a>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Register Modal -->
+  <div id="registerModal" class="modal-backdrop">
+    <div class="modal-card" style="max-width:480px;">
+      <div class="modal-header">
+        <h3 style="font-size:16px;">Create StockWatcher Account</h3>
+        <button id="registerCloseBtn" class="modal-close">&times;</button>
+      </div>
+      <form id="registerForm" class="modal-content" style="gap:12px;">
+        <div>
+          <label style="color:var(--text-muted); font-size:11px;">Full Name</label>
+          <input type="text" id="regName" required placeholder="Jane Doe" style="width:100%; background:var(--bg-card-alt); border:1px solid var(--border-subtle); color:#fff; padding:7px 10px; border-radius:6px;">
+        </div>
+        <div>
+          <label style="color:var(--text-muted); font-size:11px;">Username</label>
+          <input type="text" id="regUsername" required placeholder="janedoe" style="width:100%; background:var(--bg-card-alt); border:1px solid var(--border-subtle); color:#fff; padding:7px 10px; border-radius:6px; font-family:var(--font-mono);">
+        </div>
+        <div>
+          <label style="color:var(--text-muted); font-size:11px;">Email Address</label>
+          <input type="email" id="regEmail" required placeholder="jane@example.com" style="width:100%; background:var(--bg-card-alt); border:1px solid var(--border-subtle); color:#fff; padding:7px 10px; border-radius:6px;">
+        </div>
+        <div>
+          <label style="color:var(--text-muted); font-size:11px;">Password</label>
+          <input type="password" id="regPassword" required placeholder="At least 6 characters" style="width:100%; background:var(--bg-card-alt); border:1px solid var(--border-subtle); color:#fff; padding:7px 10px; border-radius:6px;">
+        </div>
+        <div id="regErrorMsg" style="color:var(--crimson); font-size:12px; display:none;"></div>
+        <button type="submit" class="btn-primary-blue" style="justify-content:center; padding:10px; margin-top:6px;">Create Account</button>
+        <div style="text-align:center; font-size:12px; color:var(--text-muted);">
+          Already have an account? <a href="#" id="linkOpenLogin" style="color:var(--accent-cyan); text-decoration:none;">Sign in</a>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Add Custom Ticker Modal -->
+  <div id="addTickerModal" class="modal-backdrop">
+    <div class="modal-card" style="max-width:680px;">
+      <div class="modal-header">
+        <div>
+          <h3 style="font-size:16px;">Add Stock to Research Library</h3>
+          <div style="font-size:12px; color:var(--text-secondary);">Explain why this company deserves attention. Do not add random stocks.</div>
+        </div>
+        <button id="addTickerCloseBtn" class="modal-close">&times;</button>
+      </div>
+      <form id="addTickerForm" class="modal-content" style="font-size:13px; gap:14px;">
+        <div style="display:grid; grid-template-columns:1fr 2fr 2fr; gap:10px;">
+          <div>
+            <label style="color:var(--text-muted); font-size:11px;">Symbol</label>
+            <input type="text" id="addSymbol" required placeholder="PLTR" style="width:100%; background:var(--bg-card-alt); border:1px solid var(--border-subtle); color:#fff; padding:6px 10px; border-radius:4px; font-family:var(--font-mono); text-transform:uppercase;">
+          </div>
+          <div>
+            <label style="color:var(--text-muted); font-size:11px;">Company Name</label>
+            <input type="text" id="addName" required placeholder="Palantir Technologies" style="width:100%; background:var(--bg-card-alt); border:1px solid var(--border-subtle); color:#fff; padding:6px 10px; border-radius:4px;">
+          </div>
+          <div>
+            <label style="color:var(--text-muted); font-size:11px;">Sector / Asset Type</label>
+            <input type="text" id="addType" required placeholder="Enterprise AI & Defense" style="width:100%; background:var(--bg-card-alt); border:1px solid var(--border-subtle); color:#fff; padding:6px 10px; border-radius:4px;">
+          </div>
+        </div>
+
+        <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:10px;">
+          <div>
+            <label style="color:var(--text-muted); font-size:11px;">Price ($)</label>
+            <input type="number" step="0.01" id="addPrice" required placeholder="36.50" style="width:100%; background:var(--bg-card-alt); border:1px solid var(--border-subtle); color:#fff; padding:6px 10px; border-radius:4px; font-family:var(--font-mono);">
+          </div>
+          <div>
+            <label style="color:var(--text-muted); font-size:11px;">52w High ($)</label>
+            <input type="number" step="0.01" id="addHigh52" required placeholder="38.00" style="width:100%; background:var(--bg-card-alt); border:1px solid var(--border-subtle); color:#fff; padding:6px 10px; border-radius:4px; font-family:var(--font-mono);">
+          </div>
+          <div>
+            <label style="color:var(--text-muted); font-size:11px;">Major Support ($)</label>
+            <input type="number" step="0.01" id="addSupport" required placeholder="32.00" style="width:100%; background:var(--bg-card-alt); border:1px solid var(--border-subtle); color:#fff; padding:6px 10px; border-radius:4px; font-family:var(--font-mono);">
+          </div>
+          <div>
+            <label style="color:var(--text-muted); font-size:11px;">Major Resist ($)</label>
+            <input type="number" step="0.01" id="addResistance" required placeholder="38.50" style="width:100%; background:var(--bg-card-alt); border:1px solid var(--border-subtle); color:#fff; padding:6px 10px; border-radius:4px; font-family:var(--font-mono);">
+          </div>
+        </div>
+
+        <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:10px;">
+          <div>
+            <label style="color:var(--text-muted); font-size:11px;">20d SMA ($)</label>
+            <input type="number" step="0.01" id="addSma20" required placeholder="34.20" style="width:100%; background:var(--bg-card-alt); border:1px solid var(--border-subtle); color:#fff; padding:6px 10px; border-radius:4px; font-family:var(--font-mono);">
+          </div>
+          <div>
+            <label style="color:var(--text-muted); font-size:11px;">50d SMA ($)</label>
+            <input type="number" step="0.01" id="addSma50" required placeholder="31.50" style="width:100%; background:var(--bg-card-alt); border:1px solid var(--border-subtle); color:#fff; padding:6px 10px; border-radius:4px; font-family:var(--font-mono);">
+          </div>
+          <div>
+            <label style="color:var(--text-muted); font-size:11px;">200d SMA ($)</label>
+            <input type="number" step="0.01" id="addSma200" required placeholder="26.00" style="width:100%; background:var(--bg-card-alt); border:1px solid var(--border-subtle); color:#fff; padding:6px 10px; border-radius:4px; font-family:var(--font-mono);">
+          </div>
+          <div>
+            <label style="color:var(--text-muted); font-size:11px;">14-day RSI</label>
+            <input type="number" step="0.1" id="addRsi" required placeholder="54" style="width:100%; background:var(--bg-card-alt); border:1px solid var(--border-subtle); color:#fff; padding:6px 10px; border-radius:4px; font-family:var(--font-mono);">
+          </div>
+        </div>
+
+        <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:10px;">
+          <div>
+            <label style="color:var(--text-muted); font-size:11px;">Rev Growth %</label>
+            <input type="number" step="0.1" id="addRevGrowth" required placeholder="27" style="width:100%; background:var(--bg-card-alt); border:1px solid var(--border-subtle); color:#fff; padding:6px 10px; border-radius:4px; font-family:var(--font-mono);">
+          </div>
+          <div>
+            <label style="color:var(--text-muted); font-size:11px;">Forward P/E</label>
+            <input type="number" step="0.1" id="addFwdPe" required placeholder="75" style="width:100%; background:var(--bg-card-alt); border:1px solid var(--border-subtle); color:#fff; padding:6px 10px; border-radius:4px; font-family:var(--font-mono);">
+          </div>
+          <div>
+            <label style="color:var(--text-muted); font-size:11px;">PEG Ratio</label>
+            <input type="number" step="0.01" id="addPeg" required placeholder="2.8" style="width:100%; background:var(--bg-card-alt); border:1px solid var(--border-subtle); color:#fff; padding:6px 10px; border-radius:4px; font-family:var(--font-mono);">
+          </div>
+          <div>
+            <label style="color:var(--text-muted); font-size:11px;">Trajectory</label>
+            <select id="addDirection" style="width:100%; background:var(--bg-card-alt); border:1px solid var(--border-subtle); color:#fff; padding:6px 10px; border-radius:4px;">
+              <option value="getting_stronger">Getting Stronger</option>
+              <option value="roughly_unchanged">Roughly Unchanged</option>
+              <option value="getting_weaker">Getting Weaker</option>
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label style="color:var(--text-muted); font-size:11px;">Why it deserves attention (Mandatory thesis justifying inclusion)</label>
+          <textarea id="addWhyAttention" required rows="2" placeholder="Explain the specific catalyst, moat, or technical development..." style="width:100%; background:var(--bg-card-alt); border:1px solid var(--border-subtle); color:#fff; padding:8px 10px; border-radius:4px; resize:vertical; font-family:var(--font-sans);"></textarea>
+        </div>
+
+        <div style="display:flex; justify-content:flex-end; gap:10px;">
+          <button type="button" id="addCancelBtn" class="btn-secondary">Cancel</button>
+          <button type="submit" class="btn-primary-blue">Add & Include in My Watchlist</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Interactive Detail Modal -->
+  <div id="detailModal" class="modal-backdrop">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div>
+          <span id="modalSymbol" style="font-size:24px; font-weight:800; font-family:var(--font-mono); color:#ffffff;">NVDA</span>
+          <span id="modalName" style="color:var(--text-secondary); margin-left:8px; font-size:14px;">Nvidia Corp</span>
+        </div>
+        <button id="modalCloseBtn" class="modal-close">&times;</button>
+      </div>
+
+      <div class="modal-content">
+        <!-- SVG Price & Moving Averages Visualizer -->
+        <div style="background:#080c14; border:1px solid var(--border-subtle); border-radius:8px; padding:14px;">
+          <div style="display:flex; gap:14px; font-family:var(--font-mono); font-size:11px; margin-bottom:8px;">
+            <div><span style="color:#38bdf8;">■</span> Price ($)</div>
+            <div><span style="color:#f59e0b;">■</span> 20d SMA</div>
+            <div><span style="color:#10b981;">■</span> 50d SMA</div>
+            <div><span style="color:#8b5cf6;">■</span> 200d SMA</div>
+            <div><span style="color:#ef4444;">■</span> Support Zone</div>
+          </div>
+          <svg id="modalSvgChart" width="100%" height="180" viewBox="0 0 800 180" style="overflow:visible;"></svg>
+        </div>
+
+        <!-- Pillar Details Grid -->
+        <div class="grid-2col">
+          <div class="sub-box">
+            <div class="sub-box-title">1. Technical & Trend Metrics</div>
+            <div id="modalTechnicalDetails"></div>
+          </div>
+          <div class="sub-box">
+            <div class="sub-box-title">2. Fundamental Health & Trajectory</div>
+            <div id="modalFundamentalDetails"></div>
+          </div>
+          <div class="sub-box">
+            <div class="sub-box-title">3. Valuation & Multiples Reality</div>
+            <div id="modalValuationDetails"></div>
+          </div>
+          <div class="sub-box">
+            <div class="sub-box-title">4. Catalysts, Earnings & Risks</div>
+            <div id="modalCatalystDetails"></div>
+          </div>
+        </div>
+
+        <!-- Options Analysis -->
+        <div class="vehicle-preference-box">
+          <div class="sub-box-title">5. Options vs Shares Quantitative Engine</div>
+          <div id="modalOptionsDetails"></div>
+        </div>
+
+        <!-- Facts, Interpretation, Speculation Separation -->
+        <div class="sub-box" style="background: rgba(0,0,0,0.4);">
+          <div class="sub-box-title">Epistemic Discipline (Rule 10 Separation)</div>
+          <div id="modalEpistemicDetails" style="display:flex; flex-direction:column; gap:6px;"></div>
+        </div>
+
+        <!-- Bear Case and Invalidation -->
+        <div class="sub-box" style="border-color: rgba(239, 68, 68, 0.4); background: rgba(239, 68, 68, 0.05);">
+          <div class="sub-box-title" style="color: var(--crimson);">Bear Case & Strict Invalidation Trigger (Rule 8)</div>
+          <div id="modalBearCaseDetails"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div id="toastNotification" class="toast">
+    <span id="toastMessage">Action completed</span>
+  </div>
+
+  <!-- ========================================================================= -->
+  <!-- JAVASCRIPT LOGIC -->
+  <!-- ========================================================================= -->
+  <script>
+    /**
+     * StockWatcher — Complete Institutional Research Terminal & Account Engine
+     */
+
+    // --- SEED DATABASE OF 19 PRE-CALIBRATED ASSETS ---
+    const SEED_WATCHLIST = [
+      // PRIMARY WATCHLIST (12)
+      {
+        ticker: "SPY", name: "SPDR S&P 500 ETF Trust", isPrimary: true, type: "Broad Market ETF",
+        price: 578.40, high52: 585.10, low52: 485.20, sma20: 575.20, sma50: 564.80, sma200: 532.10,
+        rsi14: 53.4, volume: 48200000, avgVolume20: 52000000, majorSupport: 560.00, majorResistance: 585.00, secondarySupport: 540.00,
+        fundamentals: { revenueGrowthYoY: 0.052, earningsGrowthYoY: 0.098, freeCashFlow: 0, fcfTrend: "growing", operatingMargin: 0.125, netDebtToEbitda: 1.2, guidanceTrend: "reaffirmed", analystRevisions: "neutral", competitivePosition: "Broad market proxy", direction: "roughly_unchanged" },
+        valuation: { forwardPe: 22.4, historical5yPe: 19.8, pegRatio: 2.28, priceToFcf: 24.5, evToEbitda: 15.2, fcfYield: 0.041, valuationStatus: "moderately_stretched" },
+        catalysts: { daysToEarnings: 999, nextEarningsDate: "N/A", recentEarningsOutcome: "N/A", keyCatalysts: ["FOMC rate trajectory", "Corporate margin resilience"], majorRisks: ["Geopolitical escalation", "Bond yield spike"], specificFactor: "Broad index barometer. 68% of S&P members trade above 50d SMA." },
+        options: { impliedVolatility: 0.138, ivRank: 22, daysToExpiration: 45, atmCallStrike: 580, atmCallBid: 9.80, atmCallAsk: 10.05, atmCallVolume: 24500, atmCallOpenInterest: 68200, atmCallDelta: 0.52, atmCallTheta: -0.11, expectedMovePct: 0.038 },
+        historicalSeries: [562, 564, 567, 570, 568, 571, 574, 575, 572, 576, 577, 575, 577, 579, 576, 578.4]
+      },
+      {
+        ticker: "QQQ", name: "Invesco QQQ Trust (Nasdaq-100)", isPrimary: true, type: "Tech Index ETF",
+        price: 494.20, high52: 503.50, low52: 400.10, sma20: 492.10, sma50: 483.50, sma200: 452.80,
+        rsi14: 51.2, volume: 38500000, avgVolume20: 41000000, majorSupport: 475.00, majorResistance: 503.50, secondarySupport: 460.00,
+        fundamentals: { revenueGrowthYoY: 0.115, earningsGrowthYoY: 0.174, freeCashFlow: 0, fcfTrend: "growing", operatingMargin: 0.245, netDebtToEbitda: 0.8, guidanceTrend: "positive", analystRevisions: "positive", competitivePosition: "Top-tier tech monopoly cohort", direction: "getting_stronger" },
+        valuation: { forwardPe: 26.8, historical5yPe: 25.1, pegRatio: 1.54, priceToFcf: 28.2, evToEbitda: 18.4, fcfYield: 0.035, valuationStatus: "fair" },
+        catalysts: { daysToEarnings: 999, nextEarningsDate: "N/A", recentEarningsOutcome: "N/A", keyCatalysts: ["Hyperscaler AI capex deployment", "Semiconductor trade regulations"], majorRisks: ["Extreme concentration in top 7 names"], specificFactor: "Nasdaq-100 tech leadership testing 50d SMA support." },
+        options: { impliedVolatility: 0.182, ivRank: 31, daysToExpiration: 45, atmCallStrike: 495, atmCallBid: 12.10, atmCallAsk: 12.40, atmCallVolume: 31200, atmCallOpenInterest: 79500, atmCallDelta: 0.51, atmCallTheta: -0.15, expectedMovePct: 0.048 },
+        historicalSeries: [480, 483, 488, 491, 489, 492, 495, 496, 491, 494, 495, 492, 495, 497, 492, 494.2]
+      },
+      {
+        ticker: "MSFT", name: "Microsoft Corporation", isPrimary: true, type: "MegaCap Tech / SaaS",
+        price: 432.50, high52: 468.35, low52: 366.50, sma20: 428.10, sma50: 431.20, sma200: 419.40,
+        rsi14: 48.6, volume: 18200000, avgVolume20: 21500000, majorSupport: 415.00, majorResistance: 455.00, secondarySupport: 400.00,
+        fundamentals: { revenueGrowthYoY: 0.152, earningsGrowthYoY: 0.185, freeCashFlow: 74.1, fcfTrend: "growing", operatingMargin: 0.446, netDebtToEbitda: 0.25, guidanceTrend: "reaffirmed", analystRevisions: "positive", competitivePosition: "Enterprise cloud & OpenAI partner moat", direction: "getting_stronger" },
+        valuation: { forwardPe: 31.2, historical5yPe: 32.8, pegRatio: 1.68, priceToFcf: 35.1, evToEbitda: 21.8, fcfYield: 0.028, valuationStatus: "fair" },
+        catalysts: { daysToEarnings: 38, nextEarningsDate: "Late October", recentEarningsOutcome: "beat", keyCatalysts: ["Azure AI revenue run rate passing $15B", "M365 Copilot enterprise monetization"], majorRisks: ["Heavy AI capex ($19B/qtr) depressing short-term FCF"], specificFactor: "Cloud & enterprise anchor. Fortress balance sheet." },
+        options: { impliedVolatility: 0.215, ivRank: 26, daysToExpiration: 52, atmCallStrike: 435, atmCallBid: 14.80, atmCallAsk: 15.15, atmCallVolume: 12400, atmCallOpenInterest: 28400, atmCallDelta: 0.50, atmCallTheta: -0.16, expectedMovePct: 0.054 },
+        historicalSeries: [442, 439, 435, 430, 428, 431, 435, 432, 428, 430, 434, 435, 436, 431, 433, 432.5]
+      },
+      {
+        ticker: "NVDA", name: "Nvidia Corporation", isPrimary: true, type: "Semiconductors / AI",
+        price: 122.80, high52: 140.76, low52: 39.23, sma20: 118.40, sma50: 119.20, sma200: 92.60,
+        rsi14: 54.1, volume: 68400000, avgVolume20: 84000000, majorSupport: 104.00, majorResistance: 132.00, secondarySupport: 94.00,
+        fundamentals: { revenueGrowthYoY: 1.22, earningsGrowthYoY: 1.52, freeCashFlow: 49.8, fcfTrend: "growing", operatingMargin: 0.621, netDebtToEbitda: -0.4, guidanceTrend: "raised", analystRevisions: "positive", competitivePosition: "Dominant AI accelerator computing moat (CUDA)", direction: "getting_stronger" },
+        valuation: { forwardPe: 34.6, historical5yPe: 46.2, pegRatio: 0.88, priceToFcf: 38.2, evToEbitda: 28.4, fcfYield: 0.026, valuationStatus: "attractive" },
+        catalysts: { daysToEarnings: 68, nextEarningsDate: "Late November", recentEarningsOutcome: "beat_and_raised", keyCatalysts: ["Blackwell volume ramp in Q4", "Hyperscaler capex above $200B"], majorRisks: ["TSMC CoWoS packaging bottlenecks", "Export curbs"], specificFactor: "Incredible growth rate keeps PEG at 0.88 despite high dollar valuation." },
+        options: { impliedVolatility: 0.442, ivRank: 38, daysToExpiration: 52, atmCallStrike: 125, atmCallBid: 7.95, atmCallAsk: 8.15, atmCallVolume: 89000, atmCallOpenInterest: 215000, atmCallDelta: 0.51, atmCallTheta: -0.11, expectedMovePct: 0.098 },
+        historicalSeries: [128, 122, 114, 105, 107, 112, 118, 116, 119, 121, 117, 120, 124, 120, 121, 122.8]
+      },
+      {
+        ticker: "SPCX", name: "SpaceX Tracking Proxy (SPCX)", isPrimary: true, type: "Aerospace & Satellite",
+        price: 27.80, high52: 34.50, low52: 18.20, sma20: 28.40, sma50: 29.10, sma200: 25.60,
+        rsi14: 42.1, volume: 3400000, avgVolume20: 4100000, majorSupport: 25.00, majorResistance: 32.00, secondarySupport: 22.00,
+        fundamentals: { revenueGrowthYoY: 0.48, earningsGrowthYoY: 0.85, freeCashFlow: 3.2, fcfTrend: "growing", operatingMargin: 0.22, netDebtToEbitda: 1.8, guidanceTrend: "raised", analystRevisions: "positive", competitivePosition: "Global orbital launch monopoly & Starlink network", direction: "getting_stronger" },
+        valuation: { forwardPe: 42.0, historical5yPe: 55.0, pegRatio: 1.15, priceToFcf: 31.0, evToEbitda: 22.5, fcfYield: 0.032, valuationStatus: "attractive" },
+        catalysts: { daysToEarnings: 45, nextEarningsDate: "Q3 Update", recentEarningsOutcome: "beat", keyCatalysts: ["Starlink 4.2M active subscribers", "Starship orbital flight test milestones"], majorRisks: ["FAA licensing delays"], specificFactor: "140+ launches/year. Commercial Starlink generating cash flow." },
+        options: { impliedVolatility: 0.52, ivRank: 34, daysToExpiration: 48, atmCallStrike: 28, atmCallBid: 2.10, atmCallAsk: 2.30, atmCallVolume: 5800, atmCallOpenInterest: 14200, atmCallDelta: 0.53, atmCallTheta: -0.04, expectedMovePct: 0.125 },
+        historicalSeries: [32, 31, 29.5, 29, 30.1, 29, 28.5, 28.7, 28.1, 27.6, 28.0, 28.2, 27.5, 27.6, 27.8]
+      },
+      {
+        ticker: "XOM", name: "Exxon Mobil Corporation", isPrimary: true, type: "Integrated Energy",
+        price: 114.60, high52: 126.34, low52: 95.77, sma20: 115.80, sma50: 116.90, sma200: 112.40,
+        rsi14: 46.2, volume: 14200000, avgVolume20: 16800000, majorSupport: 111.00, majorResistance: 122.00, secondarySupport: 106.00,
+        fundamentals: { revenueGrowthYoY: -0.045, earningsGrowthYoY: -0.112, freeCashFlow: 36.2, fcfTrend: "stable", operatingMargin: 0.158, netDebtToEbitda: 0.45, guidanceTrend: "reaffirmed", analystRevisions: "neutral", competitivePosition: "Low-cost Guyana and Permian upstream", direction: "roughly_unchanged" },
+        valuation: { forwardPe: 13.2, historical5yPe: 12.8, pegRatio: 2.10, priceToFcf: 12.8, evToEbitda: 6.8, fcfYield: 0.078, valuationStatus: "fair" },
+        catalysts: { daysToEarnings: 42, nextEarningsDate: "Late October", recentEarningsOutcome: "in_line", keyCatalysts: ["Guyana breakeven $35/bbl", "Pioneer integration synergies"], majorRisks: ["Crude oil dropping below $68/bbl"], specificFactor: "High 7.8% FCF yield cushions dividend and buybacks." },
+        options: { impliedVolatility: 0.195, ivRank: 21, daysToExpiration: 52, atmCallStrike: 115, atmCallBid: 3.45, atmCallAsk: 3.65, atmCallVolume: 8400, atmCallOpenInterest: 29500, atmCallDelta: 0.49, atmCallTheta: -0.045, expectedMovePct: 0.046 },
+        historicalSeries: [118, 119, 116, 114.2, 115.1, 116.8, 114.8, 114.0, 114.2, 114.8, 113.9, 114.6]
+      },
+      {
+        ticker: "SNDK", name: "SanDisk (WDC Flash Memory Proxy)", isPrimary: true, type: "Flash Memory / Storage",
+        price: 66.40, high52: 81.55, low52: 41.20, sma20: 67.20, sma50: 68.80, sma200: 63.50,
+        rsi14: 43.8, volume: 6800000, avgVolume20: 7900000, majorSupport: 62.50, majorResistance: 76.00, secondarySupport: 56.00,
+        fundamentals: { revenueGrowthYoY: 0.41, earningsGrowthYoY: 1.80, freeCashFlow: 1.15, fcfTrend: "growing", operatingMargin: 0.185, netDebtToEbitda: 2.1, guidanceTrend: "raised", analystRevisions: "positive", competitivePosition: "Enterprise SSD & NAND flash pure-play spin-off", direction: "getting_stronger" },
+        valuation: { forwardPe: 10.8, historical5yPe: 16.5, pegRatio: 0.62, priceToFcf: 14.5, evToEbitda: 7.2, fcfYield: 0.069, valuationStatus: "attractive" },
+        catalysts: { daysToEarnings: 40, nextEarningsDate: "Late October", recentEarningsOutcome: "beat_and_raised", keyCatalysts: ["Flash separation pure-play spin-off", "Enterprise 60TB SSD AI storage"], majorRisks: ["Memory cyclical downturn oversupply"], specificFactor: "Cyclical memory turning from trough to peak. PEG 0.62." },
+        options: { impliedVolatility: 0.465, ivRank: 32, daysToExpiration: 52, atmCallStrike: 67.5, atmCallBid: 4.60, atmCallAsk: 4.85, atmCallVolume: 6100, atmCallOpenInterest: 19800, atmCallDelta: 0.48, atmCallTheta: -0.065, expectedMovePct: 0.105 },
+        historicalSeries: [74, 71.5, 68.2, 65.8, 68.0, 67.5, 67.9, 65.9, 67.2, 66.1, 66.8, 66.4]
+      },
+      {
+        ticker: "GOOGL", name: "Alphabet Inc. (Google)", isPrimary: true, type: "MegaCap Tech / Search",
+        price: 156.80, high52: 191.75, low52: 129.40, sma20: 158.20, sma50: 164.50, sma200: 158.90,
+        rsi14: 39.5, volume: 24500000, avgVolume20: 28000000, majorSupport: 152.00, majorResistance: 172.00, secondarySupport: 144.00,
+        fundamentals: { revenueGrowthYoY: 0.138, earningsGrowthYoY: 0.285, freeCashFlow: 60.8, fcfTrend: "growing", operatingMargin: 0.324, netDebtToEbitda: -0.65, guidanceTrend: "reaffirmed", analystRevisions: "positive", competitivePosition: "Global Search monopoly & Google Cloud margin expansion", direction: "getting_stronger" },
+        valuation: { forwardPe: 19.8, historical5yPe: 24.2, pegRatio: 1.12, priceToFcf: 21.4, evToEbitda: 13.8, fcfYield: 0.047, valuationStatus: "attractive" },
+        catalysts: { daysToEarnings: 37, nextEarningsDate: "Late October", recentEarningsOutcome: "beat", keyCatalysts: ["Gemini 1.5 enterprise adoption", "Cloud operating margin >11%", "$70B buybacks"], majorRisks: ["DOJ antitrust remedies trial"], specificFactor: "Trading at historical discount to P/E due to DOJ fear; core growth accelerating." },
+        options: { impliedVolatility: 0.265, ivRank: 34, daysToExpiration: 52, atmCallStrike: 157.5, atmCallBid: 6.25, atmCallAsk: 6.45, atmCallVolume: 22000, atmCallOpenInterest: 54000, atmCallDelta: 0.50, atmCallTheta: -0.075, expectedMovePct: 0.062 },
+        historicalSeries: [172, 165, 160, 155.5, 159, 156, 159.2, 155.8, 158.0, 156.2, 157.0, 156.8]
+      },
+      {
+        ticker: "AMZN", name: "Amazon.com, Inc.", isPrimary: true, type: "E-Commerce & AWS",
+        price: 184.20, high52: 201.20, low52: 118.35, sma20: 179.50, sma50: 181.20, sma200: 171.80,
+        rsi14: 53.8, volume: 32000000, avgVolume20: 39000000, majorSupport: 174.00, majorResistance: 195.00, secondarySupport: 165.00,
+        fundamentals: { revenueGrowthYoY: 0.112, earningsGrowthYoY: 0.95, freeCashFlow: 52.8, fcfTrend: "growing", operatingMargin: 0.098, netDebtToEbitda: 0.38, guidanceTrend: "reaffirmed", analystRevisions: "neutral", competitivePosition: "AWS compute infrastructure and retail fulfillment moat", direction: "getting_stronger" },
+        valuation: { forwardPe: 33.2, historical5yPe: 48.0, pegRatio: 1.28, priceToFcf: 36.5, evToEbitda: 14.8, fcfYield: 0.027, valuationStatus: "fair" },
+        catalysts: { daysToEarnings: 44, nextEarningsDate: "Late October", recentEarningsOutcome: "beat", keyCatalysts: ["AWS revenue re-acceleration toward 19%", "Cost-to-serve regional logistics cuts"], majorRisks: ["Consumer discretionary trade-down"], specificFactor: "Operating income inflection across North American retail." },
+        options: { impliedVolatility: 0.285, ivRank: 28, daysToExpiration: 52, atmCallStrike: 185, atmCallBid: 8.20, atmCallAsk: 8.45, atmCallVolume: 28000, atmCallOpenInterest: 62000, atmCallDelta: 0.50, atmCallTheta: -0.10, expectedMovePct: 0.068 },
+        historicalSeries: [178, 172, 177, 180, 179, 183, 182, 184, 181, 185, 182, 184.2]
+      },
+      {
+        ticker: "META", name: "Meta Platforms, Inc.", isPrimary: true, type: "Digital Ads & AI",
+        price: 524.50, high52: 544.23, low52: 279.40, sma20: 512.40, sma50: 498.20, sma200: 452.10,
+        rsi14: 62.1, volume: 9800000, avgVolume20: 12400000, majorSupport: 480.00, majorResistance: 544.00, secondarySupport: 440.00,
+        fundamentals: { revenueGrowthYoY: 0.221, earningsGrowthYoY: 0.732, freeCashFlow: 49.2, fcfTrend: "growing", operatingMargin: 0.381, netDebtToEbitda: -0.5, guidanceTrend: "raised", analystRevisions: "positive", competitivePosition: "3.27B daily active users across Instagram/FB/WhatsApp", direction: "getting_stronger" },
+        valuation: { forwardPe: 23.8, historical5yPe: 23.5, pegRatio: 1.18, priceToFcf: 26.5, evToEbitda: 14.1, fcfYield: 0.038, valuationStatus: "fair" },
+        catalysts: { daysToEarnings: 44, nextEarningsDate: "Late October", recentEarningsOutcome: "beat_and_raised", keyCatalysts: ["Llama 3.2 open model adoption", "Advantage+ AI ad ROI gains"], majorRisks: ["Reality Labs annual operating loss of -$16B"], specificFactor: "Outstanding monetization, but technically near all-time peak." },
+        options: { impliedVolatility: 0.295, ivRank: 32, daysToExpiration: 52, atmCallStrike: 525, atmCallBid: 24.80, atmCallAsk: 25.40, atmCallVolume: 14500, atmCallOpenInterest: 38200, atmCallDelta: 0.50, atmCallTheta: -0.28, expectedMovePct: 0.072 },
+        historicalSeries: [488, 495, 505, 508, 510, 520, 518, 522, 519, 526, 520, 524.5]
+      },
+      {
+        ticker: "AVGO", name: "Broadcom Inc.", isPrimary: true, type: "AI Networking & Custom Silicon",
+        price: 168.40, high52: 185.16, low52: 79.50, sma20: 156.80, sma50: 158.40, sma200: 136.20,
+        rsi14: 58.4, volume: 18500000, avgVolume20: 24000000, majorSupport: 148.00, majorResistance: 178.00, secondarySupport: 135.00,
+        fundamentals: { revenueGrowthYoY: 0.47, earningsGrowthYoY: 0.32, freeCashFlow: 19.5, fcfTrend: "growing", operatingMargin: 0.585, netDebtToEbitda: 2.4, guidanceTrend: "raised", analystRevisions: "positive", competitivePosition: "Tomahawk Ethernet switches & Google/Meta custom ASICs", direction: "getting_stronger" },
+        valuation: { forwardPe: 27.5, historical5yPe: 21.0, pegRatio: 1.48, priceToFcf: 34.0, evToEbitda: 22.0, fcfYield: 0.029, valuationStatus: "fair" },
+        catalysts: { daysToEarnings: 82, nextEarningsDate: "Early December", recentEarningsOutcome: "beat_and_raised", keyCatalysts: ["VMware subscription transition", "Custom AI accelerator revenue >$12B"], majorRisks: ["Elevated debt load post-VMware ($71B)"], specificFactor: "Essential cluster networking. High post-split liquidity." },
+        options: { impliedVolatility: 0.412, ivRank: 36, daysToExpiration: 52, atmCallStrike: 170, atmCallBid: 10.10, atmCallAsk: 10.45, atmCallVolume: 22400, atmCallOpenInterest: 51000, atmCallDelta: 0.48, atmCallTheta: -0.12, expectedMovePct: 0.092 },
+        historicalSeries: [152, 145, 153, 151, 158, 163, 164, 166, 163, 167, 166, 168.4]
+      },
+      {
+        ticker: "TSM", name: "Taiwan Semiconductor (TSMC)", isPrimary: true, type: "Semiconductor Foundry",
+        price: 171.20, high52: 193.47, low52: 84.50, sma20: 167.50, sma50: 168.20, sma200: 141.60,
+        rsi14: 52.8, volume: 11200000, avgVolume20: 14500000, majorSupport: 158.00, majorResistance: 185.00, secondarySupport: 142.00,
+        fundamentals: { revenueGrowthYoY: 0.328, earningsGrowthYoY: 0.362, freeCashFlow: 28.5, fcfTrend: "growing", operatingMargin: 0.425, netDebtToEbitda: -0.3, guidanceTrend: "raised", analystRevisions: "positive", competitivePosition: "Global monopoly producing >90% of sub-5nm advanced chips", direction: "getting_stronger" },
+        valuation: { forwardPe: 22.1, historical5yPe: 21.8, pegRatio: 1.05, priceToFcf: 28.1, evToEbitda: 12.4, fcfYield: 0.036, valuationStatus: "attractive" },
+        catalysts: { daysToEarnings: 31, nextEarningsDate: "Mid October", recentEarningsOutcome: "beat_and_raised", keyCatalysts: ["CoWoS capacity doubling", "3nm fully booked by Apple, Nvidia, AMD"], majorRisks: ["Geopolitical Taiwan Strait tensions"], specificFactor: "Foundational hardware tollbooth of AI. Gross margins above 53%." },
+        options: { impliedVolatility: 0.335, ivRank: 29, daysToExpiration: 52, atmCallStrike: 172.5, atmCallBid: 8.80, atmCallAsk: 9.10, atmCallVolume: 12800, atmCallOpenInterest: 34100, atmCallDelta: 0.49, atmCallTheta: -0.10, expectedMovePct: 0.076 },
+        historicalSeries: [168, 160, 165, 167, 171, 166, 172, 168, 171, 173, 170, 171.2]
+      },
+
+      // SECONDARY WATCHLIST (5)
+      {
+        ticker: "JPM", name: "JPMorgan Chase & Co.", isPrimary: false, type: "Banking / Financials",
+        price: 212.50, high52: 225.48, low52: 140.25, sma20: 214.20, sma50: 212.80, sma200: 194.50,
+        rsi14: 49.5, volume: 7800000, avgVolume20: 9200000, majorSupport: 204.00, majorResistance: 225.00, secondarySupport: 195.00,
+        fundamentals: { revenueGrowthYoY: 0.082, earningsGrowthYoY: 0.125, freeCashFlow: 38.0, fcfTrend: "stable", operatingMargin: 0.365, netDebtToEbitda: 0.0, guidanceTrend: "reaffirmed", analystRevisions: "neutral", competitivePosition: "Premier global bank with fortress deposit franchise", direction: "roughly_unchanged" },
+        valuation: { forwardPe: 12.4, historical5yPe: 11.2, pegRatio: 1.82, priceToFcf: 14.2, evToEbitda: 9.8, fcfYield: 0.068, valuationStatus: "fair" },
+        catalysts: { daysToEarnings: 27, nextEarningsDate: "October 11", recentEarningsOutcome: "beat", keyCatalysts: ["Investment banking M&A fees recovery", "NII guidance $91B"], majorRisks: ["Net interest margin compression as Fed cuts rates"], specificFactor: "Best of breed bank. Shareholder total yield ~5.2%." },
+        options: { impliedVolatility: 0.205, ivRank: 25, daysToExpiration: 52, atmCallStrike: 215, atmCallBid: 6.20, atmCallAsk: 6.45, atmCallVolume: 6400, atmCallOpenInterest: 21200, atmCallDelta: 0.47, atmCallTheta: -0.065, expectedMovePct: 0.048 },
+        historicalSeries: [218, 215, 214, 218, 211, 215, 210, 214, 211.5, 212.5]
+      },
+      {
+        ticker: "COST", name: "Costco Wholesale Corp", isPrimary: false, type: "Retail / Staples",
+        price: 888.50, high52: 923.83, low52: 546.00, sma20: 882.10, sma50: 864.50, sma200: 778.20,
+        rsi14: 58.2, volume: 1800000, avgVolume20: 2100000, majorSupport: 840.00, majorResistance: 924.00, secondarySupport: 800.00,
+        fundamentals: { revenueGrowthYoY: 0.091, earningsGrowthYoY: 0.134, freeCashFlow: 7.8, fcfTrend: "growing", operatingMargin: 0.038, netDebtToEbitda: -0.35, guidanceTrend: "positive", analystRevisions: "positive", competitivePosition: "93% membership renewal rate & immense purchasing volume", direction: "getting_stronger" },
+        valuation: { forwardPe: 48.5, historical5yPe: 36.5, pegRatio: 4.10, priceToFcf: 49.5, evToEbitda: 28.2, fcfYield: 0.020, valuationStatus: "stretched" },
+        catalysts: { daysToEarnings: 12, nextEarningsDate: "September 26", recentEarningsOutcome: "beat", keyCatalysts: ["Annual membership fee increase", "E-commerce +15%"], majorRisks: ["Earnings in 12 days; 48x P/E invites beat-and-selloff reaction"], specificFactor: "Superb company, but valuation is in 99th historical percentile." },
+        options: { impliedVolatility: 0.285, ivRank: 62, daysToExpiration: 52, atmCallStrike: 890, atmCallBid: 32.50, atmCallAsk: 33.80, atmCallVolume: 3200, atmCallOpenInterest: 8900, atmCallDelta: 0.50, atmCallTheta: -0.42, expectedMovePct: 0.065 },
+        historicalSeries: [845, 860, 865, 875, 880, 885, 884, 887, 885, 888.5]
+      },
+      {
+        ticker: "AMD", name: "Advanced Micro Devices", isPrimary: false, type: "Semiconductors / GPUs",
+        price: 148.60, high52: 227.30, low52: 94.04, sma20: 147.10, sma50: 149.80, sma200: 156.40,
+        rsi14: 45.1, volume: 46000000, avgVolume20: 52000000, majorSupport: 135.00, majorResistance: 165.00, secondarySupport: 122.00,
+        fundamentals: { revenueGrowthYoY: 0.089, earningsGrowthYoY: 0.192, freeCashFlow: 1.85, fcfTrend: "growing", operatingMargin: 0.118, netDebtToEbitda: -0.2, guidanceTrend: "raised", analystRevisions: "positive", competitivePosition: "Server EPYC CPU share gains & Instinct MI300/MI325 accelerators", direction: "getting_stronger" },
+        valuation: { forwardPe: 27.2, historical5yPe: 34.0, pegRatio: 1.15, priceToFcf: 58.0, evToEbitda: 24.5, fcfYield: 0.017, valuationStatus: "fair" },
+        catalysts: { daysToEarnings: 45, nextEarningsDate: "Late October", recentEarningsOutcome: "beat_and_raised", keyCatalysts: ["Advancing AI Event (Oct 10) Turin CPUs", "MI300 guided >$4.5B"], majorRisks: ["Gaming console revenue down >50% YoY"], specificFactor: "Down 34.6% from 52w high. Base building between $135 and $155." },
+        options: { impliedVolatility: 0.455, ivRank: 33, daysToExpiration: 52, atmCallStrike: 150, atmCallBid: 10.40, atmCallAsk: 10.75, atmCallVolume: 38000, atmCallOpenInterest: 94000, atmCallDelta: 0.50, atmCallTheta: -0.13, expectedMovePct: 0.102 },
+        historicalSeries: [158, 149, 140, 146, 152, 148, 153, 144, 151, 148.6]
+      },
+      {
+        ticker: "AAPL", name: "Apple Inc.", isPrimary: false, type: "Consumer Tech & Services",
+        price: 222.40, high52: 237.23, low52: 164.08, sma20: 223.50, sma50: 222.10, sma200: 196.80,
+        rsi14: 50.8, volume: 48000000, avgVolume20: 55000000, majorSupport: 215.00, majorResistance: 235.00, secondarySupport: 200.00,
+        fundamentals: { revenueGrowthYoY: 0.049, earningsGrowthYoY: 0.111, freeCashFlow: 104.2, fcfTrend: "growing", operatingMargin: 0.308, netDebtToEbitda: 0.45, guidanceTrend: "reaffirmed", analystRevisions: "neutral", competitivePosition: "2.2B active installed base & $85B/yr high-margin Services", direction: "roughly_unchanged" },
+        valuation: { forwardPe: 30.8, historical5yPe: 27.5, pegRatio: 2.85, priceToFcf: 31.5, evToEbitda: 23.4, fcfYield: 0.031, valuationStatus: "moderately_stretched" },
+        catalysts: { daysToEarnings: 45, nextEarningsDate: "Late October", recentEarningsOutcome: "beat", keyCatalysts: ["Apple Intelligence iOS 18.1 rollout", "Services double digit growth"], majorRisks: ["China smartphone revenue contraction"], specificFactor: "Titan quality, but forward P/E of 30.8x on 5% top line growth demands patience." },
+        options: { impliedVolatility: 0.224, ivRank: 24, daysToExpiration: 52, atmCallStrike: 225, atmCallBid: 8.10, atmCallAsk: 8.35, atmCallVolume: 42000, atmCallOpenInterest: 110000, atmCallDelta: 0.48, atmCallTheta: -0.09, expectedMovePct: 0.052 },
+        historicalSeries: [226, 221, 218, 225, 221, 224, 220, 225, 221, 222.4]
+      },
+      {
+        ticker: "LLY", name: "Eli Lilly and Company", isPrimary: false, type: "Pharmaceuticals / GLP-1",
+        price: 938.20, high52: 972.53, low52: 540.00, sma20: 935.10, sma50: 910.40, sma200: 785.20,
+        rsi14: 56.4, volume: 2400000, avgVolume20: 3100000, majorSupport: 880.00, majorResistance: 975.00, secondarySupport: 820.00,
+        fundamentals: { revenueGrowthYoY: 0.36, earningsGrowthYoY: 0.68, freeCashFlow: 5.2, fcfTrend: "growing", operatingMargin: 0.342, netDebtToEbitda: 1.6, guidanceTrend: "raised", analystRevisions: "positive", competitivePosition: "GLP-1 duopoly (Mounjaro/Zepbound) & Kisunla Alzheimer's", direction: "getting_stronger" },
+        valuation: { forwardPe: 52.4, historical5yPe: 38.0, pegRatio: 2.25, priceToFcf: 65.0, evToEbitda: 36.2, fcfYield: 0.015, valuationStatus: "stretched" },
+        catalysts: { daysToEarnings: 45, nextEarningsDate: "Late October", recentEarningsOutcome: "beat_and_raised", keyCatalysts: ["Manufacturing capacity ramping", "Oral GLP-1 Phase 3 in 2025"], majorRisks: ["Congressional drug price hearings"], specificFactor: "Metabolic market leader, but 52x forward multiple prices in years of perfection." },
+        options: { impliedVolatility: 0.315, ivRank: 30, daysToExpiration: 52, atmCallStrike: 940, atmCallBid: 41.50, atmCallAsk: 43.20, atmCallVolume: 2800, atmCallOpenInterest: 7900, atmCallDelta: 0.50, atmCallTheta: -0.45, expectedMovePct: 0.068 },
+        historicalSeries: [910, 930, 938, 955, 939, 944, 942, 946, 935, 938.2]
+      },
+
+      // BONUS POPULAR ASSETS IN THE LIBRARY
+      {
+        ticker: "TSLA", name: "Tesla, Inc.", isPrimary: false, type: "EV & Autonomous Robotics",
+        price: 228.50, high52: 271.00, low52: 138.80, sma20: 221.40, sma50: 218.60, sma200: 202.10,
+        rsi14: 55.4, volume: 64000000, avgVolume20: 72000000, majorSupport: 200.00, majorResistance: 260.00, secondarySupport: 180.00,
+        fundamentals: { revenueGrowthYoY: 0.021, earningsGrowthYoY: -0.45, freeCashFlow: 1.34, fcfTrend: "stable", operatingMargin: 0.063, netDebtToEbitda: -0.85, guidanceTrend: "reaffirmed", analystRevisions: "neutral", competitivePosition: "EV global volume leader, Dojo compute, Megapack energy", direction: "roughly_unchanged" },
+        valuation: { forwardPe: 78.0, historical5yPe: 65.0, pegRatio: 3.80, priceToFcf: 92.0, evToEbitda: 42.0, fcfYield: 0.008, valuationStatus: "stretched" },
+        catalysts: { daysToEarnings: 38, nextEarningsDate: "Late October", recentEarningsOutcome: "in_line", keyCatalysts: ["Robotaxi unveil event (10/10)", "Energy storage deployment doubling"], majorRisks: ["Automotive gross margin compression from price cuts"], specificFactor: "High retail beta. High multiple requires extreme patience." },
+        options: { impliedVolatility: 0.585, ivRank: 48, daysToExpiration: 52, atmCallStrike: 230, atmCallBid: 16.20, atmCallAsk: 16.65, atmCallVolume: 92000, atmCallOpenInterest: 240000, atmCallDelta: 0.50, atmCallTheta: -0.22, expectedMovePct: 0.115 },
+        historicalSeries: [210, 205, 218, 224, 215, 222, 230, 226, 224, 228.5]
+      },
+      {
+        ticker: "PLTR", name: "Palantir Technologies", isPrimary: false, type: "Enterprise AI / Defense",
+        price: 36.80, high52: 38.20, low52: 14.48, sma20: 34.10, sma50: 30.80, sma200: 25.40,
+        rsi14: 64.2, volume: 54000000, avgVolume20: 58000000, majorSupport: 31.00, majorResistance: 38.50, secondarySupport: 26.00,
+        fundamentals: { revenueGrowthYoY: 0.272, earningsGrowthYoY: 0.88, freeCashFlow: 0.78, fcfTrend: "growing", operatingMargin: 0.162, netDebtToEbitda: -1.2, guidanceTrend: "raised", analystRevisions: "positive", competitivePosition: "AIP enterprise ontology platform & US Defense dominance", direction: "getting_stronger" },
+        valuation: { forwardPe: 74.5, historical5yPe: 60.0, pegRatio: 2.80, priceToFcf: 88.0, evToEbitda: 52.0, fcfYield: 0.012, valuationStatus: "stretched" },
+        catalysts: { daysToEarnings: 52, nextEarningsDate: "Early November", recentEarningsOutcome: "beat_and_raised", keyCatalysts: ["S&P 500 inclusion index fund buying", "US commercial customer count +83% YoY"], majorRisks: ["Extreme valuation leaves zero cushion if multiple compresses"], specificFactor: "Tremendous business momentum, but technically extended +19% above 50d SMA." },
+        options: { impliedVolatility: 0.485, ivRank: 42, daysToExpiration: 52, atmCallStrike: 37, atmCallBid: 2.45, atmCallAsk: 2.60, atmCallVolume: 44000, atmCallOpenInterest: 120000, atmCallDelta: 0.50, atmCallTheta: -0.045, expectedMovePct: 0.108 },
+        historicalSeries: [31, 30, 32.5, 34, 33.2, 35, 36.4, 35.8, 36.2, 36.8]
+      }
+    ];
+
+    /**
+     * ACCOUNT & AUTH STORAGE ENGINE
+     */
+    class AccountManager {
+      constructor() {
+        this.STORAGE_KEY_USERS = "StockWatcher_Accounts_v1";
+        this.STORAGE_KEY_SESSION = "StockWatcher_Session_v1";
+        this.initDefaultUsers();
+      }
+
+      initDefaultUsers() {
+        const existing = localStorage.getItem(this.STORAGE_KEY_USERS);
+        if (!existing) {
+          const defaultAccounts = {
+            "demo_trader": {
+              username: "demo_trader",
+              name: "Demo Trader",
+              email: "demo@stockwatcher.io",
+              passwordHash: "demo123",
+              watchlist: ["SPY", "QQQ", "MSFT", "NVDA", "SPCX", "XOM", "SNDK", "GOOGL", "AMZN", "META", "AVGO", "TSM", "JPM", "COST", "AMD", "AAPL", "LLY"]
+            }
+          };
+          localStorage.setItem(this.STORAGE_KEY_USERS, JSON.stringify(defaultAccounts));
+          localStorage.setItem(this.STORAGE_KEY_SESSION, "demo_trader");
+        }
+      }
+
+      getAccounts() {
+        try {
+          return JSON.parse(localStorage.getItem(this.STORAGE_KEY_USERS)) || {};
+        } catch(e) { return {}; }
+      }
+
+      getCurrentSession() {
+        const username = localStorage.getItem(this.STORAGE_KEY_SESSION);
+        const accounts = this.getAccounts();
+        if (username && accounts[username]) {
+          return accounts[username];
+        }
+        return accounts["demo_trader"] || null;
+      }
+
+      login(usernameOrEmail, password) {
+        const accounts = this.getAccounts();
+        const user = Object.values(accounts).find(
+          u => (u.username.toLowerCase() === usernameOrEmail.toLowerCase() || u.email.toLowerCase() === usernameOrEmail.toLowerCase()) && u.passwordHash === password
+        );
+        if (user) {
+          localStorage.setItem(this.STORAGE_KEY_SESSION, user.username);
+          return { success: true, user };
+        }
+        return { success: false, error: "Invalid username or password" };
+      }
+
+      register(name, username, email, password) {
+        const accounts = this.getAccounts();
+        const uname = username.trim().toLowerCase();
+        if (accounts[uname]) {
+          return { success: false, error: "Username is already taken" };
+        }
+        const defaultWatchlist = ["SPY", "QQQ", "MSFT", "NVDA", "GOOGL", "AMZN", "AAPL"];
+        accounts[uname] = {
+          name: name.trim(),
+          username: uname,
+          email: email.trim().toLowerCase(),
+          passwordHash: password,
+          watchlist: defaultWatchlist
+        };
+        localStorage.setItem(this.STORAGE_KEY_USERS, JSON.stringify(accounts));
+        localStorage.setItem(this.STORAGE_KEY_SESSION, uname);
+        return { success: true, user: accounts[uname] };
+      }
+
+      logout() {
+        localStorage.removeItem(this.STORAGE_KEY_SESSION);
+      }
+
+      updateUserWatchlist(username, newWatchlist) {
+        const accounts = this.getAccounts();
+        if (accounts[username]) {
+          accounts[username].watchlist = newWatchlist;
+          localStorage.setItem(this.STORAGE_KEY_USERS, JSON.stringify(accounts));
+        }
+      }
+    }
+
+    /**
+     * DETERMINISTIC QUANTITATIVE RULES ENGINE
+     */
+    class QuantitativeRulesEngine {
+      static evaluateTechnicals(item) {
+        let score = 15;
+        const flags = [];
+        const drawdownPct = ((item.high52 - item.price) / item.high52) * 100;
+        const above200 = item.price > item.sma200;
+        
+        if (above200) score += 4;
+        else { score -= 6; flags.push("Below 200d SMA downtrend"); }
+
+        const dist50 = (item.price - item.sma50) / item.sma50;
+        const dist200 = (item.price - item.sma200) / item.sma200;
+        const isExtended = dist50 > 0.12 || dist200 > 0.22;
+
+        if (isExtended) {
+          score -= 8;
+          flags.push(`Price extended (+${(dist50 * 100).toFixed(1)}% above 50d SMA)`);
+        }
+
+        const distSupport = Math.abs(item.price - item.majorSupport) / item.price;
+        const nearSupport = distSupport <= 0.035 && item.price >= (item.majorSupport * 0.985);
+
+        if (nearSupport) {
+          score += 7;
+          flags.push(`At verified structural support ($${item.majorSupport.toFixed(2)})`);
+        }
+
+        if (item.rsi14 < 38) {
+          if (nearSupport && above200) { score += 3; flags.push(`RSI (${item.rsi14}) oversold at support`); }
+          else { score -= 2; flags.push(`RSI (${item.rsi14}) weak without support`); }
+        } else if (item.rsi14 > 68) {
+          score -= 5; flags.push(`RSI (${item.rsi14}) overbought zone`);
+        }
+
+        return { score: Math.max(0, Math.min(30, Math.round(score))), flags, isExtended, nearSupport, drawdownPct };
+      }
+
+      static evaluateFundamentals(item) {
+        let score = 12;
+        const flags = [];
+        const f = item.fundamentals;
+        if (f.revenueGrowthYoY >= 0.20) score += 5;
+        else if (f.revenueGrowthYoY >= 0.10) score += 3;
+        else if (f.revenueGrowthYoY < 0) score -= 4;
+
+        if (f.operatingMargin >= 0.30) score += 4;
+        else if (f.operatingMargin < 0.08) score -= 3;
+
+        if (f.netDebtToEbitda <= 0.5) score += 3;
+        else if (f.netDebtToEbitda > 2.5) score -= 4;
+
+        let assessment = "Roughly Unchanged";
+        if (f.direction === "getting_stronger") { score += 3; assessment = "Getting Stronger"; }
+        else if (f.direction === "getting_weaker") { score -= 5; assessment = "Getting Weaker"; }
+
+        return { score: Math.max(0, Math.min(25, Math.round(score))), assessment, flags };
+      }
+
+      static evaluateValuation(item) {
+        let score = 10;
+        const flags = [];
+        const v = item.valuation;
+        if (v.forwardPe > 0 && v.historical5yPe > 0) {
+          const discountPct = ((v.historical5yPe - v.forwardPe) / v.historical5yPe) * 100;
+          if (discountPct >= 15) score += 4;
+          else if (discountPct <= -25) score -= 4;
+        }
+
+        if (v.pegRatio > 0) {
+          if (v.pegRatio <= 1.2) score += 4;
+          else if (v.pegRatio > 2.5) score -= 5;
+        }
+
+        if (v.fcfYield >= 0.05) score += 3;
+        else if (v.fcfYield < 0.02) score -= 2;
+
+        return { score: Math.max(0, Math.min(20, Math.round(score))), assessment: v.valuationStatus, flags };
+      }
+
+      static evaluateCatalysts(item) {
+        let score = 8;
+        const flags = [];
+        const c = item.catalysts;
+        let earningsWarning = false;
+
+        if (c.daysToEarnings <= 14) {
+          score -= 4;
+          earningsWarning = true;
+          flags.push(`CRITICAL: Earnings in ${c.daysToEarnings} days (${c.nextEarningsDate}). High binary gap risk.`);
+        }
+
+        if (item.ticker === "NVDA" || item.ticker === "AVGO" || item.ticker === "TSM") score += 2;
+        if (item.ticker === "SPCX" || item.ticker === "SNDK") score += 2;
+
+        return { score: Math.max(0, Math.min(15, Math.round(score))), flags, earningsWarning };
+      }
+
+      static evaluateOptions(item, totalScore, earningsWarning) {
+        const o = item.options;
+        if (!o) return { recommendation: "SHARES", reason: "No options data available." };
+
+        const isHighIV = o.ivRank > 65;
+        const isLowIV = o.ivRank < 30;
+        const bidAskSpreadPct = ((o.atmCallAsk - o.atmCallBid) / o.atmCallAsk) * 100;
+        const isLiquid = o.atmCallOpenInterest > 1000 && bidAskSpreadPct <= 6.0;
+
+        let recommendation = "WAIT";
+        let reason = "";
+        let tradeSpecs = null;
+
+        if (totalScore < 70) {
+          recommendation = "WAIT";
+          reason = "Risk/reward asymmetry is not attractive today. Capital preservation is priority #1.";
+        } else if (earningsWarning) {
+          recommendation = "SHARES ONLY (OR WAIT)";
+          reason = `Earnings is in ${item.catalysts.daysToEarnings} days. Long options subject capital to IV crush.`;
+        } else if (!isLiquid) {
+          recommendation = "SHARES";
+          reason = `Options spread is wide (${bidAskSpreadPct.toFixed(1)}%). Trade shares to minimize slippage.`;
+        } else if (isHighIV) {
+          recommendation = "CASH-SECURED PUT OR SHARES";
+          reason = `IV Rank is high (${o.ivRank}%). Sell Cash-Secured Puts at major support $${item.majorSupport.toFixed(2)} or hold shares.`;
+          tradeSpecs = { strategy: "Cash-Secured Put", strike: item.majorSupport, dte: 45, targetDelta: -0.30 };
+        } else if (isLowIV) {
+          recommendation = "LONG CALL OR CALL DEBIT SPREAD";
+          reason = `IV Rank is low (${o.ivRank}%). 45-60 DTE contract offers asymmetric upside with limited risk.`;
+          tradeSpecs = { strategy: "45-60 DTE Long Call", longStrike: o.atmCallStrike, dte: o.daysToExpiration, delta: o.atmCallDelta, theta: o.atmCallTheta, breakeven: (o.atmCallStrike + o.atmCallAsk).toFixed(2) };
+        } else {
+          recommendation = "CALL DEBIT SPREAD";
+          reason = `IV Rank is moderate (${o.ivRank}%). Vertical spread mitigates theta drag.`;
+          tradeSpecs = { strategy: "Vertical Call Debit Spread", longStrike: o.atmCallStrike, shortStrike: Math.round(o.atmCallStrike * 1.06), dte: o.daysToExpiration };
+        }
+
+        return { recommendation, reason, ivRank: o.ivRank, tradeSpecs };
+      }
+
+      static synthesizeBearCase(item) {
+        let bearCase = `Macro economic softening, multiple compression, or unexpected guidance cut in ${item.type}.`;
+        let invalidationLevel = `A decisive weekly close below major support at $${item.majorSupport.toFixed(2)}.`;
+        return { bearCase, invalidationLevel };
+      }
+
+      static evaluateAsset(item, marketRegime) {
+        const tech = this.evaluateTechnicals(item);
+        const fund = this.evaluateFundamentals(item);
+        const val = this.evaluateValuation(item);
+        const cat = this.evaluateCatalysts(item);
+
+        let marketBonus = 5;
+        if (marketRegime === "BULLISH") marketBonus = 9;
+        else if (marketRegime === "NEUTRAL") marketBonus = 6;
+        else if (marketRegime === "CAUTIOUS") marketBonus = 3;
+
+        let totalScore = tech.score + fund.score + val.score + cat.score + marketBonus;
+        if (tech.isExtended) totalScore -= 12;
+        if (cat.earningsWarning) totalScore -= 8;
+
+        totalScore = Math.max(0, Math.min(100, Math.round(totalScore)));
+
+        let tierLabel = "Neutral / Wait";
+        if (totalScore >= 90) tierLabel = "Exceptional Setup (Rare)";
+        else if (totalScore >= 80) tierLabel = "Strong Opportunity";
+        else if (totalScore >= 70) tierLabel = "Interesting; Watch Closely";
+        else if (totalScore < 55) tierLabel = "Not Attractive / Avoid";
+
+        const optionsEval = this.evaluateOptions(item, totalScore, cat.earningsWarning);
+        const bearCase = this.synthesizeBearCase(item);
+
+        return { item, totalScore, tierLabel, tech, fund, val, cat, optionsEval, bearCase };
+      }
+
+      static determineMarketRegime(db) {
+        const spy = db.find(x => x.ticker === "SPY");
+        const qqq = db.find(x => x.ticker === "QQQ");
+        if (!spy || !qqq) return { regime: "NEUTRAL", description: "Market data baseline active." };
+
+        const spyAbove200 = spy.price > spy.sma200;
+        const qqqAbove200 = qqq.price > qqq.sma200;
+        const spyAbove50 = spy.price > spy.sma50;
+        const qqqAbove50 = qqq.price > qqq.sma50;
+
+        if (spyAbove200 && qqqAbove200 && spyAbove50 && qqqAbove50) {
+          return { regime: "BULLISH", description: "Both SPY and QQQ maintain healthy moving average spacing above 50d and 200d SMAs." };
+        } else if (spyAbove200 && qqqAbove200) {
+          return { regime: "NEUTRAL", description: "Indices in long-term uptrends, digesting intermediate moving average support." };
+        } else {
+          return { regime: "CAUTIOUS", description: "Index divergence or distribution signals detected. Capital preservation priority." };
+        }
+      }
+    }
+
+    /**
+     * MAIN APPLICATION CONTROLLER
+     */
+    class StockWatcherApp {
+      constructor() {
+        this.accountManager = new AccountManager();
+        this.currentUser = this.accountManager.getCurrentSession();
+        this.dataset = JSON.parse(JSON.stringify(SEED_WATCHLIST));
+        this.currentEvaluations = [];
+        this.currentFilter = "my_watchlist";
+        this.marketRegime = "BULLISH";
+
+        this.initDOM();
+        this.attachEvents();
+        this.renderAuthUI();
+        this.executeScan(false);
+      }
+
+      initDOM() {
+        this.authPillContainer = document.getElementById("authPillContainer");
+        this.headerWlCountText = document.getElementById("headerWlCountText");
+        this.heroAccountName = document.getElementById("heroAccountName");
+        this.heroWlStats = document.getElementById("heroWlStats");
+        this.btnRunScan = document.getElementById("btnRunScan");
+        this.scanDiagnostic = document.getElementById("scanDiagnostic");
+        this.progressBarFill = document.getElementById("progressBarFill");
+        this.diagnosticText = document.getElementById("diagnosticText");
+        this.scenarioSelector = document.getElementById("scenarioSelector");
+
+        // Modals
+        this.watchlistModal = document.getElementById("watchlistModal");
+        this.btnManageWatchlist = document.getElementById("btnManageWatchlist");
+        this.btnHeroEditWl = document.getElementById("btnHeroEditWl");
+        this.wlModalCloseBtn = document.getElementById("wlModalCloseBtn");
+        this.wlSelectionContainer = document.getElementById("wlSelectionContainer");
+        this.wlSelectedCount = document.getElementById("wlSelectedCount");
+        this.btnSelectAllWl = document.getElementById("btnSelectAllWl");
+        this.btnSelectPrimaryOnly = document.getElementById("btnSelectPrimaryOnly");
+        this.btnSaveWatchlist = document.getElementById("btnSaveWatchlist");
+        this.btnOpenAddCustom = document.getElementById("btnOpenAddCustom");
+
+        this.loginModal = document.getElementById("loginModal");
+        this.loginForm = document.getElementById("loginForm");
+        this.loginCloseBtn = document.getElementById("loginCloseBtn");
+        this.btnDemoQuickLogin = document.getElementById("btnDemoQuickLogin");
+        this.linkOpenRegister = document.getElementById("linkOpenRegister");
+        this.linkOpenLogin = document.getElementById("linkOpenLogin");
+
+        this.registerModal = document.getElementById("registerModal");
+        this.registerForm = document.getElementById("registerForm");
+        this.registerCloseBtn = document.getElementById("registerCloseBtn");
+
+        this.addTickerModal = document.getElementById("addTickerModal");
+        this.addTickerForm = document.getElementById("addTickerForm");
+        this.addTickerCloseBtn = document.getElementById("addTickerCloseBtn");
+        this.addCancelBtn = document.getElementById("addCancelBtn");
+
+        this.detailModal = document.getElementById("detailModal");
+        this.modalCloseBtn = document.getElementById("modalCloseBtn");
+        this.btnExportJournal = document.getElementById("btnExportJournal");
+        this.toastNotification = document.getElementById("toastNotification");
+        this.toastMessage = document.getElementById("toastMessage");
+
+        // Sections
+        this.bestOpportunityContainer = document.getElementById("bestOpportunityContainer");
+        this.topOpportunitiesGrid = document.getElementById("topOpportunitiesGrid");
+        this.notReadyTableBody = document.querySelector("#notReadyTable tbody");
+        this.avoidTableBody = document.querySelector("#avoidTable tbody");
+        this.watchNextTableBody = document.querySelector("#watchNextTable tbody");
+      }
+
+      attachEvents() {
+        this.btnRunScan.addEventListener("click", () => this.executeScan(true));
+
+        this.scenarioSelector.addEventListener("change", (e) => {
+          this.applyScenario(e.target.value);
+        });
+
+        document.querySelectorAll(".filter-btn").forEach(btn => {
+          btn.addEventListener("click", (e) => {
+            document.querySelectorAll(".filter-btn").forEach(b => b.classList.remove("active"));
+            e.target.classList.add("active");
+            this.currentFilter = e.target.dataset.filter;
+            this.renderOutput();
+          });
+        });
+
+        // Watchlist Modal
+        const openWl = () => { this.renderWatchlistModalGrid(); this.watchlistModal.classList.add("active"); };
+        this.btnManageWatchlist.addEventListener("click", openWl);
+        this.btnHeroEditWl.addEventListener("click", openWl);
+        this.wlModalCloseBtn.addEventListener("click", () => this.watchlistModal.classList.remove("active"));
+        this.btnSaveWatchlist.addEventListener("click", () => {
+          this.saveWatchlistSelection();
+          this.watchlistModal.classList.remove("active");
+          this.showToast("Account watchlist updated!");
+          this.executeScan(false);
+        });
+
+        this.btnSelectAllWl.addEventListener("click", () => {
+          document.querySelectorAll(".wl-toggle-cb").forEach(cb => cb.checked = true);
+          this.updateWlCountBadge();
+        });
+
+        this.btnSelectPrimaryOnly.addEventListener("click", () => {
+          document.querySelectorAll(".wl-stock-item").forEach(item => {
+            const isPrim = item.dataset.primary === "true";
+            const cb = item.querySelector(".wl-toggle-cb");
+            if (cb) cb.checked = isPrim;
+          });
+          this.updateWlCountBadge();
+        });
+
+        // Login / Register Modals
+        this.loginCloseBtn.addEventListener("click", () => this.loginModal.classList.remove("active"));
+        this.registerCloseBtn.addEventListener("click", () => this.registerModal.classList.remove("active"));
+        this.linkOpenRegister.addEventListener("click", (e) => {
+          e.preventDefault();
+          this.loginModal.classList.remove("active");
+          this.registerModal.classList.add("active");
+        });
+        this.linkOpenLogin.addEventListener("click", (e) => {
+          e.preventDefault();
+          this.registerModal.classList.remove("active");
+          this.loginModal.classList.add("active");
+        });
+
+        this.loginForm.addEventListener("submit", (e) => {
+          e.preventDefault();
+          const u = document.getElementById("loginUsername").value;
+          const p = document.getElementById("loginPassword").value;
+          const res = this.accountManager.login(u, p);
+          if (res.success) {
+            this.currentUser = res.user;
+            this.loginModal.classList.remove("active");
+            this.renderAuthUI();
+            this.showToast(`Welcome back, ${res.user.name}!`);
+            this.executeScan(false);
+          } else {
+            const err = document.getElementById("loginErrorMsg");
+            err.textContent = res.error;
+            err.style.display = "block";
+          }
+        });
+
+        this.registerForm.addEventListener("submit", (e) => {
+          e.preventDefault();
+          const n = document.getElementById("regName").value;
+          const u = document.getElementById("regUsername").value;
+          const em = document.getElementById("regEmail").value;
+          const p = document.getElementById("regPassword").value;
+          const res = this.accountManager.register(n, u, em, p);
+          if (res.success) {
+            this.currentUser = res.user;
+            this.registerModal.classList.remove("active");
+            this.renderAuthUI();
+            this.showToast(`Account created! Welcome, ${res.user.name}!`);
+            this.executeScan(false);
+          } else {
+            const err = document.getElementById("regErrorMsg");
+            err.textContent = res.error;
+            err.style.display = "block";
+          }
+        });
+
+        this.btnDemoQuickLogin.addEventListener("click", () => {
+          const res = this.accountManager.login("demo_trader", "demo123");
+          if (res.success) {
+            this.currentUser = res.user;
+            this.loginModal.classList.remove("active");
+            this.renderAuthUI();
+            this.showToast("Logged in as Demo Trader");
+            this.executeScan(false);
+          }
+        });
+
+        // Add Custom Ticker
+        this.btnOpenAddCustom.addEventListener("click", () => {
+          this.watchlistModal.classList.remove("active");
+          this.addTickerModal.classList.add("active");
+        });
+        this.addTickerCloseBtn.addEventListener("click", () => this.addTickerModal.classList.remove("active"));
+        this.addCancelBtn.addEventListener("click", () => this.addTickerModal.classList.remove("active"));
+
+        this.addTickerForm.addEventListener("submit", (e) => {
+          e.preventDefault();
+          this.handleAddTickerSubmit();
+        });
+
+        this.modalCloseBtn.addEventListener("click", () => this.detailModal.classList.remove("active"));
+        this.btnExportJournal.addEventListener("click", () => this.exportMarkdown());
+      }
+
+      showToast(msg) {
+        this.toastMessage.textContent = msg;
+        this.toastNotification.classList.add("show");
+        setTimeout(() => this.toastNotification.classList.remove("show"), 3000);
+      }
+
+      renderAuthUI() {
+        if (this.currentUser) {
+          this.heroAccountName.textContent = this.currentUser.name;
+          const count = (this.currentUser.watchlist || []).length;
+          this.headerWlCountText.textContent = `My Watchlist (${count})`;
+          this.heroWlStats.innerHTML = `Monitoring <strong>${count}</strong> stocks in your account`;
+
+          this.authPillContainer.innerHTML = `
+            <div class="user-pill" id="userAccountPill">
+              <div class="user-avatar">${this.currentUser.name.charAt(0)}</div>
+              <span class="user-name">${this.currentUser.name}</span>
+              <div class="user-menu-dropdown" id="userMenuDropdown">
+                <div class="dropdown-item" id="btnMenuEditWl">Edit My Watchlist (${count})</div>
+                <div class="dropdown-item" id="btnMenuSwitchUser">Switch Account</div>
+                <div class="dropdown-item" id="btnMenuLogout" style="color:#f87171;">Sign Out</div>
+              </div>
+            </div>
+          `;
+
+          const pill = document.getElementById("userAccountPill");
+          const menu = document.getElementById("userMenuDropdown");
+          pill.addEventListener("click", (e) => {
+            e.stopPropagation();
+            menu.classList.toggle("show");
+          });
+          document.addEventListener("click", () => menu.classList.remove("show"));
+
+          document.getElementById("btnMenuEditWl").addEventListener("click", () => {
+            this.renderWatchlistModalGrid();
+            this.watchlistModal.classList.add("active");
+          });
+          document.getElementById("btnMenuSwitchUser").addEventListener("click", () => {
+            this.loginModal.classList.add("active");
+          });
+          document.getElementById("btnMenuLogout").addEventListener("click", () => {
+            this.accountManager.logout();
+            this.currentUser = null;
+            this.renderAuthUI();
+            this.showToast("Signed out.");
+            this.executeScan(false);
+          });
+        } else {
+          this.heroAccountName.textContent = "Guest";
+          this.headerWlCountText.textContent = "My Watchlist (Guest)";
+          this.heroWlStats.innerHTML = `Viewing full market library (Sign in to save custom list)`;
+
+          this.authPillContainer.innerHTML = `
+            <div style="display:flex; gap:8px;">
+              <button class="btn-secondary" id="btnNavLogin">Sign In</button>
+              <button class="btn-primary-blue" id="btnNavRegister">Create Account</button>
+            </div>
+          `;
+          document.getElementById("btnNavLogin").addEventListener("click", () => this.loginModal.classList.add("active"));
+          document.getElementById("btnNavRegister").addEventListener("click", () => this.registerModal.classList.add("active"));
+        }
+      }
+
+      renderWatchlistModalGrid() {
+        const watched = new Set(this.currentUser ? this.currentUser.watchlist : this.dataset.map(x => x.ticker));
+        this.wlSelectionContainer.innerHTML = this.dataset.map(item => {
+          const isWatched = watched.has(item.ticker);
+          return `
+            <div class="wl-stock-item ${isWatched ? 'watched' : ''}" data-ticker="${item.ticker}" data-primary="${item.isPrimary}">
+              <div>
+                <strong style="font-family:var(--font-mono); color:#fff;">${item.ticker}</strong>
+                <div style="font-size:11px; color:var(--text-muted);">${item.name}</div>
+              </div>
+              <input type="checkbox" class="wl-toggle-cb" data-ticker="${item.ticker}" ${isWatched ? 'checked' : ''} style="accent-color:var(--accent-cyan); width:18px; height:18px; cursor:pointer;">
+            </div>
+          `;
+        }).join("");
+
+        document.querySelectorAll(".wl-toggle-cb").forEach(cb => {
+          cb.addEventListener("change", (e) => {
+            const parent = e.target.closest(".wl-stock-item");
+            if (e.target.checked) parent.classList.add("watched");
+            else parent.classList.remove("watched");
+            this.updateWlCountBadge();
+          });
+        });
+
+        this.updateWlCountBadge();
+      }
+
+      updateWlCountBadge() {
+        const checked = document.querySelectorAll(".wl-toggle-cb:checked").length;
+        this.wlSelectedCount.textContent = checked;
+      }
+
+      saveWatchlistSelection() {
+        const selected = [];
+        document.querySelectorAll(".wl-toggle-cb:checked").forEach(cb => {
+          selected.push(cb.dataset.ticker);
+        });
+
+        if (this.currentUser) {
+          this.currentUser.watchlist = selected;
+          this.accountManager.updateUserWatchlist(this.currentUser.username, selected);
+        }
+        this.renderAuthUI();
+      }
+
+      handleAddTickerSubmit() {
+        const symbol = document.getElementById("addSymbol").value.trim().toUpperCase();
+        const name = document.getElementById("addName").value.trim();
+        const type = document.getElementById("addType").value.trim();
+        const price = parseFloat(document.getElementById("addPrice").value);
+        const high52 = parseFloat(document.getElementById("addHigh52").value);
+        const support = parseFloat(document.getElementById("addSupport").value);
+        const resistance = parseFloat(document.getElementById("addResistance").value);
+        const sma20 = parseFloat(document.getElementById("addSma20").value);
+        const sma50 = parseFloat(document.getElementById("addSma50").value);
+        const sma200 = parseFloat(document.getElementById("addSma200").value);
+        const rsi = parseFloat(document.getElementById("addRsi").value);
+        const revGrowth = parseFloat(document.getElementById("addRevGrowth").value) / 100;
+        const fwdPe = parseFloat(document.getElementById("addFwdPe").value);
+        const peg = parseFloat(document.getElementById("addPeg").value);
+        const direction = document.getElementById("addDirection").value;
+        const whyAttention = document.getElementById("addWhyAttention").value.trim();
+
+        const newStock = {
+          ticker: symbol, name: name, isPrimary: false, type: type || "Discovered Opportunity",
+          price: price, high52: high52 || price * 1.15, low52: support * 0.9,
+          sma20: sma20 || price * 0.98, sma50: sma50 || price * 0.95, sma200: sma200 || price * 0.90,
+          rsi14: rsi || 50, volume: 15000000, avgVolume20: 16000000, majorSupport: support, majorResistance: resistance || high52, secondarySupport: support * 0.92,
+          fundamentals: { revenueGrowthYoY: revGrowth || 0.15, earningsGrowthYoY: revGrowth * 1.2, freeCashFlow: 10.0, fcfTrend: "growing", operatingMargin: 0.22, netDebtToEbitda: 0.5, guidanceTrend: "positive", analystRevisions: "positive", competitivePosition: whyAttention, direction: direction },
+          valuation: { forwardPe: fwdPe || 25, historical5yPe: (fwdPe || 25) * 1.1, pegRatio: peg || 1.2, priceToFcf: (fwdPe || 25) * 1.05, evToEbitda: (fwdPe || 25) * 0.65, fcfYield: 0.035, valuationStatus: peg <= 1.2 ? "attractive" : "fair" },
+          catalysts: { daysToEarnings: 45, nextEarningsDate: "Quarterly Schedule", recentEarningsOutcome: "beat", keyCatalysts: [whyAttention], majorRisks: ["Multiple compression"], specificFactor: whyAttention },
+          options: { impliedVolatility: 0.35, ivRank: 32, daysToExpiration: 52, atmCallStrike: Math.round(price), atmCallBid: Math.round(price * 0.05 * 100) / 100, atmCallAsk: Math.round(price * 0.054 * 100) / 100, atmCallVolume: 8500, atmCallOpenInterest: 22000, atmCallDelta: 0.50, atmCallTheta: -0.08, expectedMovePct: 0.075 },
+          historicalSeries: [price * 0.94, price * 0.96, price * 0.98, price]
+        };
+
+        this.dataset = this.dataset.filter(x => x.ticker !== symbol);
+        this.dataset.push(newStock);
+
+        if (this.currentUser && !this.currentUser.watchlist.includes(symbol)) {
+          this.currentUser.watchlist.push(symbol);
+          this.accountManager.updateUserWatchlist(this.currentUser.username, this.currentUser.watchlist);
+        }
+
+        this.addTickerForm.reset();
+        this.addTickerModal.classList.remove("active");
+        this.showToast(`Added ${symbol} to library and active watchlist!`);
+        this.renderAuthUI();
+        this.executeScan(false);
+      }
+
+      applyScenario(scenario) {
+        this.dataset = JSON.parse(JSON.stringify(SEED_WATCHLIST));
+        if (scenario === "pullback") {
+          this.dataset.forEach(item => {
+            if (item.type.includes("Tech") || item.type.includes("Semi")) {
+              item.price = Math.round(item.price * 0.92 * 100) / 100;
+              item.rsi14 = Math.max(28, item.rsi14 - 14);
+            }
+          });
+          this.showToast("Applied Stress Test: -8% Tech Pullback");
+        } else if (scenario === "high_iv") {
+          this.dataset.forEach(item => {
+            if (item.options) item.options.ivRank = Math.min(95, item.options.ivRank + 45);
+          });
+          this.showToast("Applied Stress Test: High IV Spike");
+        } else if (scenario === "overbought") {
+          this.dataset.forEach(item => {
+            item.price = Math.round(item.price * 1.08 * 100) / 100;
+            item.rsi14 = Math.min(84, item.rsi14 + 18);
+          });
+          this.showToast("Applied Stress Test: Extended Rally");
+        }
+        this.executeScan(true);
+      }
+
+      async executeScan(animate = false) {
+        this.btnRunScan.classList.add("scanning");
+        this.scanDiagnostic.classList.add("active");
+        this.progressBarFill.style.width = "0%";
+
+        const steps = [
+          "Verifying account watchlist parameters...",
+          "Auditing 20d, 50d, and 200d Moving Averages...",
+          "Inspecting balance sheet leverage & FCF yields...",
+          "Evaluating options IV rank and contract Greeks...",
+          "Applying strict skepticism bias & synthesizing Opportunity Scores..."
+        ];
+
+        if (animate) {
+          for (let i = 0; i < steps.length; i++) {
+            this.diagnosticText.textContent = steps[i];
+            this.progressBarFill.style.width = `${((i + 1) / steps.length) * 100}%`;
+            await new Promise(r => setTimeout(r, 160));
+          }
+        }
+
+        const regimeObj = QuantitativeRulesEngine.determineMarketRegime(this.dataset);
+        this.marketRegime = regimeObj.regime;
+        this.marketRegimeDesc = regimeObj.description;
+
+        this.currentEvaluations = this.dataset.map(item => {
+          return QuantitativeRulesEngine.evaluateAsset(item, this.marketRegime);
+        });
+
+        this.currentEvaluations.sort((a, b) => b.totalScore - a.totalScore);
+        this.renderOutput();
+
+        this.diagnosticText.textContent = `Scan complete. ${this.currentEvaluations.length} assets audited deterministically.`;
+        this.progressBarFill.style.width = "100%";
+        this.btnRunScan.classList.remove("scanning");
+      }
+
+      getFilteredEvaluations() {
+        const userWatchlist = this.currentUser ? new Set(this.currentUser.watchlist) : new Set(this.dataset.map(x => x.ticker));
+        if (this.currentFilter === "my_watchlist") {
+          return this.currentEvaluations.filter(e => userWatchlist.has(e.item.ticker));
+        } else if (this.currentFilter === "primary") {
+          return this.currentEvaluations.filter(e => e.item.isPrimary);
+        } else if (this.currentFilter === "alerts") {
+          return this.currentEvaluations.filter(e => e.totalScore >= 75 || e.tech.nearSupport);
+        }
+        return this.currentEvaluations;
+      }
+
+      renderOutput() {
+        // Market Conditions
+        const sec = document.getElementById("marketConditionsSection");
+        sec.className = `market-banner ${this.marketRegime.toLowerCase()}`;
+        document.getElementById("marketRegimeText").innerHTML = `
+          <span>${this.marketRegime}</span>
+          <span style="font-size:12px; font-weight:400; color:var(--text-secondary); margin-left:8px;">${this.marketRegimeDesc}</span>
+        `;
+
+        const filtered = this.getFilteredEvaluations();
+        const best = filtered.find(e => e.totalScore >= 75 && !e.tech.isExtended && !e.cat.earningsWarning);
+
+        // Best Opportunity
+        if (!best) {
+          this.bestOpportunityContainer.innerHTML = `
+            <div class="best-opportunity-card none-found">
+              <div class="card-top-row">
+                <div class="ticker-spotlight">
+                  <div class="spotlight-symbol" style="color:var(--text-muted);">NONE TODAY</div>
+                  <div>
+                    <div style="font-size:15px; font-weight:700; color:#fff;">Recommendation: PATIENT WAIT</div>
+                    <div class="spotlight-name">No asset on your monitored watchlist satisfies all multi-pillar risk/reward conditions.</div>
+                  </div>
+                </div>
+                <div class="score-badge-huge wait">
+                  <div class="score-num wait">WAIT</div>
+                  <div class="score-label">Disciplined Stance</div>
+                </div>
+              </div>
+            </div>
+          `;
+        } else {
+          const item = best.item;
+          this.bestOpportunityContainer.innerHTML = `
+            <div class="best-opportunity-card">
+              <div class="card-top-row">
+                <div class="ticker-spotlight">
+                  <div class="spotlight-symbol">${item.ticker}</div>
+                  <div>
+                    <div style="font-size:15px; font-weight:700; color:#fff;">${item.name}</div>
+                    <div class="spotlight-name">${item.type} | Current Price: <strong>$${item.price.toFixed(2)}</strong></div>
+                  </div>
+                </div>
+                <div class="score-badge-huge">
+                  <div class="score-num">${best.totalScore}</div>
+                  <div class="score-label">Opportunity Score</div>
+                </div>
+              </div>
+
+              <div class="grid-2col">
+                <div class="sub-box">
+                  <div class="sub-box-title">Why It Deserves Attention</div>
+                  <div><span class="epistemic-tag tag-fact">FACT</span> Price $${item.price.toFixed(2)} (Drawdown: -${best.tech.drawdownPct.toFixed(1)}%).</div>
+                  <div style="margin-top:4px;"><span class="epistemic-tag tag-interpretation">INTERPRETATION</span> ${best.tech.flags.join(". ") || "Confluent support structure."}</div>
+                </div>
+                <div class="sub-box">
+                  <div class="sub-box-title">Key Levels & Wait Thresholds</div>
+                  <div><strong>Major Support:</strong> $${item.majorSupport.toFixed(2)} | <strong>Resistance:</strong> $${item.majorResistance.toFixed(2)}</div>
+                  <div><strong>What Would Make Me Wait:</strong> ${best.tech.nearSupport ? "A high-volume breakdown below $" + item.majorSupport.toFixed(2) : "Wait for pullback to test $" + item.majorSupport.toFixed(2)}.</div>
+                </div>
+              </div>
+
+              <div class="vehicle-preference-box">
+                <div class="sub-box-title">Vehicle Preference: Stock vs Options</div>
+                <div style="font-weight:700; color:var(--emerald);">${best.optionsEval.recommendation}</div>
+                <div style="font-size:12px; color:var(--text-secondary);">${best.optionsEval.reason}</div>
+              </div>
+
+              <div style="display:flex; justify-content:flex-end;">
+                <button class="btn-secondary" onclick="window.stockApp.showDetailModal('${item.ticker}')">Inspect Quantitative Breakdown & Chart →</button>
+              </div>
+            </div>
+          `;
+        }
+
+        // Top 3 Grid
+        const top3 = filtered.slice(0, 3);
+        this.topOpportunitiesGrid.innerHTML = top3.map((e, idx) => {
+          const item = e.item;
+          let chipClass = "high";
+          if (e.totalScore < 70) chipClass = "wait";
+          if (e.totalScore < 55) chipClass = "avoid";
+
+          return `
+            <div class="stock-card" onclick="window.stockApp.showDetailModal('${item.ticker}')">
+              <div class="card-header-flex">
+                <div>
+                  <span class="card-symbol">#${idx + 1} ${item.ticker}</span>
+                  <span class="card-price">$${item.price.toFixed(2)}</span>
+                </div>
+                <span class="score-chip ${chipClass}">Score: ${e.totalScore}</span>
+              </div>
+              <div class="stat-pills-row">
+                <span class="stat-pill">50d: $${item.sma50.toFixed(2)}</span>
+                <span class="stat-pill">RSI: ${item.rsi14.toFixed(1)}</span>
+                <span class="stat-pill">Fwd P/E: ${item.valuation.forwardPe}x</span>
+              </div>
+              <div style="font-size:12px; color:var(--text-secondary); line-height:1.4;">
+                ${e.tech.flags[0] || "Orderly technical structure."}
+              </div>
+              <div style="margin-top:auto; padding-top:8px; border-top:1px solid var(--border-subtle); display:flex; justify-content:space-between; font-size:11px;">
+                <span style="color:var(--text-muted);">VEHICLE: <strong style="color:#fff;">${e.optionsEval.recommendation}</strong></span>
+                <span style="color:var(--accent-cyan); font-weight:600;">Inspect →</span>
+              </div>
+            </div>
+          `;
+        }).join("");
+
+        // Not Ready Yet
+        const notReady = filtered.filter(e => e.totalScore >= 55 && e.totalScore < 75);
+        this.notReadyTableBody.innerHTML = notReady.map(e => `
+          <tr onclick="window.stockApp.showDetailModal('${e.item.ticker}')" style="cursor:pointer;">
+            <td class="table-symbol">${e.item.ticker}</td>
+            <td>$${e.item.price.toFixed(2)}</td>
+            <td><span class="score-chip wait" style="display:inline-block; padding:2px 6px; font-size:11px;">${e.totalScore}</span></td>
+            <td>${e.tech.isExtended ? 'Extended; needs multiple contraction' : 'Awaiting retest of structural floor'}</td>
+            <td>$${e.item.majorSupport.toFixed(2)}</td>
+            <td>Close below $${e.item.majorSupport.toFixed(2)}</td>
+            <td><span style="color:var(--purple); font-family:var(--font-mono); font-size:11px;">Set alert at $${(e.item.majorSupport * 1.015).toFixed(2)}</span></td>
+          </tr>
+        `).join("");
+
+        // Avoid
+        const avoid = filtered.filter(e => e.totalScore < 55 || e.tech.isExtended);
+        this.avoidTableBody.innerHTML = avoid.map(e => `
+          <tr onclick="window.stockApp.showDetailModal('${e.item.ticker}')" style="cursor:pointer;">
+            <td class="table-symbol" style="color:var(--crimson);">${e.item.ticker}</td>
+            <td>$${e.item.price.toFixed(2)}</td>
+            <td><span class="score-chip avoid" style="display:inline-block; padding:2px 6px; font-size:11px;">${e.totalScore}</span></td>
+            <td style="color:#f87171;">${e.tech.isExtended ? 'Technically extended from moving averages' : 'Asymmetric downside / high multiple'}</td>
+            <td>+${(((e.item.price - e.item.sma50) / e.item.sma50) * 100).toFixed(1)}% vs 50d SMA</td>
+            <td>Fwd P/E: ${e.item.valuation.forwardPe}x</td>
+            <td>Do not chase. Maintain patience.</td>
+          </tr>
+        `).join("");
+
+        // Watch Next
+        const watchNext = filtered.slice(0, 5);
+        this.watchNextTableBody.innerHTML = watchNext.map(e => `
+          <tr onclick="window.stockApp.showDetailModal('${e.item.ticker}')" style="cursor:pointer;">
+            <td class="table-symbol">${e.item.ticker}</td>
+            <td>${e.item.catalysts.keyCatalysts[0] || 'Quarterly Financials'}</td>
+            <td>${e.item.catalysts.daysToEarnings < 900 ? e.item.catalysts.daysToEarnings + ' days' : 'Continuous'}</td>
+            <td><strong style="color:var(--emerald);">$${e.item.majorSupport.toFixed(2)}</strong></td>
+            <td>IV Rank: ${e.item.options.ivRank}%</td>
+          </tr>
+        `).join("");
+      }
+
+      showDetailModal(ticker) {
+        const e = this.currentEvaluations.find(x => x.item.ticker === ticker);
+        if (!e) return;
+
+        const item = e.item;
+        document.getElementById("modalSymbol").textContent = item.ticker;
+        document.getElementById("modalName").textContent = `${item.name} (${item.type})`;
+
+        // Chart
+        const svg = document.getElementById("modalSvgChart");
+        const series = item.historicalSeries || [item.price * 0.95, item.price * 0.98, item.price];
+        const minVal = Math.min(...series, item.sma200, item.majorSupport) * 0.96;
+        const maxVal = Math.max(...series, item.high52) * 1.03;
+        const range = maxVal - minVal;
+        const w = 800, h = 180;
+        const getY = (val) => h - ((val - minVal) / range) * (h - 20) - 10;
+        const getX = (idx) => (idx / (series.length - 1)) * w;
+        const points = series.map((val, idx) => `${getX(idx)},${getY(val)}`).join(" ");
+
+        svg.innerHTML = `
+          <line x1="0" y1="${getY(item.majorSupport)}" x2="${w}" y2="${getY(item.majorSupport)}" stroke="#ef4444" stroke-width="2" stroke-dasharray="6,4" />
+          <line x1="0" y1="${getY(item.sma200)}" x2="${w}" y2="${getY(item.sma200)}" stroke="#8b5cf6" stroke-width="1.5" stroke-dasharray="4,4" />
+          <line x1="0" y1="${getY(item.sma50)}" x2="${w}" y2="${getY(item.sma50)}" stroke="#10b981" stroke-width="1.5" />
+          <line x1="0" y1="${getY(item.sma20)}" x2="${w}" y2="${getY(item.sma20)}" stroke="#f59e0b" stroke-width="1" />
+          <polyline fill="none" stroke="#38bdf8" stroke-width="3" points="${points}" />
+          <circle cx="${w}" cy="${getY(series[series.length - 1])}" r="5" fill="#38bdf8" />
+          <text x="${w - 75}" y="${getY(series[series.length - 1]) - 8}" fill="#38bdf8" font-size="11" font-weight="bold" font-family="monospace">$${item.price.toFixed(2)}</text>
+        `;
+
+        document.getElementById("modalTechnicalDetails").innerHTML = `
+          <div><strong>Price:</strong> $${item.price.toFixed(2)} | <strong>52w Range:</strong> $${item.low52.toFixed(2)} – $${item.high52.toFixed(2)}</div>
+          <div><strong>SMAs:</strong> 20d: $${item.sma20.toFixed(2)} | 50d: $${item.sma50.toFixed(2)} | 200d: $${item.sma200.toFixed(2)}</div>
+          <div><strong>RSI:</strong> ${item.rsi14.toFixed(1)} | <strong>Major Support:</strong> $${item.majorSupport.toFixed(2)} | <strong>Resistance:</strong> $${item.majorResistance.toFixed(2)}</div>
+        `;
+
+        document.getElementById("modalFundamentalDetails").innerHTML = `
+          <div><strong>Rev Growth YoY:</strong> +${(item.fundamentals.revenueGrowthYoY * 100).toFixed(1)}% | <strong>Operating Margin:</strong> ${(item.fundamentals.operatingMargin * 100).toFixed(1)}%</div>
+          <div><strong>Trajectory:</strong> <span style="color:var(--emerald); font-weight:700;">${e.fund.assessment}</span> | <strong>Net Debt/EBITDA:</strong> ${item.fundamentals.netDebtToEbitda}x</div>
+          <div><strong>Moat:</strong> ${item.fundamentals.competitivePosition}</div>
+        `;
+
+        document.getElementById("modalValuationDetails").innerHTML = `
+          <div><strong>Forward P/E:</strong> ${item.valuation.forwardPe}x (5y Avg: ${item.valuation.historical5yPe}x)</div>
+          <div><strong>PEG Ratio:</strong> ${item.valuation.pegRatio}x | <strong>FCF Yield:</strong> ${(item.valuation.fcfYield * 100).toFixed(1)}%</div>
+        `;
+
+        document.getElementById("modalCatalystDetails").innerHTML = `
+          <div><strong>Earnings Date:</strong> ${item.catalysts.nextEarningsDate} (${item.catalysts.daysToEarnings < 900 ? item.catalysts.daysToEarnings + ' days away' : 'ETF'})</div>
+          <div><strong>Factor:</strong> ${item.catalysts.specificFactor}</div>
+        `;
+
+        document.getElementById("modalOptionsDetails").innerHTML = `
+          <div style="font-weight:700; color:var(--emerald); margin-bottom:4px;">Vehicle: ${e.optionsEval.recommendation}</div>
+          <div style="font-size:12px; color:var(--text-secondary); margin-bottom:8px;">${e.optionsEval.reason}</div>
+          <div class="options-specs-grid">
+            <div class="spec-item"><div class="spec-k">IV Rank</div><div class="spec-v">${item.options.ivRank}%</div></div>
+            <div class="spec-item"><div class="spec-k">ATM Strike</div><div class="spec-v">$${item.options.atmCallStrike}</div></div>
+            <div class="spec-item"><div class="spec-k">Delta</div><div class="spec-v">${item.options.atmCallDelta}</div></div>
+            <div class="spec-item"><div class="spec-k">Theta</div><div class="spec-v">${item.options.atmCallTheta}</div></div>
+          </div>
+        `;
+
+        document.getElementById("modalEpistemicDetails").innerHTML = `
+          <div><span class="epistemic-tag tag-fact">FACT</span> Price is $${item.price.toFixed(2)}, trading with forward P/E of ${item.valuation.forwardPe}x and RSI of ${item.rsi14.toFixed(1)}.</div>
+          <div><span class="epistemic-tag tag-interpretation">INTERPRETATION</span> ${e.tech.flags.join(", ") || "Consolidating within technical parameters."}</div>
+          <div><span class="epistemic-tag tag-speculation">SPECULATION</span> If support holds at $${item.majorSupport.toFixed(2)}, upside target tests $${item.majorResistance.toFixed(2)}.</div>
+        `;
+
+        document.getElementById("modalBearCaseDetails").innerHTML = `
+          <div><strong>Bear Case:</strong> ${e.bearCase.bearCase}</div>
+          <div><strong>Invalidation Level:</strong> ${e.bearCase.invalidationLevel}</div>
+        `;
+
+        this.detailModal.classList.add("active");
+      }
+
+      exportMarkdown() {
+        const filtered = this.getFilteredEvaluations();
+        const best = filtered.find(e => e.totalScore >= 75 && !e.tech.isExtended && !e.cat.earningsWarning);
+        let md = `# StockWatcher Research Report\n\n`;
+        md += `**Account:** ${this.currentUser ? this.currentUser.name : 'Guest'}\n`;
+        md += `**Market Regime:** ${this.marketRegime}\n\n`;
+        md += `## BEST OPPORTUNITY TODAY\n`;
+        if (best) {
+          md += `- **Ticker:** ${best.item.ticker} ($${best.item.price.toFixed(2)})\n`;
+          md += `- **Opportunity Score:** ${best.totalScore} / 100 (${best.tierLabel})\n`;
+          md += `- **Support:** $${best.item.majorSupport.toFixed(2)} | **Resistance:** $${best.item.majorResistance.toFixed(2)}\n`;
+          md += `- **Preferred Vehicle:** ${best.optionsEval.recommendation}\n\n`;
+        } else {
+          md += `*Recommendation:* **WAIT**. No monitored asset currently fulfills all multi-pillar risk/reward conditions.\n\n`;
+        }
+        md += `## WATCHLIST AUDIT\n`;
+        filtered.forEach((e, i) => {
+          md += `${i + 1}. **${e.item.ticker}** — Score: ${e.totalScore} | Support: $${e.item.majorSupport.toFixed(2)} | Vehicle: ${e.optionsEval.recommendation}\n`;
+        });
+        navigator.clipboard.writeText(md).then(() => this.showToast("Markdown report copied to clipboard!"));
+      }
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+      window.stockApp = new StockWatcherApp();
+    });
+  </script>
+</body>
+</html>
