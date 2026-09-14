@@ -1,6 +1,6 @@
 # StockWatcher
 
-> **A deterministic, account-based stock and options research assistant that enforces institutional discipline, patience, and anti-FOMO skepticism.**
+> **An account-based stock and options research assistant that enforces institutional discipline, patience, and anti-FOMO skepticism.**
 
 [![Build & Deploy](https://github.com/MikeyBoi-N/StockWatcher/actions/workflows/deploy.yml/badge.svg)](https://github.com/MikeyBoi-N/StockWatcher/actions/workflows/deploy.yml)
 
