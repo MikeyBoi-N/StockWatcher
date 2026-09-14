@@ -27,6 +27,17 @@ test("scores depend on data, never on the ticker symbol", () => {
   assert.equal(a.totalScore, b.totalScore);
 });
 
+test("headlines and 8-K events never change the score", () => {
+  const quiet = evaluateAsset({ ...base(), headlines: [], filingEvents: [] }, "BULLISH");
+  const noisy = evaluateAsset({
+    ...base(),
+    headlines: Array.from({ length: 6 }, (_, i) => ({ title: `Downgrade ${i}`, tone: "negative" })),
+    filingEvents: [{ date: "2026-09-01", items: [{ code: "2.05", tone: "negative" }] }]
+  }, "BULLISH");
+  assert.equal(noisy.totalScore, quiet.totalScore);
+  assert.deepEqual(noisy.warnings, quiet.warnings);
+});
+
 test("a strong setup near support scores as the best opportunity", () => {
   const { best, actionable } = classifyEvaluations([evaluateAsset(base(), "BULLISH")]);
   assert.ok(best, "expected a best opportunity");

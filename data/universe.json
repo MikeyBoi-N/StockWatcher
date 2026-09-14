@@ -1,4 +1,13 @@
 {
   "primary": ["SPY", "QQQ", "MSFT", "NVDA", "XOM", "SNDK", "GOOGL", "AMZN", "META", "AVGO", "TSM"],
-  "secondary": ["JPM", "COST", "AMD", "AAPL", "LLY", "TSLA", "PLTR"]
+  "secondary": [
+    "JPM", "COST", "AMD", "AAPL", "LLY", "TSLA", "PLTR",
+    "IWM", "DIA",
+    "ORCL", "CRM", "ADBE", "NFLX", "UBER", "COIN",
+    "MU", "QCOM", "AMAT", "INTC",
+    "BRK.B", "V", "MA", "BAC", "GS",
+    "UNH", "JNJ", "MRK", "ABBV",
+    "WMT", "PG", "KO", "PEP", "HD", "MCD", "NKE", "DIS",
+    "CVX", "CAT", "GE", "LMT", "BA"
+  ]
 }

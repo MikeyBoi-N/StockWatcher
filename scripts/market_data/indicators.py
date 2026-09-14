@@ -37,6 +37,16 @@ def realized_volatility(closes, period=30):
     return pstdev(returns) * math.sqrt(TRADING_DAYS_PER_YEAR)
 
 
+# Trailing-return windows in trading days, used to compare each stock with SPY.
+RETURN_WINDOWS = {"return1m": 21, "return3m": 63, "return6m": 126, "return12m": 252}
+
+
+def trailing_returns(closes, price):
+    """{"return3m": fraction, ...} from the close `days` sessions before the latest bar; None without enough history."""
+    return {key: (round(price / closes[-1 - days] - 1, 4) if len(closes) > days and closes[-1 - days] > 0 else None)
+            for key, days in RETURN_WINDOWS.items()}
+
+
 def range_52w(highs, lows):
     window = TRADING_DAYS_PER_YEAR
     return max(highs[-window:]), min(lows[-window:])
@@ -115,6 +125,7 @@ def technicals(bars):
         "volume": volumes[-1],
         "avgVolume20": round(sma(volumes, 20)) if len(volumes) >= 20 else None,
         **support_resistance(highs, lows, price, high52, low52),
+        **trailing_returns(closes, price),
         "historicalSeries": [round(c, 2) for c in closes[-120:]],
         "historicalStart": bars.dates[-min(120, len(closes))].isoformat(),
     }

@@ -3,7 +3,7 @@ from datetime import date, timedelta
 
 import pytest
 
-from market_data.indicators import realized_volatility, rsi_wilder, sma, support_resistance, technicals
+from market_data.indicators import realized_volatility, rsi_wilder, sma, support_resistance, technicals, trailing_returns
 from market_data.sources import PriceHistory
 
 # Wilder RSI reference series and values from StockCharts' "Relative Strength Index" worked example.
@@ -74,3 +74,11 @@ def test_technicals_builds_engine_fields_from_bars():
     assert t["rsi14"] == 100.0
     assert len(t["historicalSeries"]) == 120
     assert t["historicalStart"] == days[-120].isoformat()
+
+
+def test_trailing_returns_compare_with_the_close_n_sessions_back():
+    closes = [100.0] * 40 + [110.0] * 23
+    returns = trailing_returns(closes, 121.0)
+    assert returns["return1m"] == pytest.approx(0.1)      # 21 sessions back is still 110
+    assert returns["return3m"] is None                   # needs 64 closes
+    assert trailing_returns(closes + [110.0], 121.0)["return3m"] == pytest.approx(0.21)

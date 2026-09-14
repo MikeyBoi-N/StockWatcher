@@ -71,7 +71,7 @@ Every number on the dashboard comes from a real source. A GitHub Actions job ([`
 
 | Data | Source | Notes |
 |---|---|---|
-| Daily price history (5 years), volume | Yahoo Finance chart API, Nasdaq.com fallback | Moving averages, RSI, realized volatility, 52-week range and support/resistance are computed from these bars |
+| Daily price history (5 years), volume | Yahoo Finance chart API, Nasdaq.com fallback | Moving averages, RSI, realized volatility, 52-week range, support/resistance and 1/3/6/12-month returns are computed from these bars |
 | Revenue, operating margin, earnings, free cash flow, leverage, EPS | SEC EDGAR XBRL filings (10-K/10-Q/20-F) | Trailing twelve months; newly registered companies fall back to latest quarter vs the same quarter a year earlier |
 | Forward (next-twelve-month) EPS, PEG, earnings date, estimate revisions, 1y target, sector | Nasdaq.com (Zacks consensus) | Earnings dates are marked when estimated |
 | Options chain: bid/ask, IV, delta, theta, open interest | Cboe delayed quotes (15-minute delay) | ATM call at the monthly expiration nearest 45-60 DTE |
@@ -96,7 +96,7 @@ Stocks users add to their watchlists are recorded in the public Firestore `ticke
 
 ### 1. User Accounts & Personalized Watchlists
 - **Account Profiles:** Continue with Google, or create an account with email and password and reset it by email (Firebase Authentication).
-- **Personalized Watchlist:** Choose which stocks your account tracks from the core universe in [`data/universe.json`](data/universe.json): `SPY`, `QQQ`, `MSFT`, `NVDA`, `XOM`, `SNDK`, `GOOGL`, `AMZN`, `META`, `AVGO`, `TSM` (primary) and `JPM`, `COST`, `AMD`, `AAPL`, `LLY`, `TSLA`, `PLTR`.
+- **Personalized Watchlist:** Choose which stocks your account tracks from the core universe in [`data/universe.json`](data/universe.json): `SPY`, `QQQ`, `MSFT`, `NVDA`, `XOM`, `SNDK`, `GOOGL`, `AMZN`, `META`, `AVGO`, `TSM` (primary), plus 41 secondary names across sectors: `JPM`, `COST`, `AMD`, `AAPL`, `LLY`, `TSLA`, `PLTR`, the `IWM` and `DIA` index ETFs, software and internet (`ORCL`, `CRM`, `ADBE`, `NFLX`, `UBER`, `COIN`), semiconductors (`MU`, `QCOM`, `AMAT`, `INTC`), financials (`BRK.B`, `V`, `MA`, `BAC`, `GS`), healthcare (`UNH`, `JNJ`, `MRK`, `ABBV`), consumer (`WMT`, `PG`, `KO`, `PEP`, `HD`, `MCD`, `NKE`, `DIS`) and industrials and energy (`CVX`, `CAT`, `GE`, `LMT`, `BA`).
 - **Add Real Stocks:** Search ~11,800 US-listed stocks and ETFs (NASDAQ, NYSE, NYSE American, NYSE Arca, Cboe BZX, IEX) by ticker or company name, with a mandatory written justification (*"Why it deserves attention"*). The stock is scored once the next data build includes it.
 - **Synced Across Devices:** Your watchlist, added stocks and theses are saved to your account in Cloud Firestore.
 
@@ -123,14 +123,16 @@ True IV Rank needs a year of implied-volatility history that no free source prov
 
 ### 5. Benchmark Table
 One sortable table ranks every stock in the current view (watchlist, all, primary, or alerts):
-- **Ranking:** rank, verdict (actionable / not ready / avoid), Opportunity Score, the next step each stock needs, and warnings (extension, earnings inside 14 days, weak fundamentals, stretched valuation, illiquid options).
+- **Ranking:** rank, verdict (actionable / not ready / avoid), Opportunity Score, the next step each stock needs, warnings (extension, earnings inside 14 days, weak fundamentals, stretched valuation, illiquid options), what the stock stands out in, and what's happening.
 - **Score breakdown:** technicals, fundamentals, valuation, events and market regime points.
-- **Price and trend:** price, daily change, distance from the 50d and 200d SMAs, RSI, support, distance to support, resistance, 52-week range.
+- **Price and trend:** price, daily change, 3- and 12-month return vs SPY, distance from the 50d and 200d SMAs, RSI, support, distance to support, resistance, 52-week range.
 - **Fundamentals and valuation:** revenue growth, operating margin, FCF yield, net debt/EBITDA, trend, forward/trailing/5-year P/E, PEG, market cap.
 - **Events:** days to earnings, analyst EPS revisions, 1-year target upside.
 - **Options:** vehicle, expiration, ATM strike, implied volatility, IV vs realized volatility, delta, theta, expected move, open interest, bid/ask spread.
 
-Click any column to sort (missing values always sort last) and any row for the detail view: price chart with SMAs and support, every metric with its source and date, fact/interpretation/speculation tagging, the bear case and invalidation level, and the full score breakdown with data gaps. Stocks you added that are waiting for their first data build appear as "Data pending" rows.
+**Peer benchmarks ([`js/benchmarks.js`](js/benchmarks.js)):** every stock is ranked against all tracked stocks on each score pillar and on revenue growth, operating margin, leverage, FCF yield, forward P/E, PEG, EPS revisions, analyst upside and 3- and 12-month return vs SPY. Cells in the top 10% (at least the top 3) are tinted green, and the "Stands out in" column lists those measures, so a stock with a lower composite still shows where it leads. A tie only counts as leading when the tied group is small. Peer ranks and returns vs SPY are display-only and never change the score; neither do headlines or 8-K events.
+
+Click any column to sort (missing values always sort last) and any row for the detail view: price chart with SMAs and support, every metric with its source and date, colored green (earns points), yellow (in between) or red (costs points) using the scoring thresholds ([`js/grades.js`](js/grades.js)), fact/interpretation/speculation tagging, a bear/bull meter (the Opportunity Score on a red-to-green scale with the 55 and 70 verdict lines and one word: Bearish, Weak, Neutral, Bullish, Strong or Exceptional) above the bear case and invalidation level, and the full score breakdown with each pillar's rank among tracked stocks. Stocks you added that are waiting for their first data build appear as "Data pending" rows.
 
 ### 6. What's Happening ([`js/developments.js`](js/developments.js))
 Each table row carries a one-line summary, with the full version in the detail view. No language model or text interpretation is involved; every statement comes from a number or a form item:
@@ -140,6 +142,7 @@ Each table row carries a one-line summary, with the full version in the detail v
 - **Headlines:** up to six from the last week that name the company, marked + or − when they contain event words ("downgrade", "raises guidance", "lawsuit"). Most headlines are opinion pieces and stay neutral.
 
 ### 7. Utilities
+- **Download CSV:** the current view with its search and sort, one column per table column plus the company name; percentages are plain numbers (12.5 means 12.5%).
 - **Stress tests:** simulated -8% tech pullback, implied volatility x1.6, or +8% rally applied to the real data and labeled as simulated.
 - **Copy report:** markdown export of the current view.
 
@@ -163,7 +166,7 @@ To test locally without installing dependencies:
 SEC_USER_AGENT="StockWatcher you@example.com" python scripts/build_market_data.py   # core + requested tickers
 python scripts/build_market_data.py --only AAPL,SPY                                  # quick partial build
 python -m pip install pytest && python -m pytest tests                               # data pipeline tests
-npm test                                                                             # scoring engine, alert and summary tests
+npm test                                                                             # scoring engine, alert, summary and benchmark tests
 ```
 
 To preview alert emails without sending (needs `npm install` and the service account key):

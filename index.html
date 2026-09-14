@@ -323,6 +323,21 @@
     }
     .chip::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: var(--neg); flex: none; }
     .chip.more::before { display: none; }
+    .chip.strength { color: var(--text); border-color: rgba(79, 176, 105, 0.45); }
+    .chip.strength::before { background: var(--pos); }
+    .bench td.leader { background: rgba(79, 176, 105, 0.12); box-shadow: inset 2px 0 0 var(--pos); }
+
+    /* Bear / bull meter */
+    .bb-meter { margin-bottom: 10px; }
+    .bb-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 6px; }
+    .bb-word { font-size: 18px; font-weight: 600; }
+    .bb-track { position: relative; height: 10px; border-radius: 5px; background: linear-gradient(90deg, var(--neg) 0%, var(--warn) 62%, var(--pos) 100%); }
+    .bb-tick { position: absolute; top: -3px; width: 1px; height: 16px; background: var(--text-3); }
+    .bb-marker { position: absolute; top: 50%; width: 16px; height: 16px; border-radius: 50%; background: var(--text); border: 3px solid var(--bg); transform: translate(-50%, -50%); box-shadow: 0 0 0 1px var(--text-3); }
+    .bb-scale { position: relative; height: 16px; margin-top: 4px; font-size: 11px; color: var(--text-3); }
+    .bb-scale span { position: absolute; transform: translateX(-50%); white-space: nowrap; }
+    .bb-scale span:first-child { transform: none; }
+    .bb-scale span:last-child { transform: translateX(-100%); }
 
     .table-note { font-size: 12px; color: var(--text-3); }
 
@@ -557,6 +572,7 @@
         <span id="headerWlCountText">Watchlist</span>
       </button>
       <button class="btn-secondary" id="btnExportJournal" title="Copy the current table as a markdown report">Copy report</button>
+      <button class="btn-secondary" id="btnDownloadCsv" title="Download the current view, in its current sort, as a CSV file">Download CSV</button>
       <div id="authPillContainer"></div>
     </div>
   </header>
@@ -621,7 +637,10 @@
       </table>
     </div>
     <p class="table-note">
+      Score = Technicals (30) + Fundamentals (25) + Valuation (20) + Events (15) + Market regime (10), minus 12 when the price is extended and 8 when earnings are inside 14 days.
+      Headlines, 8-K events and returns vs SPY are context only and never change the score.
       Rank lists actionable setups first, then not ready, then avoid, each by score. Actionable means a score of 70+, price within 3.5% of major support, and no earnings inside 14 days.
+      <span class="tone-pos">Green-tinted cells</span> rank in the top 10% (at least top 3) of all tracked stocks on that measure, so strengths show even when the composite is lower.
       Click a column to sort and a row for the full breakdown.
     </p>
   </main>
@@ -889,7 +908,7 @@
 
         <!-- Bear Case and Invalidation -->
         <div class="sub-box">
-          <div class="sub-box-title">Bear case and invalidation</div>
+          <div class="sub-box-title">Bear / bull evaluation</div>
           <div id="modalBearCaseDetails"></div>
         </div>
 
@@ -923,6 +942,8 @@
     } from "./js/engine.js";
     import { ALERT_TRIGGERS, normalizeAlertPrefs } from "./js/alerts.js";
     import { capitalReturns, developmentsLine, filingActions, quarterSummary } from "./js/developments.js";
+    import { leaderCutoff, rankPeers, relativeToSpy, strengths } from "./js/benchmarks.js";
+    import { bullBearReading, grade } from "./js/grades.js";
 
     const SYMBOLS_URL = "data/symbols.json";
     const MARKET_URL = "data/market.json";
@@ -1462,6 +1483,7 @@
 
         this.modalCloseBtn.addEventListener("click", () => this.detailModal.classList.remove("active"));
         this.btnExportJournal.addEventListener("click", () => this.exportMarkdown());
+        document.getElementById("btnDownloadCsv").addEventListener("click", () => this.downloadCsv());
       }
 
       openAuthModal(view = "signin") {
@@ -1884,6 +1906,9 @@
         this.marketRegimeDesc = regime.description;
         this.currentEvaluations = this.dataset.map(item => evaluateAsset(item, this.marketRegime));
         classifyEvaluations(this.currentEvaluations);
+        // Peer ranks always compare against every tracked stock, whichever view is showing.
+        this.peerRanks = rankPeers(this.currentEvaluations);
+        this.spy = this.dataset.find(r => r.ticker === "SPY") ?? null;
         this.renderOutput();
       }
 
@@ -1930,6 +1955,15 @@
         return { text: `Needs a score of ${RULES.actionableScore}+ (weakest: ${this.weakestPillar(e)})`, tone: "warn" };
       }
 
+      strengthChips(list) {
+        if (!list.length) return null;
+        const chips = list.slice(0, 2).map(x => `<span class="chip strength" title="#${x.rank} of ${x.of} tracked stocks">#${x.rank} ${escapeHtml(x.label)}</span>`);
+        if (list.length > 2) {
+          chips.push(`<span class="chip more" title="${escapeHtml(list.slice(2).map(x => `#${x.rank} ${x.label}`).join("\n"))}">+${list.length - 2}</span>`);
+        }
+        return `<div class="warnings">${chips.join("")}</div>`;
+      }
+
       warningChips(warnings) {
         if (!warnings.length) return '<span class="tone-muted">None</span>';
         const short = (text) => text.split(/ \(|:/)[0];
@@ -1968,15 +2002,22 @@
             key: "ticker", label: "Ticker", cls: "sticky-ticker", sort: r => r.ticker,
             cell: r => `<span class="ticker">${escapeHtml(r.ticker)}</span>${r.isBest ? '<span class="tag">Best</span>' : ""}<span class="company" title="${escapeHtml(r.name)}">${escapeHtml(r.name)}</span>`
           },
-          { key: "verdict", label: "Verdict", sort: r => VERDICTS[r.bucket].order, cell: r => `<span class="verdict tone-${VERDICTS[r.bucket].tone}">${VERDICTS[r.bucket].label}</span>` },
+          { key: "verdict", label: "Verdict", csv: r => VERDICTS[r.bucket].label, sort: r => VERDICTS[r.bucket].order, cell: r => `<span class="verdict tone-${VERDICTS[r.bucket].tone}">${VERDICTS[r.bucket].label}</span>` },
           {
             key: "score", label: "Score", num: true, dir: "desc", sort: r => value(r, e => e.totalScore),
             cell: r => cell(r, e => `<span class="score tone-${scoreTone(e.totalScore)}">${e.totalScore}<span class="score-bar"><span style="width:${e.totalScore}%"></span></span></span>`)
           },
           { key: "next", label: "Next step", sort: r => r.next.text, cell: r => `<span class="${r.next.tone === "pos" ? "tone-pos" : ""}">${escapeHtml(r.next.text)}</span>` },
-          { key: "warnings", label: "Warnings", dir: "desc", sort: r => value(r, e => e.warnings.length), cell: r => cell(r, e => this.warningChips(e.warnings)) },
+          { key: "warnings", label: "Warnings", dir: "desc", csv: r => r.e ? r.e.warnings.join("; ") : "", sort: r => value(r, e => e.warnings.length), cell: r => cell(r, e => this.warningChips(e.warnings)) },
           {
-            key: "developments", label: "What's happening", title: "Latest quarter (SEC filings), recent 8-K events and headline tone. Click a row for details.", dir: "desc",
+            key: "strengths", label: "Stands out in", dir: "desc",
+            title: "Measures where this stock ranks in the top 10% (at least top 3) of all tracked stocks, even when its composite score is lower",
+            sort: r => value(r, (e, i) => strengths(this.peerRanks.get(i.ticker)).length || null),
+            csv: r => r.e ? strengths(this.peerRanks.get(r.ticker)).map(x => `${x.label} #${x.rank} of ${x.of}`).join("; ") : "",
+            cell: r => cell(r, (e, i) => this.strengthChips(strengths(this.peerRanks.get(i.ticker))))
+          },
+          {
+            key: "developments", label: "What's happening", csv: r => r.e ? developmentsLine(r.e.item)?.text ?? "" : "", title: "Latest quarter (SEC filings), recent 8-K events and headline tone. Click a row for details.", dir: "desc",
             sort: r => value(r, (e, i) => developmentsLine(i)?.negatives ?? null),
             cell: r => cell(r, (e, i) => {
               const line = developmentsLine(i);
@@ -1984,23 +2025,29 @@
             })
           },
 
-          { key: "tech", group: "Score breakdown", label: "Tech", title: "Technicals, out of 30", num: true, dir: "desc", sort: r => value(r, e => e.tech.score), cell: r => cell(r, e => pillar(e.tech.score, 30)) },
-          { key: "fund", group: "Score breakdown", label: "Fund", title: "Fundamentals, out of 25", num: true, dir: "desc", sort: r => value(r, e => e.fund.score), cell: r => cell(r, e => pillar(e.fund.score, 25, e.fund.available)) },
-          { key: "val", group: "Score breakdown", label: "Value", title: "Valuation, out of 20", num: true, dir: "desc", sort: r => value(r, e => e.val.score), cell: r => cell(r, e => pillar(e.val.score, 20, e.val.available)) },
-          { key: "cat", group: "Score breakdown", label: "Events", title: "Catalysts and event risk, out of 15", num: true, dir: "desc", sort: r => value(r, e => e.cat.score), cell: r => cell(r, e => pillar(e.cat.score, 15)) },
+          { key: "tech", peer: "tech", group: "Score breakdown", label: "Tech", title: "Technicals, out of 30", num: true, dir: "desc", sort: r => value(r, e => e.tech.score), cell: r => cell(r, e => pillar(e.tech.score, 30)) },
+          { key: "fund", peer: "fund", group: "Score breakdown", label: "Fund", title: "Fundamentals, out of 25", num: true, dir: "desc", sort: r => value(r, e => e.fund.score), cell: r => cell(r, e => pillar(e.fund.score, 25, e.fund.available)) },
+          { key: "val", peer: "val", group: "Score breakdown", label: "Value", title: "Valuation, out of 20", num: true, dir: "desc", sort: r => value(r, e => e.val.score), cell: r => cell(r, e => pillar(e.val.score, 20, e.val.available)) },
+          { key: "cat", peer: "cat", group: "Score breakdown", label: "Events", title: "Catalysts and event risk, out of 15", num: true, dir: "desc", sort: r => value(r, e => e.cat.score), cell: r => cell(r, e => pillar(e.cat.score, 15)) },
           { key: "mkt", group: "Score breakdown", label: "Mkt", title: "Market regime, out of 10", num: true, dir: "desc", sort: r => value(r, e => e.marketBonus), cell: r => cell(r, e => String(e.marketBonus)) },
 
           { key: "price", group: "Price and trend", label: "Price", num: true, dir: "desc", sort: r => value(r, (e, i) => i.price), cell: r => cell(r, (e, i) => money(i.price)) },
           {
-            key: "chg", group: "Price and trend", label: "1D", title: "Change vs previous close", num: true, dir: "desc", sort: r => value(r, (e, i) => change1d(i)),
+            key: "chg", pct: true, group: "Price and trend", label: "1D", title: "Change vs previous close", num: true, dir: "desc", sort: r => value(r, (e, i) => change1d(i)),
             cell: r => cell(r, (e, i) => { const c = change1d(i); return isNum(c) ? toned(c >= 0 ? "pos" : "neg", signedPercent(c, 2)) : null; })
           },
+          ...[["rs3m", "3M vs SPY", "return3m", "3-month"], ["rs12m", "12M vs SPY", "return12m", "12-month"]].map(([key, label, field, span]) => ({
+            key, group: "Price and trend", label, peer: key, pct: true, num: true, dir: "desc",
+            title: `${span} return relative to SPY (compounded). Context only; not part of the score.`,
+            sort: r => value(r, (e, i) => relativeToSpy(i, this.spy, field)),
+            cell: r => cell(r, (e, i) => { const v = relativeToSpy(i, this.spy, field); return isNum(v) ? toned(v >= 0 ? "pos" : "neg", signedPercent(v)) : null; })
+          })),
           {
-            key: "vs50", group: "Price and trend", label: "vs 50d", num: true, dir: "desc", sort: r => value(r, e => e.tech.dist50),
+            key: "vs50", pct: true, group: "Price and trend", label: "vs 50d", num: true, dir: "desc", sort: r => value(r, e => e.tech.dist50),
             cell: r => cell(r, e => isNum(e.tech.dist50) ? toned(e.tech.dist50 > RULES.extendedAbove50 ? "neg" : "", signedPercent(e.tech.dist50)) : null)
           },
           {
-            key: "vs200", group: "Price and trend", label: "vs 200d", num: true, dir: "desc", sort: r => value(r, e => e.tech.dist200),
+            key: "vs200", pct: true, group: "Price and trend", label: "vs 200d", num: true, dir: "desc", sort: r => value(r, e => e.tech.dist200),
             cell: r => cell(r, e => isNum(e.tech.dist200) ? toned(e.tech.dist200 > RULES.extendedAbove200 || e.tech.dist200 < 0 ? "neg" : "", signedPercent(e.tech.dist200)) : null)
           },
           {
@@ -2009,26 +2056,26 @@
           },
           { key: "support", group: "Price and trend", label: "Support", num: true, sort: r => value(r, (e, i) => i.majorSupport), cell: r => cell(r, (e, i) => money(i.majorSupport)) },
           {
-            key: "toSupport", group: "Price and trend", label: "To support", title: "Distance from price down to major support", num: true, sort: r => value(r, (e, i) => this.supportDistance(i)),
+            key: "toSupport", pct: true, group: "Price and trend", label: "To support", title: "Distance from price down to major support", num: true, sort: r => value(r, (e, i) => this.supportDistance(i)),
             cell: r => cell(r, (e, i) => toned(e.tech.nearSupport ? "pos" : "", percent(this.supportDistance(i))))
           },
           { key: "resistance", group: "Price and trend", label: "Resistance", num: true, sort: r => value(r, (e, i) => i.majorResistance), cell: r => cell(r, (e, i) => money(i.majorResistance)) },
-          { key: "range", group: "Price and trend", label: "52w range", title: "52-week low to high", num: true, sort: r => value(r, (e, i) => e.tech.drawdownPct), cell: r => cell(r, (e, i) => `${money(i.low52)} – ${money(i.high52)}`) },
+          { key: "range", group: "Price and trend", label: "52w range", csv: r => r.e ? `${r.e.item.low52} - ${r.e.item.high52}` : "", title: "52-week low to high", num: true, sort: r => value(r, (e, i) => e.tech.drawdownPct), cell: r => cell(r, (e, i) => `${money(i.low52)} – ${money(i.high52)}`) },
 
-          { key: "revg", group: "Fundamentals", label: "Rev growth", title: "Revenue growth, trailing twelve months vs prior year (SEC filings)", num: true, dir: "desc", sort: r => value(r, (e, i) => i.fundamentals?.revenueGrowthYoY ?? null), cell: r => cell(r, (e, i) => signedPercent(i.fundamentals?.revenueGrowthYoY)) },
-          { key: "margin", group: "Fundamentals", label: "Op margin", num: true, dir: "desc", sort: r => value(r, (e, i) => i.fundamentals?.operatingMargin ?? null), cell: r => cell(r, (e, i) => percent(i.fundamentals?.operatingMargin)) },
-          { key: "fcfy", group: "Fundamentals", label: "FCF yield", num: true, dir: "desc", sort: r => value(r, (e, i) => i.valuation.fcfYield), cell: r => cell(r, (e, i) => percent(i.valuation.fcfYield)) },
-          { key: "lev", group: "Fundamentals", label: "Net debt/EBITDA", num: true, sort: r => value(r, (e, i) => i.fundamentals?.netDebtToEbitda ?? null), cell: r => cell(r, (e, i) => multiple(i.fundamentals?.netDebtToEbitda)) },
+          { key: "revg", peer: "revg", pct: true, group: "Fundamentals", label: "Rev growth", title: "Revenue growth, trailing twelve months vs prior year (SEC filings)", num: true, dir: "desc", sort: r => value(r, (e, i) => i.fundamentals?.revenueGrowthYoY ?? null), cell: r => cell(r, (e, i) => signedPercent(i.fundamentals?.revenueGrowthYoY)) },
+          { key: "margin", peer: "margin", pct: true, group: "Fundamentals", label: "Op margin", num: true, dir: "desc", sort: r => value(r, (e, i) => i.fundamentals?.operatingMargin ?? null), cell: r => cell(r, (e, i) => percent(i.fundamentals?.operatingMargin)) },
+          { key: "fcfy", peer: "fcfy", pct: true, group: "Fundamentals", label: "FCF yield", num: true, dir: "desc", sort: r => value(r, (e, i) => i.valuation.fcfYield), cell: r => cell(r, (e, i) => percent(i.valuation.fcfYield)) },
+          { key: "lev", peer: "lev", group: "Fundamentals", label: "Net debt/EBITDA", num: true, sort: r => value(r, (e, i) => i.fundamentals?.netDebtToEbitda ?? null), cell: r => cell(r, (e, i) => multiple(i.fundamentals?.netDebtToEbitda)) },
           {
             key: "trend", group: "Fundamentals", label: "Trend", sort: r => value(r, e => e.fund.available ? e.fund.assessment : null),
             cell: r => cell(r, e => e.fund.available ? toned(e.fund.assessment === "Getting Weaker" ? "neg" : "", trendShort[e.fund.assessment]) : null)
           },
 
-          { key: "fpe", group: "Valuation", label: "Fwd P/E", title: "Price / next-twelve-month consensus EPS", num: true, sort: r => value(r, (e, i) => i.valuation.forwardPe), cell: r => cell(r, (e, i) => multiple(i.valuation.forwardPe)) },
+          { key: "fpe", peer: "fpe", group: "Valuation", label: "Fwd P/E", title: "Price / next-twelve-month consensus EPS", num: true, sort: r => value(r, (e, i) => i.valuation.forwardPe), cell: r => cell(r, (e, i) => multiple(i.valuation.forwardPe)) },
           { key: "tpe", group: "Valuation", label: "Trailing P/E", num: true, sort: r => value(r, (e, i) => i.valuation.trailingPe), cell: r => cell(r, (e, i) => multiple(i.valuation.trailingPe)) },
           { key: "pe5", group: "Valuation", label: "5y avg P/E", num: true, sort: r => value(r, (e, i) => i.valuation.historical5yPe), cell: r => cell(r, (e, i) => multiple(i.valuation.historical5yPe)) },
           {
-            key: "peg", group: "Valuation", label: "PEG", num: true, sort: r => value(r, (e, i) => i.valuation.pegRatio),
+            key: "peg", peer: "peg", group: "Valuation", label: "PEG", num: true, sort: r => value(r, (e, i) => i.valuation.pegRatio),
             cell: r => cell(r, (e, i) => isNum(i.valuation.pegRatio) ? toned(i.valuation.pegRatio > 2.5 ? "neg" : "", fixed(i.valuation.pegRatio, 2)) : null)
           },
           { key: "mcap", group: "Valuation", label: "Market cap", num: true, dir: "desc", sort: r => value(r, (e, i) => i.marketCap), cell: r => cell(r, (e, i) => compactUsd(i.marketCap)) },
@@ -2042,22 +2089,22 @@
             })
           },
           {
-            key: "revisions", group: "Events", label: "EPS revisions", title: "Analyst EPS estimate revisions over the last 4 weeks (up / down)", num: true, dir: "desc",
+            key: "revisions", peer: "revisions", group: "Events", label: "EPS revisions", title: "Analyst EPS estimate revisions over the last 4 weeks (up / down)", num: true, dir: "desc",
             sort: r => value(r, (e, i) => isNum(i.catalysts.revisionsUp) ? i.catalysts.revisionsUp - i.catalysts.revisionsDown : null),
             cell: r => cell(r, (e, i) => isNum(i.catalysts.revisionsUp) ? `+${i.catalysts.revisionsUp} / −${i.catalysts.revisionsDown}` : null)
           },
-          { key: "target", group: "Events", label: "Target", title: "Analyst 1-year price target vs current price", num: true, dir: "desc", sort: r => value(r, (e, i) => targetUpside(i)), cell: r => cell(r, (e, i) => signedPercent(targetUpside(i))) },
+          { key: "target", peer: "target", pct: true, group: "Events", label: "Target", title: "Analyst 1-year price target vs current price", num: true, dir: "desc", sort: r => value(r, (e, i) => targetUpside(i)), cell: r => cell(r, (e, i) => signedPercent(targetUpside(i))) },
 
           {
             key: "vehicle", group: "Options", label: "Vehicle", sort: r => value(r, e => vehicleShort[e.optionsEval.recommendation] ?? e.optionsEval.recommendation),
             cell: r => cell(r, e => `<span title="${escapeHtml(e.optionsEval.reason)}">${escapeHtml(vehicleShort[e.optionsEval.recommendation] ?? e.optionsEval.recommendation)}</span>`)
           },
           {
-            key: "expiry", group: "Options", label: "Expiry", num: true, sort: r => value(r, (e, i) => i.options?.daysToExpiration ?? null),
+            key: "expiry", group: "Options", label: "Expiry", csv: r => r.e?.item.options?.expiration ?? "", num: true, sort: r => value(r, (e, i) => i.options?.daysToExpiration ?? null),
             cell: r => cell(r, (e, i) => i.options ? `${new Date(`${i.options.expiration}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" })} · ${i.options.daysToExpiration}d` : null)
           },
           { key: "strike", group: "Options", label: "ATM strike", num: true, sort: r => value(r, (e, i) => i.options?.atmCallStrike ?? null), cell: r => cell(r, (e, i) => i.options ? money(i.options.atmCallStrike) : null) },
-          { key: "iv", group: "Options", label: "IV", title: "At-the-money implied volatility", num: true, dir: "desc", sort: r => value(r, (e, i) => i.options?.impliedVolatility ?? null), cell: r => cell(r, (e, i) => percent(i.options?.impliedVolatility)) },
+          { key: "iv", pct: true, group: "Options", label: "IV", title: "At-the-money implied volatility", num: true, dir: "desc", sort: r => value(r, (e, i) => i.options?.impliedVolatility ?? null), cell: r => cell(r, (e, i) => percent(i.options?.impliedVolatility)) },
           {
             key: "ivrv", group: "Options", label: "IV/RV", title: "Implied volatility divided by 30-day realized volatility (above 1.3 = expensive, below 0.9 = cheap)", num: true, dir: "desc",
             sort: r => value(r, (e, i) => i.options?.ivHvRatio ?? null),
@@ -2065,13 +2112,13 @@
           },
           { key: "delta", group: "Options", label: "Delta", num: true, sort: r => value(r, (e, i) => i.options?.atmCallDelta ?? null), cell: r => cell(r, (e, i) => fixed(i.options?.atmCallDelta, 2)) },
           { key: "theta", group: "Options", label: "Theta", num: true, sort: r => value(r, (e, i) => i.options?.atmCallTheta ?? null), cell: r => cell(r, (e, i) => fixed(i.options?.atmCallTheta, 3)) },
-          { key: "exp_move", group: "Options", label: "Exp. move", title: "Expected move to expiration implied by ATM volatility", num: true, dir: "desc", sort: r => value(r, (e, i) => i.options?.expectedMovePct ?? null), cell: r => cell(r, (e, i) => isNum(i.options?.expectedMovePct) ? `±${percent(i.options.expectedMovePct)}` : null) },
+          { key: "exp_move", pct: true, group: "Options", label: "Exp. move", title: "Expected move to expiration implied by ATM volatility", num: true, dir: "desc", sort: r => value(r, (e, i) => i.options?.expectedMovePct ?? null), cell: r => cell(r, (e, i) => isNum(i.options?.expectedMovePct) ? `±${percent(i.options.expectedMovePct)}` : null) },
           {
             key: "oi", group: "Options", label: "Open int.", title: "Open interest of the ATM call", num: true, dir: "desc", sort: r => value(r, (e, i) => i.options?.atmCallOpenInterest ?? null),
             cell: r => cell(r, (e, i) => i.options ? toned(i.options.atmCallOpenInterest < RULES.minOpenInterest ? "neg" : "", i.options.atmCallOpenInterest.toLocaleString()) : null)
           },
           {
-            key: "spread", group: "Options", label: "Spread", title: "ATM call bid/ask spread as a percent of the ask", num: true, sort: r => value(r, e => e.optionsEval.spreadPct ?? null),
+            key: "spread", group: "Options", label: "Spread", csv: r => isNum(r.e?.optionsEval.spreadPct) ? Math.round(r.e.optionsEval.spreadPct * 100) / 100 : null, title: "ATM call bid/ask spread as a percent of the ask", num: true, sort: r => value(r, e => e.optionsEval.spreadPct ?? null),
             cell: r => cell(r, e => isNum(e.optionsEval.spreadPct) ? toned(e.optionsEval.spreadPct > RULES.maxSpreadPct ? "neg" : "", `${e.optionsEval.spreadPct.toFixed(1)}%`) : null)
           }
         ];
@@ -2176,8 +2223,13 @@
           }).join("")}</tr>
         `;
 
+        this.tableExport = { cols, rows: visible };
         this.benchBody.innerHTML = visible.length
-          ? visible.map(r => `<tr${r.e ? ` data-ticker="${escapeHtml(r.ticker)}"` : ' class="pending-row"'}>${cols.map((c, i) => `<td class="${classes(c, i)}">${c.cell(r)}</td>`).join("")}</tr>`).join("")
+          ? visible.map(r => `<tr${r.e ? ` data-ticker="${escapeHtml(r.ticker)}"` : ' class="pending-row"'}>${cols.map((c, i) => {
+              const peer = c.peer && r.e ? this.peerRanks.get(r.ticker)?.get(c.peer) : null;
+              const leader = peer?.leader ? ` leader" title="#${peer.rank} of ${peer.of} tracked stocks` : "";
+              return `<td class="${classes(c, i)}${leader}">${c.cell(r)}</td>`;
+            }).join("")}</tr>`).join("")
           : `<tr class="pending-row"><td colspan="${cols.length}" class="tone-muted" style="padding:24px; text-align:center;">No stocks match this view.</td></tr>`;
       }
 
@@ -2198,6 +2250,7 @@
           <span class="tone-${verdict.tone}">${verdict.label}</span>
           <span class="muted">${escapeHtml(this.nextStep(e).text)}</span>
           <span class="muted">Vehicle: ${escapeHtml(e.optionsEval.recommendation.toLowerCase())}</span>
+          <span class="muted"><span class="tone-pos">Green</span> earns points · <span class="tone-warn">yellow</span> in between · <span class="tone-neg">red</span> costs points</span>
         `;
 
         const svg = document.getElementById("modalSvgChart");
@@ -2222,33 +2275,40 @@
         `;
 
         const line = (label, value) => `<div class="detail-line"><strong>${label}:</strong> ${value}</div>`;
+        const g = (tone, html) => tone ? `<span class="tone-${tone}">${html}</span>` : html;
+        const vsSpy = (field) => {
+          const rel = relativeToSpy(item, this.spy, field);
+          return isNum(rel) && item.ticker !== "SPY" ? g(rel >= 0 ? "pos" : "neg", signedPercent(rel)) : "N/A";
+        };
         document.getElementById("modalTechnicalDetails").innerHTML = [
           line("Price", `${money(item.price)} | <strong>52w Range:</strong> ${money(item.low52)} – ${money(item.high52)}`),
-          line("SMAs", `20d ${money(item.sma20)} | 50d ${money(item.sma50)} (${signedPercent(e.tech.dist50)}) | 200d ${money(item.sma200)} (${signedPercent(e.tech.dist200)})`),
-          line("RSI(14)", `${fixed(item.rsi14)} | <strong>30d Realized Vol:</strong> ${percent(item.hv30)}`),
-          line("Support", `${money(item.majorSupport)} (next ${money(item.secondarySupport)}) | <strong>Resistance:</strong> ${money(item.majorResistance)}`),
-          `<div class="muted" style="font-size:11px;">Levels from ${item.supportMethod === "swing_low_cluster" ? "one-year swing-point clusters" : "52-week extremes (no qualifying swing)"}. Volume ${isNum(item.volume) ? item.volume.toLocaleString() : "N/A"} vs 20d avg ${isNum(item.avgVolume20) ? item.avgVolume20.toLocaleString() : "N/A"}.</div>`
+          line("SMAs", `20d ${money(item.sma20)} | 50d ${money(item.sma50)} (${g(grade.trend50(e.tech.dist50), signedPercent(e.tech.dist50))}) | 200d ${money(item.sma200)} (${g(grade.trend200(e.tech.dist200), signedPercent(e.tech.dist200))})`),
+          line("RSI(14)", `${g(grade.rsi(item.rsi14), fixed(item.rsi14))} | <strong>30d Realized Vol:</strong> ${percent(item.hv30)}`),
+          line("Support", `${g(e.tech.nearSupport ? "pos" : "", money(item.majorSupport))} (next ${money(item.secondarySupport)}) | <strong>Resistance:</strong> ${money(item.majorResistance)}`),
+          line("Return vs SPY", `3m ${vsSpy("return3m")} | 12m ${vsSpy("return12m")}`),
+          `<div class="muted" style="font-size:11px;">Levels from ${item.supportMethod === "swing_low_cluster" ? "one-year swing-point clusters" : "52-week extremes (no qualifying swing)"}. Volume ${isNum(item.volume) ? item.volume.toLocaleString() : "N/A"} vs 20d avg ${isNum(item.avgVolume20) ? item.avgVolume20.toLocaleString() : "N/A"}. Returns vs SPY are context, not scored.</div>`
         ].join("");
 
+        const usd = f?.reportingCurrency === "USD";
         document.getElementById("modalFundamentalDetails").innerHTML = f ? [
-          line("Revenue Growth", `${signedPercent(f.revenueGrowthYoY)} | <strong>Earnings Growth:</strong> ${signedPercent(f.earningsGrowthYoY)}`),
-          line("Operating Margin", `${percent(f.operatingMargin)}${isNum(f.operatingMarginChange) ? ` (${signedPercent(f.operatingMarginChange)} YoY)` : ""}`),
-          line("Free Cash Flow", `${f.reportingCurrency === "USD" ? compactUsd(f.freeCashFlow) : "N/A"}${f.fcfTrend ? ` (${f.fcfTrend})` : ""} | <strong>Net Debt/EBITDA:</strong> ${multiple(f.netDebtToEbitda)}`),
-          line("Trajectory", escapeHtml(e.fund.assessment)),
+          line("Revenue Growth", `${g(grade.revenueGrowth(f.revenueGrowthYoY), signedPercent(f.revenueGrowthYoY))} | <strong>Earnings Growth:</strong> ${g(grade.earningsGrowth(f.earningsGrowthYoY), signedPercent(f.earningsGrowthYoY))}`),
+          line("Operating Margin", `${g(grade.operatingMargin(f.operatingMargin), percent(f.operatingMargin))}${isNum(f.operatingMarginChange) ? ` (${g(grade.marginChange(f.operatingMarginChange), signedPercent(f.operatingMarginChange))} YoY)` : ""}`),
+          line("Free Cash Flow", `${usd ? g(grade.freeCashFlow(f.freeCashFlow), compactUsd(f.freeCashFlow)) : "N/A"}${f.fcfTrend ? ` (${g(grade.fcfTrend(f.fcfTrend), f.fcfTrend)})` : ""} | <strong>Net Debt/EBITDA:</strong> ${g(grade.leverage(f.netDebtToEbitda), multiple(f.netDebtToEbitda))}`),
+          line("Trajectory", g(grade.trajectory(e.fund.assessment), escapeHtml(e.fund.assessment))),
           `<div class="muted" style="font-size:11px;">${f.basis === "ttm" ? "Trailing twelve months" : "Latest quarter vs same quarter last year"} ending ${escapeHtml(f.periodEnd)}${f.foreignFiler ? " (foreign filer)" : ""}. Source: SEC EDGAR filings.</div>`
         ].join("") : `<div>${escapeHtml(e.fund.assessment)}</div>`;
 
         const upside = isNum(c.oneYearTarget) ? c.oneYearTarget / item.price - 1 : null;
         document.getElementById("modalValuationDetails").innerHTML = [
-          line("Forward P/E (NTM)", `${multiple(v.forwardPe)} | <strong>Trailing:</strong> ${multiple(v.trailingPe)} | <strong>5y Avg:</strong> ${multiple(v.historical5yPe)}`),
-          line("PEG", `${fixed(v.pegRatio, 2)} | <strong>FCF Yield:</strong> ${percent(v.fcfYield)} | <strong>Market Cap:</strong> ${compactUsd(item.marketCap)}`),
-          line("Assessment", escapeHtml(e.val.assessment))
+          line("Forward P/E (NTM)", `${g(grade.forwardPe(v.forwardPe), multiple(v.forwardPe))} | <strong>Trailing:</strong> ${multiple(v.trailingPe)} | <strong>5y Avg:</strong> ${multiple(v.historical5yPe)}`),
+          line("PEG", `${g(grade.peg(v.pegRatio), fixed(v.pegRatio, 2))} | <strong>FCF Yield:</strong> ${g(grade.fcfYield(v.fcfYield), percent(v.fcfYield))} | <strong>Market Cap:</strong> ${compactUsd(item.marketCap)}`),
+          line("Assessment", g(grade.valuation(e.val.assessment), escapeHtml(e.val.assessment)))
         ].join("");
 
         document.getElementById("modalCatalystDetails").innerHTML = [
-          line("Next Earnings", c.nextEarningsDate ? `${escapeHtml(c.nextEarningsDate)} (${c.daysToEarnings} days${c.earningsDateEstimated ? ", estimated" : ""})` : (item.etf ? "N/A (ETF)" : "Not announced")),
-          line("Analysts", isNum(c.analystCount) ? `${c.analystCount} | <strong>4-week EPS revisions:</strong> ${c.revisionsUp} up / ${c.revisionsDown} down` : "N/A"),
-          line("1y Price Target", isNum(c.oneYearTarget) ? `${money(c.oneYearTarget)} (${signedPercent(upside)})` : "N/A")
+          line("Next Earnings", c.nextEarningsDate ? g(grade.earningsDays(c.daysToEarnings), `${escapeHtml(c.nextEarningsDate)} (${c.daysToEarnings} days${c.earningsDateEstimated ? ", estimated" : ""})`) : (item.etf ? "N/A (ETF)" : "Not announced")),
+          line("Analysts", isNum(c.analystCount) ? `${c.analystCount} | <strong>4-week EPS revisions:</strong> ${g(grade.revisions(c.revisionsUp, c.revisionsDown), `${c.revisionsUp} up / ${c.revisionsDown} down`)}` : "N/A"),
+          line("1y Price Target", isNum(c.oneYearTarget) ? g(grade.targetUpside(upside), `${money(c.oneYearTarget)} (${signedPercent(upside)})`) : "N/A")
         ].join("");
 
         const spec = (k, val) => `<div class="spec-item"><div class="spec-k">${k}</div><div class="spec-v">${val}</div></div>`;
@@ -2258,14 +2318,14 @@
           ${o ? `<div class="options-specs-grid">
             ${spec("Expiration", `${escapeHtml(o.expiration)} (${o.daysToExpiration}d)`)}
             ${spec("ATM Call Strike", money(o.atmCallStrike))}
-            ${spec("Bid / Ask", `${money(o.atmCallBid)} / ${money(o.atmCallAsk)}`)}
-            ${spec("Open Interest", isNum(o.atmCallOpenInterest) ? o.atmCallOpenInterest.toLocaleString() : "N/A")}
+            ${spec("Bid / Ask", `${money(o.atmCallBid)} / ${money(o.atmCallAsk)}${isNum(e.optionsEval.spreadPct) ? ` (${g(grade.spreadPct(e.optionsEval.spreadPct), `${e.optionsEval.spreadPct.toFixed(1)}% spread`)})` : ""}`)}
+            ${spec("Open Interest", isNum(o.atmCallOpenInterest) ? g(grade.openInterest(o.atmCallOpenInterest), o.atmCallOpenInterest.toLocaleString()) : "N/A")}
             ${spec("Delta / Theta", `${fixed(o.atmCallDelta, 2)} / ${fixed(o.atmCallTheta, 3)}`)}
             ${spec("ATM IV", percent(o.impliedVolatility))}
-            ${spec("IV / 30d Realized", isNum(o.ivHvRatio) ? `${o.ivHvRatio.toFixed(2)}x` : "N/A")}
+            ${spec("IV / 30d Realized", isNum(o.ivHvRatio) ? g(grade.ivRatio(o.ivHvRatio), `${o.ivHvRatio.toFixed(2)}x`) : "N/A")}
             ${spec("Expected Move", `±${percent(o.expectedMovePct)}`)}
           </div>
-          <div class="muted" style="font-size:11px; margin-top:6px;">Cboe delayed quotes as of ${escapeHtml(o.quoteTime)} (quotes outside market hours can be wide).</div>` : ""}
+          <div class="muted" style="font-size:11px; margin-top:6px;">Cboe delayed quotes as of ${escapeHtml(o.quoteTime)} (quotes outside market hours can be wide). IV/realized: green is cheap, red is expensive.</div>` : ""}
         `;
 
         const target = isNum(item.majorResistance) ? (item.majorResistance / item.price - 1) : null;
@@ -2276,7 +2336,26 @@
           ${this.thesisFor(item.ticker) ? `<div><span class="epistemic-tag tag-speculation">YOUR THESIS</span> ${escapeHtml(this.thesisFor(item.ticker))}</div>` : ""}
         `;
 
+        const reading = bullBearReading(e.totalScore);
+        const readingTone = reading.position >= RULES.actionableScore ? "pos" : reading.position >= RULES.avoidScore ? "warn" : "neg";
         document.getElementById("modalBearCaseDetails").innerHTML = `
+          <div class="bb-meter" role="meter" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${reading.position}" aria-label="Bear to bull reading: ${reading.word}">
+            <div class="bb-head">
+              <span class="bb-word tone-${readingTone}">${reading.word}</span>
+              <span class="muted">Opportunity Score ${e.totalScore}/100 · ${escapeHtml(VERDICTS[e.bucket].label)}</span>
+            </div>
+            <div class="bb-track">
+              <span class="bb-tick" style="left:${RULES.avoidScore}%"></span>
+              <span class="bb-tick" style="left:${RULES.actionableScore}%"></span>
+              <span class="bb-marker" style="left:${reading.position}%"></span>
+            </div>
+            <div class="bb-scale">
+              <span style="left:0">Bear</span>
+              <span style="left:${RULES.avoidScore}%">${RULES.avoidScore}</span>
+              <span style="left:${RULES.actionableScore}%">${RULES.actionableScore}</span>
+              <span style="left:100%">Bull</span>
+            </div>
+          </div>
           <div><strong>Bear Case:</strong> ${escapeHtml(e.bearCase.bearCase)}</div>
           <div><strong>Invalidation Level:</strong> ${escapeHtml(e.bearCase.invalidationLevel)}</div>
         `;
@@ -2286,13 +2365,33 @@
         const sources = Object.entries(item.sources).filter(([, name]) => name).map(([kind, name]) => `${kind}: ${name}`).join(" · ");
         document.getElementById("modalSourcesDetails").innerHTML = `
           <div><strong>Score ${e.totalScore}</strong> = Technicals ${e.tech.score}/30 + Fundamentals ${e.fund.score}/25 + Valuation ${e.val.score}/20 + Catalysts ${e.cat.score}/15 + Market ${e.marketBonus}/10${e.tech.isExtended ? " − 12 extension penalty" : ""}${e.cat.earningsWarning ? " − 8 earnings penalty" : ""} (${escapeHtml(e.tierLabel)})</div>
+          <div>${this.peerRankLine(e)}</div>
           <div class="muted">Missing data (scored neutral): ${escapeHtml(e.dataGaps.join(", ") || "none")}</div>
+          <div class="muted">Headlines, 8-K events and returns vs SPY are shown for context and are not part of the score.</div>
           <div class="muted">Sources: ${escapeHtml(sources)}</div>
           ${item.errors?.length ? `<div class="tone-warn">Last refresh warnings: ${escapeHtml(item.errors.join("; "))}</div>` : ""}
           ${this.scenarioSelector.value !== "baseline" ? '<div class="tone-warn">Stress test active: price and volatility figures are simulated.</div>' : ""}
         `;
 
         this.detailModal.classList.add("active");
+      }
+
+      /** Each pillar's points and rank among all tracked stocks, plus the measures where the stock leads. */
+      peerRankLine(e) {
+        const ranks = this.peerRanks.get(e.item.ticker);
+        const rankText = (key) => {
+          const r = ranks?.get(key);
+          if (!r) return "";
+          return r.leader ? ` <span class="tone-pos">#${r.rank} of ${r.of}</span>` : ` <span class="muted">#${r.rank} of ${r.of}</span>`;
+        };
+        const pillars = [["Technicals", "tech", e.tech.score, 30], ["Fundamentals", "fund", e.fund.score, 25], ["Valuation", "val", e.val.score, 20], ["Events", "cat", e.cat.score, 15]]
+          .map(([label, key, score, max]) => `${label} ${score}/${max}${rankText(key)}`).join(" | ");
+        const leads = strengths(ranks);
+        const tracked = this.currentEvaluations.length;
+        const leadText = leads.length
+          ? leads.map(x => `<span class="tone-pos">${escapeHtml(x.label)} #${x.rank} of ${x.of}</span>`).join(", ")
+          : `<span class="muted">no measure in the top ${leaderCutoff(tracked)} of ${tracked}</span>`;
+        return `<strong>Vs all tracked stocks:</strong> ${pillars}<br><strong>Stands out in:</strong> ${leadText}`;
       }
 
       renderDevelopments(item) {
@@ -2328,6 +2427,43 @@
           </div>
           <div class="dev-meta">8-K events are labeled from the item numbers the company selected on the form. Headline tone (+/−) is a keyword match on event words like "downgrade" or "raises guidance", not analysis; most headlines are opinion and stay neutral.</div>
         `;
+      }
+
+      /** Downloads the table as shown (view, search and sort); percentages are written as numbers like 12.5. */
+      downloadCsv() {
+        if (!this.tableExport) return;
+        const { cols, rows } = this.tableExport;
+        const header = [];
+        const accessors = [];
+        for (const c of cols) {
+          header.push(c.pct ? `${c.label} (%)` : c.label);
+          accessors.push(r => {
+            const v = c.csv ? c.csv(r) : c.sort(r);
+            return c.pct && isNum(v) ? Math.round(v * 10000) / 100 : v;
+          });
+          if (c.key === "ticker") {
+            header.push("Company");
+            accessors.push(r => r.name);
+          }
+        }
+        const cellText = (v) => {
+          if (v === null || v === undefined || (typeof v === "number" && !Number.isFinite(v))) return "";
+          if (typeof v === "number") return String(v);
+          // A leading =, +, - or @ would run as a formula when the file is opened in a spreadsheet.
+          const text = /^[=+\-@\t\r]/.test(String(v)) ? `'${v}` : String(v);
+          return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+        };
+        const lines = [header, ...rows.filter(r => r.e).map(r => accessors.map(get => get(r)))].map(row => row.map(cellText).join(","));
+        const scenario = this.scenarioSelector.value === "baseline" ? "" : `-stress-${this.scenarioSelector.value}`;
+        const blob = new Blob(["\uFEFF" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const link = Object.assign(document.createElement("a"), {
+          href: url, download: `stockwatcher-${this.currentFilter}${scenario}-${new Date().toISOString().slice(0, 10)}.csv`
+        });
+        document.body.append(link);
+        link.click();
+        link.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
       }
 
       exportMarkdown() {
