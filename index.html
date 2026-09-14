@@ -248,7 +248,7 @@
       padding: 7px 10px;
       border-bottom: 1px solid var(--border);
       white-space: nowrap;
-      text-align: left;
+      text-align: center;
     }
     .bench thead th {
       position: sticky;
@@ -275,7 +275,6 @@
     .bench thead tr.cols th[aria-sort="ascending"]::after { content: " ↑"; color: var(--text); }
     .bench thead tr.cols th[aria-sort="descending"]::after { content: " ↓"; color: var(--text); }
     .bench .group-start { border-left: 1px solid var(--border); }
-    .bench .num { text-align: right; }
     .bench tbody tr { cursor: pointer; }
     .bench tbody tr.pending-row { cursor: default; }
     .bench tbody tr:hover td { background: var(--surface-2); }
@@ -309,7 +308,7 @@
     .score-bar { width: 44px; height: 4px; background: var(--surface-3); border-radius: 2px; overflow: hidden; }
     .score-bar span { display: block; height: 100%; background: currentColor; }
 
-    .warnings { display: flex; gap: 4px; max-width: 360px; overflow: hidden; }
+    .warnings { display: flex; justify-content: center; gap: 4px; max-width: 360px; margin: 0 auto; overflow: hidden; }
     .chip {
       display: inline-flex;
       align-items: center;
@@ -325,7 +324,7 @@
     .chip.more::before { display: none; }
     .chip.strength { color: var(--text); border-color: rgba(79, 176, 105, 0.45); }
     .chip.strength::before { background: var(--pos); }
-    .bench td.leader { background: rgba(79, 176, 105, 0.12); box-shadow: inset 2px 0 0 var(--pos); }
+    .bench td.leader { background: rgba(79, 176, 105, 0.12); }
 
     /* Bear / bull meter */
     .bb-meter { margin-bottom: 10px; }
