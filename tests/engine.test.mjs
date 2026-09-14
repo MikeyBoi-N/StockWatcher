@@ -83,6 +83,17 @@ test("a high score away from support waits in not-ready instead of being actiona
   assert.equal(best, null);
 });
 
+test("warnings list only negative signals", () => {
+  const good = evaluateAsset(base(), "BULLISH");
+  assert.ok(good.tech.flags.some(f => f.startsWith("Within")), "support is a positive flag");
+  assert.deepEqual(good.warnings, []);
+  const bad = evaluateAsset({ ...base(), price: 125, rsi14: 75, catalysts: { ...base().catalysts, daysToEarnings: 5, revisionsUp: 0, revisionsDown: 4 },
+    options: { ...base().options, atmCallOpenInterest: 10 } }, "BULLISH");
+  for (const pattern of [/extended/, /overbought/, /Earnings in 5 days/, /downward EPS/, /Illiquid options/]) {
+    assert.ok(bad.warnings.some(w => pattern.test(w)), `missing ${pattern}`);
+  }
+});
+
 test("earnings inside 14 days forces a shares-only vehicle", () => {
   const e = evaluateAsset({ ...base(), catalysts: { ...base().catalysts, daysToEarnings: 7 } }, "BULLISH");
   const vehicle = evaluateOptions(e.item, 80, true);

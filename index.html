@@ -3,54 +3,68 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>StockWatcher — Account-Based Stock & Options Research Terminal</title>
+  <title>StockWatcher</title>
   <style>
     :root {
-      --bg-main: #0b0f19;
-      --bg-card: #111827;
-      --bg-card-hover: #172236;
-      --bg-card-alt: #1a2333;
-      --border-subtle: #1f293d;
-      --border-focus: #374151;
-      --text-primary: #f3f4f6;
-      --text-secondary: #9ca3af;
-      --text-muted: #6b7280;
-      
-      --accent-cyan: #06b6d4;
-      --accent-cyan-glow: rgba(6, 182, 212, 0.25);
-      --accent-blue: #3b82f6;
-      --emerald: #10b981;
-      --emerald-glow: rgba(16, 185, 129, 0.2);
-      --amber: #f59e0b;
-      --crimson: #ef4444;
-      --purple: #8b5cf6;
-      
-      --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      --bg: #0e0e0f;
+      --surface: #151517;
+      --surface-2: #1b1b1e;
+      --surface-3: #232327;
+      --border: #26262a;
+      --border-strong: #37373c;
+      --text: #ececec;
+      --text-2: #a3a3a8;
+      --text-3: #6f6f75;
+      --pos: #4fb069;
+      --warn: #d6a73a;
+      --neg: #e0605a;
+
+      /* Aliases used by inline styles in the dialogs */
+      --bg-main: var(--bg);
+      --bg-card: var(--surface);
+      --bg-card-alt: var(--surface-2);
+      --bg-card-hover: var(--surface-3);
+      --border-subtle: var(--border);
+      --border-focus: var(--border-strong);
+      --text-primary: var(--text);
+      --text-secondary: var(--text-2);
+      --text-muted: var(--text-3);
+      --accent-cyan: var(--text);
+      --emerald: var(--pos);
+      --amber: var(--warn);
+      --crimson: var(--neg);
+      --purple: var(--text-2);
+
       --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+      --radius: 6px;
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
     [hidden] { display: none !important; }
 
     body {
-      background-color: var(--bg-main);
-      color: var(--text-primary);
+      background: var(--bg);
+      color: var(--text);
       font-family: var(--font-sans);
-      min-height: 100vh;
+      font-size: 14px;
       line-height: 1.5;
-      padding-bottom: 60px;
-      overflow-x: hidden;
+      min-height: 100vh;
+      padding-bottom: 48px;
+      -webkit-font-smoothing: antialiased;
     }
 
+    button, input, select, textarea { font: inherit; color: inherit; }
+    a { color: var(--text); }
+
     /* Header */
-    header {
-      background: rgba(17, 24, 39, 0.95);
-      backdrop-filter: blur(12px);
-      border-bottom: 1px solid var(--border-subtle);
+    .topbar {
       position: sticky;
       top: 0;
       z-index: 100;
-      padding: 12px 24px;
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
+      padding: 10px 24px;
       display: flex;
       justify-content: space-between;
       align-items: center;
@@ -58,729 +72,376 @@
     }
 
     .brand {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-
-    .brand-logo {
-      width: 32px;
-      height: 32px;
-      background: linear-gradient(135deg, var(--accent-cyan), var(--accent-blue));
-      border-radius: 6px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-weight: 900;
-      font-size: 16px;
-      color: #0b0f19;
-      box-shadow: 0 0 12px var(--accent-cyan-glow);
-    }
-
-    .brand-title {
-      font-size: 18px;
-      font-weight: 800;
-      letter-spacing: -0.02em;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .brand-badge {
-      font-size: 10px;
-      font-family: var(--font-mono);
-      background: rgba(6, 182, 212, 0.12);
-      color: var(--accent-cyan);
-      border: 1px solid rgba(6, 182, 212, 0.3);
-      padding: 2px 6px;
-      border-radius: 4px;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-    }
-
-    .header-actions {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-
-    .fomo-shield {
-      background: rgba(16, 185, 129, 0.08);
-      border: 1px solid rgba(16, 185, 129, 0.25);
-      color: var(--emerald);
-      padding: 6px 12px;
-      border-radius: 6px;
-      font-size: 11px;
-      font-family: var(--font-mono);
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .fomo-pulse {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: var(--emerald);
-      box-shadow: 0 0 8px var(--emerald);
-      animation: pulseDot 2s infinite;
-    }
-
-    @keyframes pulseDot {
-      0%, 100% { opacity: 1; transform: scale(1); }
-      50% { opacity: 0.4; transform: scale(0.85); }
-    }
-
-    .btn-secondary {
-      background: var(--bg-card-alt);
-      border: 1px solid var(--border-subtle);
-      color: var(--text-primary);
-      padding: 7px 13px;
-      border-radius: 6px;
-      font-size: 13px;
-      cursor: pointer;
-      font-weight: 500;
-      transition: all 0.2s ease;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-
-    .btn-secondary:hover {
-      background: var(--bg-card-hover);
-      border-color: var(--border-focus);
-    }
-
-    .btn-primary-blue {
-      background: linear-gradient(135deg, #0284c7, #2563eb);
-      border: 1px solid #38bdf8;
-      color: #fff;
-      padding: 7px 14px;
-      border-radius: 6px;
-      font-size: 13px;
+      font-size: 15px;
       font-weight: 600;
+      letter-spacing: -0.01em;
+      color: var(--text);
+    }
+
+    .header-actions { display: flex; align-items: center; gap: 8px; }
+
+    .btn-secondary, .btn-primary {
+      border-radius: var(--radius);
+      padding: 6px 12px;
+      font-size: 13px;
+      font-weight: 500;
       cursor: pointer;
-      display: flex;
+      display: inline-flex;
       align-items: center;
       gap: 6px;
+      white-space: nowrap;
     }
+    .btn-secondary { background: var(--surface); border: 1px solid var(--border); color: var(--text); }
+    .btn-secondary:hover { background: var(--surface-2); border-color: var(--border-strong); }
+    .btn-primary { background: var(--text); border: 1px solid var(--text); color: var(--bg); }
+    .btn-primary:hover { background: #ffffff; }
+    .btn-primary:disabled, .btn-secondary:disabled { opacity: 0.55; cursor: wait; }
 
-    .btn-primary-blue:hover {
-      box-shadow: 0 0 16px rgba(56, 189, 248, 0.4);
-      transform: translateY(-1px);
-    }
-
-    /* User Account Header Pill */
     .user-pill {
       display: flex;
       align-items: center;
-      gap: 10px;
-      background: var(--bg-card-alt);
-      border: 1px solid var(--border-subtle);
-      border-radius: 999px;
-      padding: 4px 12px 4px 4px;
+      gap: 8px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 4px 10px 4px 4px;
       cursor: pointer;
       position: relative;
     }
-
+    .user-pill:hover { border-color: var(--border-strong); }
     .user-avatar {
-      width: 28px;
-      height: 28px;
-      border-radius: 50%;
-      background: linear-gradient(135deg, var(--accent-cyan), var(--purple));
-      color: #fff;
-      font-weight: 800;
+      width: 24px;
+      height: 24px;
+      border-radius: 4px;
+      background: var(--surface-3);
+      color: var(--text);
+      font-weight: 600;
       font-size: 12px;
       display: flex;
       align-items: center;
       justify-content: center;
       text-transform: uppercase;
     }
-
-    .user-name {
-      font-size: 12px;
-      font-weight: 600;
-      color: var(--text-primary);
-    }
-
+    .user-name { font-size: 13px; }
     .user-menu-dropdown {
       display: none;
       position: absolute;
-      top: calc(100% + 8px);
+      top: calc(100% + 6px);
       right: 0;
-      background: var(--bg-card);
-      border: 1px solid var(--border-focus);
-      border-radius: 8px;
-      min-width: 180px;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.6);
+      background: var(--surface);
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius);
+      min-width: 200px;
       overflow: hidden;
       z-index: 150;
     }
-
     .user-menu-dropdown.show { display: block; }
-
     .dropdown-item {
-      padding: 10px 14px;
-      font-size: 12px;
-      color: var(--text-secondary);
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      border-bottom: 1px solid var(--border-subtle);
-    }
-
-    .dropdown-item:last-child { border-bottom: none; }
-    .dropdown-item:hover { background: var(--bg-card-hover); color: #fff; }
-
-    /* Container */
-    .container {
-      max-width: 1360px;
-      margin: 0 auto;
-      padding: 24px 20px;
-      display: flex;
-      flex-direction: column;
-      gap: 24px;
-    }
-
-    /* Hero Panel with Big Run Button */
-    .hero-panel {
-      background: linear-gradient(180deg, #131d2e 0%, #0d1422 100%);
-      border: 1px solid rgba(59, 130, 246, 0.25);
-      border-radius: 12px;
-      padding: 28px 32px;
-      position: relative;
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-    }
-
-    .hero-content {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 24px;
-      flex-wrap: wrap;
-    }
-
-    .hero-info { max-width: 680px; }
-
-    .hero-info h1 {
-      font-size: 24px;
-      font-weight: 800;
-      color: #ffffff;
-      margin-bottom: 8px;
-      letter-spacing: -0.02em;
-    }
-
-    .hero-info p {
-      color: var(--text-secondary);
+      padding: 9px 12px;
       font-size: 13px;
-      line-height: 1.6;
-    }
-
-    .watchlist-status-bar {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      margin-top: 14px;
-      font-size: 12px;
-      font-family: var(--font-mono);
-      color: var(--text-muted);
-    }
-
-    .btn-manage-wl {
-      background: rgba(6, 182, 212, 0.12);
-      border: 1px solid rgba(6, 182, 212, 0.3);
-      color: var(--accent-cyan);
-      padding: 4px 10px;
-      border-radius: 4px;
-      font-size: 11px;
-      font-weight: 600;
+      color: var(--text-2);
       cursor: pointer;
+      border-bottom: 1px solid var(--border);
     }
+    .dropdown-item:last-child { border-bottom: none; }
+    .dropdown-item:hover { background: var(--surface-2); color: var(--text); }
 
-    .btn-manage-wl:hover { background: rgba(6, 182, 212, 0.2); }
-
-    /* LARGE RUN BUTTON */
-    .run-button-wrapper {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 6px;
-    }
-
-    .btn-run-scan {
-      position: relative;
-      background: linear-gradient(135deg, #0284c7 0%, #0369a1 50%, #0f766e 100%);
-      color: #ffffff;
-      border: 2px solid rgba(56, 189, 248, 0.5);
-      border-radius: 10px;
-      padding: 16px 42px;
-      font-size: 19px;
-      font-weight: 800;
-      letter-spacing: 0.04em;
-      cursor: pointer;
-      box-shadow: 0 0 24px rgba(2, 132, 199, 0.4), inset 0 1px 1px rgba(255, 255, 255, 0.3);
-      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      text-transform: uppercase;
-    }
-
-    .btn-run-scan:hover {
-      transform: translateY(-2px) scale(1.02);
-      box-shadow: 0 0 36px rgba(14, 165, 233, 0.6);
-      border-color: #38bdf8;
-    }
-
-    .btn-run-scan:active { transform: translateY(1px); }
-
-    .btn-run-scan.scanning {
-      background: linear-gradient(135deg, #0d9488, #059669);
-      pointer-events: none;
-      animation: buttonPulse 1.2s infinite ease-in-out;
-    }
-
-    @keyframes buttonPulse {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.75; }
-    }
-
-    .btn-run-scan svg { width: 22px; height: 22px; fill: currentColor; }
-
-    .scan-diagnostic {
-      display: none;
-      margin-top: 18px;
-      padding-top: 14px;
-      border-top: 1px solid var(--border-subtle);
-    }
-
-    .scan-diagnostic.active { display: block; }
-
-    .progress-bar-bg {
-      width: 100%;
-      height: 5px;
-      background: rgba(255, 255, 255, 0.08);
-      border-radius: 999px;
-      overflow: hidden;
-      margin-bottom: 8px;
-    }
-
-    .progress-bar-fill {
-      width: 0%;
-      height: 100%;
-      background: linear-gradient(90deg, var(--accent-cyan), var(--emerald));
-      transition: width 0.15s ease-out;
-    }
-
-    .diagnostic-terminal {
-      font-family: var(--font-mono);
-      font-size: 11px;
-      color: var(--accent-cyan);
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    /* Controls Strip */
-    .controls-strip {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      flex-wrap: wrap;
-      gap: 12px;
-      background: var(--bg-card);
-      padding: 10px 16px;
-      border-radius: 8px;
-      border: 1px solid var(--border-subtle);
-    }
-
-    .filter-group { display: flex; gap: 6px; }
-
-    .filter-btn {
-      background: var(--bg-main);
-      border: 1px solid var(--border-subtle);
-      color: var(--text-secondary);
-      font-size: 12px;
-      padding: 5px 12px;
-      border-radius: 5px;
-      cursor: pointer;
-      font-weight: 500;
-    }
-
-    .filter-btn.active {
-      background: rgba(6, 182, 212, 0.12);
-      border-color: var(--accent-cyan);
-      color: var(--accent-cyan);
-    }
-
-    /* Market Overview Banner */
-    .market-banner {
-      background: var(--bg-card);
-      border-radius: 8px;
-      border-left: 5px solid var(--border-subtle);
-      padding: 14px 18px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      flex-wrap: wrap;
-      gap: 14px;
-    }
-
-    .market-banner.bullish { border-left-color: var(--emerald); }
-    .market-banner.neutral { border-left-color: var(--accent-cyan); }
-    .market-banner.cautious { border-left-color: var(--amber); }
-    .market-banner.bearish { border-left-color: var(--crimson); }
-
-    .market-status-title {
-      font-size: 11px;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      color: var(--text-muted);
-      font-family: var(--font-mono);
-    }
-
-    .market-status-value {
-      font-size: 18px;
-      font-weight: 800;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .market-indices {
-      display: flex;
-      gap: 18px;
-      font-family: var(--font-mono);
-      font-size: 12px;
-    }
-
-    .index-stat { display: flex; flex-direction: column; }
-    .index-name { color: var(--text-muted); font-size: 10px; }
-    .index-val { font-weight: 700; }
-
-    .section-headline {
-      font-size: 12px;
-      font-family: var(--font-mono);
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      color: var(--accent-cyan);
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      margin-bottom: 8px;
-    }
-
-    /* Cards & Grids */
-    .best-opportunity-card {
-      background: linear-gradient(135deg, #111a2d 0%, #152238 100%);
-      border: 2px solid rgba(16, 185, 129, 0.4);
-      border-radius: 12px;
-      padding: 22px;
-      box-shadow: 0 12px 36px rgba(0, 0, 0, 0.5);
+    /* Page */
+    .page {
+      max-width: 1600px;
+      margin: 0 auto;
+      padding: 20px 24px;
       display: flex;
       flex-direction: column;
       gap: 16px;
     }
 
-    .best-opportunity-card.none-found {
-      border-color: rgba(156, 163, 175, 0.3);
-      background: var(--bg-card);
-    }
-
-    .card-top-row {
+    .page-head {
       display: flex;
       justify-content: space-between;
-      align-items: flex-start;
+      align-items: baseline;
       flex-wrap: wrap;
-      gap: 14px;
+      gap: 8px 16px;
     }
+    .page-head h1 { font-size: 18px; font-weight: 600; letter-spacing: -0.01em; }
+    .data-freshness { font-size: 12px; color: var(--text-3); }
+    .data-freshness strong { color: var(--text-2); font-weight: 500; }
 
-    .ticker-spotlight { display: flex; align-items: center; gap: 14px; }
-    .spotlight-symbol { font-size: 30px; font-weight: 900; font-family: var(--font-mono); color: #fff; }
-    .spotlight-name { font-size: 13px; color: var(--text-secondary); }
-
-    .score-badge-huge {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      background: rgba(16, 185, 129, 0.15);
-      border: 1px solid var(--emerald);
-      border-radius: 8px;
-      padding: 8px 16px;
-      min-width: 85px;
-    }
-
-    .score-badge-huge.wait {
-      background: rgba(245, 158, 11, 0.15);
-      border-color: var(--amber);
-      color: var(--amber);
-    }
-
-    .score-num { font-size: 26px; font-weight: 900; font-family: var(--font-mono); color: var(--emerald); line-height: 1; }
-    .score-num.wait { color: var(--amber); }
-    .score-label { font-size: 9px; text-transform: uppercase; font-family: var(--font-mono); color: var(--text-secondary); margin-top: 3px; }
-
-    .grid-2col {
+    /* Overview stats */
+    .overview {
       display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 14px;
+      grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--surface);
     }
+    .stat {
+      padding: 12px 16px;
+      border-right: 1px solid var(--border);
+      min-width: 0;
+    }
+    .stat:last-child { border-right: none; }
+    .stat-label { font-size: 12px; color: var(--text-3); margin-bottom: 2px; }
+    .stat-value { font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; }
+    .stat-sub { font-size: 12px; color: var(--text-2); }
+    @media (max-width: 700px) { .stat { border-right: none; border-bottom: 1px solid var(--border); } }
 
-    @media (max-width: 860px) { .grid-2col { grid-template-columns: 1fr; } }
+    .tone-pos { color: var(--pos); }
+    .tone-warn { color: var(--warn); }
+    .tone-neg { color: var(--neg); }
+    .tone-muted { color: var(--text-3); }
 
-    .sub-box {
-      background: rgba(0, 0, 0, 0.25);
-      border: 1px solid var(--border-subtle);
-      border-radius: 8px;
-      padding: 12px 14px;
+    /* Toolbar */
+    .toolbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .segmented {
+      display: inline-flex;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    .filter-btn {
+      background: transparent;
+      border: none;
+      border-right: 1px solid var(--border);
+      color: var(--text-2);
+      font-size: 13px;
+      padding: 6px 12px;
+      cursor: pointer;
+    }
+    .filter-btn:last-child { border-right: none; }
+    .filter-btn:hover { color: var(--text); background: var(--surface-2); }
+    .filter-btn.active { background: var(--surface-3); color: var(--text); }
+    .toolbar-right { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .toolbar-right label { font-size: 12px; color: var(--text-3); }
+    .select, .search-input {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 6px 10px;
       font-size: 13px;
     }
+    .search-input { width: 160px; }
+    .select:focus, .search-input:focus { outline: none; border-color: var(--border-strong); }
 
-    .sub-box-title {
-      font-size: 10px;
-      font-family: var(--font-mono);
+    /* Benchmark table */
+    .table-wrap {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--surface);
+      overflow: auto;
+      max-height: calc(100vh - 150px);
+    }
+    .bench {
+      border-collapse: separate;
+      border-spacing: 0;
+      width: max-content;
+      min-width: 100%;
+      font-size: 13px;
+      font-variant-numeric: tabular-nums;
+    }
+    .bench th, .bench td {
+      padding: 7px 10px;
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+      text-align: left;
+    }
+    .bench thead th {
+      position: sticky;
+      background: var(--surface);
+      color: var(--text-3);
+      font-weight: 500;
+      font-size: 12px;
+      z-index: 2;
+    }
+    .bench thead tr.groups th {
+      top: 0;
+      height: 28px;
+      padding: 6px 10px;
+      line-height: 15px;
+      font-size: 11px;
       text-transform: uppercase;
-      color: var(--text-muted);
-      margin-bottom: 5px;
-      display: flex;
+      letter-spacing: 0.04em;
+      border-bottom: 1px solid var(--border);
+    }
+    .bench thead tr.groups th.group { border-left: 1px solid var(--border); color: var(--text-2); }
+    .bench thead tr.cols th { top: 28px; }
+    .bench thead tr.cols th.sortable { cursor: pointer; user-select: none; }
+    .bench thead tr.cols th.sortable:hover { color: var(--text); }
+    .bench thead tr.cols th[aria-sort="ascending"]::after { content: " ↑"; color: var(--text); }
+    .bench thead tr.cols th[aria-sort="descending"]::after { content: " ↓"; color: var(--text); }
+    .bench .group-start { border-left: 1px solid var(--border); }
+    .bench .num { text-align: right; }
+    .bench tbody tr { cursor: pointer; }
+    .bench tbody tr.pending-row { cursor: default; }
+    .bench tbody tr:hover td { background: var(--surface-2); }
+    .bench tbody tr:last-child td { border-bottom: none; }
+
+    .bench .sticky-rank, .bench .sticky-ticker { position: sticky; background: var(--surface); z-index: 1; }
+    .bench thead .sticky-rank, .bench thead .sticky-ticker { z-index: 3; }
+    .bench .sticky-rank { left: 0; width: 44px; min-width: 44px; color: var(--text-3); }
+    .bench .sticky-ticker { left: 44px; min-width: 190px; max-width: 220px; border-right: 1px solid var(--border); }
+    .ticker { font-weight: 600; color: var(--text); }
+    .company { display: block; font-size: 11px; color: var(--text-3); overflow: hidden; text-overflow: ellipsis; max-width: 190px; }
+    .tag {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: 600;
+      padding: 0 5px;
+      border-radius: 3px;
+      border: 1px solid var(--border-strong);
+      color: var(--text-2);
+      margin-left: 6px;
+      vertical-align: 1px;
+    }
+
+    .verdict { font-weight: 500; }
+    .score { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; }
+    .score-bar { width: 44px; height: 4px; background: var(--surface-3); border-radius: 2px; overflow: hidden; }
+    .score-bar span { display: block; height: 100%; background: currentColor; }
+
+    .warnings { display: flex; gap: 4px; max-width: 360px; overflow: hidden; }
+    .chip {
+      display: inline-flex;
       align-items: center;
       gap: 5px;
-    }
-
-    .vehicle-preference-box {
-      background: rgba(6, 182, 212, 0.06);
-      border: 1px solid rgba(6, 182, 212, 0.25);
-      border-radius: 8px;
-      padding: 14px;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-
-    .options-specs-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-      gap: 8px;
-      font-family: var(--font-mono);
       font-size: 11px;
-    }
-
-    .spec-item {
-      background: rgba(0, 0, 0, 0.3);
-      padding: 6px 8px;
-      border-radius: 4px;
-      border: 1px solid var(--border-subtle);
-    }
-
-    .spec-k { color: var(--text-muted); font-size: 9px; text-transform: uppercase; }
-    .spec-v { color: #fff; font-weight: 700; }
-
-    /* Epistemic Tags */
-    .epistemic-tag {
-      display: inline-block;
-      font-size: 9px;
-      font-family: var(--font-mono);
-      font-weight: 700;
-      padding: 1px 5px;
+      color: var(--text-2);
+      border: 1px solid var(--border-strong);
       border-radius: 3px;
-      text-transform: uppercase;
-      margin-right: 5px;
+      padding: 0 6px;
+      line-height: 18px;
     }
-    .tag-fact { background: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3); }
-    .tag-interpretation { background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.3); }
-    .tag-speculation { background: rgba(139, 92, 246, 0.15); color: #c084fc; border: 1px solid rgba(139, 92, 246, 0.3); }
+    .chip::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: var(--neg); flex: none; }
+    .chip.more::before { display: none; }
 
-    /* Grid for Top Opportunities */
-    .top-three-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
-      gap: 16px;
-    }
+    .table-note { font-size: 12px; color: var(--text-3); }
 
-    .stock-card {
-      background: var(--bg-card);
-      border: 1px solid var(--border-subtle);
-      border-radius: 10px;
-      padding: 16px;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      cursor: pointer;
-      transition: all 0.2s ease;
+    @media (max-width: 640px) {
+      .topbar { position: static; padding: 8px 16px; flex-wrap: wrap; }
+      .header-actions { flex-wrap: wrap; gap: 6px; }
+      .page { padding: 16px; }
+      .toolbar-right, .search-input { width: 100%; }
+      .bench .sticky-ticker { min-width: 120px; max-width: 140px; }
+      .company { max-width: 110px; }
     }
 
-    .stock-card:hover {
-      border-color: var(--border-focus);
-      background: var(--bg-card-hover);
-      transform: translateY(-2px);
-    }
-
-    .card-header-flex { display: flex; justify-content: space-between; align-items: center; }
-    .card-symbol { font-size: 18px; font-weight: 800; font-family: var(--font-mono); color: #fff; }
-    .card-price { font-size: 13px; font-family: var(--font-mono); color: var(--text-secondary); margin-left: 6px; }
-
-    .score-chip {
-      font-family: var(--font-mono);
-      font-size: 12px;
-      font-weight: 800;
-      padding: 3px 8px;
-      border-radius: 5px;
-    }
-    .score-chip.high { background: rgba(16, 185, 129, 0.15); color: var(--emerald); border: 1px solid var(--emerald); }
-    .score-chip.medium { background: rgba(6, 182, 212, 0.15); color: var(--accent-cyan); border: 1px solid var(--accent-cyan); }
-    .score-chip.wait { background: rgba(245, 158, 11, 0.15); color: var(--amber); border: 1px solid var(--amber); }
-    .score-chip.avoid { background: rgba(239, 68, 68, 0.15); color: var(--crimson); border: 1px solid var(--crimson); }
-
-    .stat-pills-row { display: flex; flex-wrap: wrap; gap: 5px; font-size: 11px; font-family: var(--font-mono); }
-    .stat-pill { background: var(--bg-card-alt); border: 1px solid var(--border-subtle); padding: 2px 7px; border-radius: 4px; color: var(--text-secondary); }
-
-    /* Tables */
-    .table-panel {
-      background: var(--bg-card);
-      border: 1px solid var(--border-subtle);
-      border-radius: 10px;
-      overflow: hidden;
-    }
-
-    .data-table { width: 100%; border-collapse: collapse; text-align: left; font-size: 13px; }
-    .data-table th {
-      background: var(--bg-card-alt);
-      padding: 9px 12px;
-      font-family: var(--font-mono);
-      font-size: 11px;
-      text-transform: uppercase;
-      color: var(--text-muted);
-      border-bottom: 1px solid var(--border-subtle);
-    }
-    .data-table td { padding: 10px 12px; border-bottom: 1px solid var(--border-subtle); color: var(--text-secondary); }
-    .data-table tr:hover td { background: var(--bg-card-hover); color: #fff; }
-    .table-symbol { font-family: var(--font-mono); font-weight: 700; color: #fff; }
-
-    /* Modals */
+    /* Dialogs */
     .modal-backdrop {
       display: none;
       position: fixed;
       inset: 0;
-      background: rgba(0, 0, 0, 0.8);
-      backdrop-filter: blur(8px);
+      background: rgba(0, 0, 0, 0.72);
       z-index: 1000;
       align-items: center;
       justify-content: center;
       padding: 16px;
     }
-
     .modal-backdrop.active { display: flex; }
-
     .modal-card {
-      background: var(--bg-card);
-      border: 1px solid var(--border-focus);
-      border-radius: 12px;
+      background: var(--surface);
+      border: 1px solid var(--border-strong);
+      border-radius: 8px;
       width: 100%;
-      max-width: 880px;
+      max-width: 900px;
       max-height: 90vh;
       overflow-y: auto;
-      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
       display: flex;
       flex-direction: column;
     }
-
     .modal-header {
-      padding: 16px 20px;
-      border-bottom: 1px solid var(--border-subtle);
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--border);
       display: flex;
       justify-content: space-between;
       align-items: center;
+      gap: 12px;
       position: sticky;
       top: 0;
-      background: var(--bg-card);
+      background: var(--surface);
       z-index: 10;
     }
+    .modal-header h3 { font-weight: 600; }
+    .modal-close { background: transparent; border: none; color: var(--text-3); font-size: 22px; cursor: pointer; line-height: 1; }
+    .modal-close:hover { color: var(--text); }
+    .modal-content { padding: 18px; display: flex; flex-direction: column; gap: 14px; }
 
-    .modal-close {
-      background: transparent;
-      border: none;
-      color: var(--text-muted);
-      font-size: 22px;
-      cursor: pointer;
-      line-height: 1;
+    .grid-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    @media (max-width: 760px) { .grid-2col { grid-template-columns: 1fr; } }
+    .sub-box, .vehicle-preference-box {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 12px 14px;
+      font-size: 13px;
     }
-    .modal-close:hover { color: #fff; }
+    .vehicle-preference-box { display: flex; flex-direction: column; gap: 6px; }
+    .sub-box-title { font-size: 12px; color: var(--text-3); margin-bottom: 6px; }
+    .detail-line { margin-bottom: 2px; }
+    .detail-line strong { font-weight: 500; color: var(--text-2); }
+    .muted { color: var(--text-3); }
+    .chart-box { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 14px 20px; }
+    .chart-legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 11px; color: var(--text-2); margin-bottom: 8px; }
+    .chart-legend i { display: inline-block; width: 14px; height: 0; border-top: 2px solid; vertical-align: middle; margin-right: 5px; }
 
-    .modal-content { padding: 20px; display: flex; flex-direction: column; gap: 16px; }
+    .options-specs-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 6px; font-size: 12px; font-variant-numeric: tabular-nums; }
+    .spec-item { border: 1px solid var(--border); border-radius: 4px; padding: 5px 8px; }
+    .spec-k { color: var(--text-3); font-size: 11px; }
+    .spec-v { color: var(--text); font-weight: 500; }
 
-    /* Watchlist Selection Grid */
+    .epistemic-tag {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: 600;
+      padding: 0 5px;
+      border-radius: 3px;
+      margin-right: 6px;
+      border: 1px solid var(--border-strong);
+      color: var(--text-2);
+      letter-spacing: 0.03em;
+    }
+    .stat-pill { font-size: 11px; border: 1px solid var(--border-strong); border-radius: 3px; padding: 0 5px; color: var(--text-2); }
+
+    /* Watchlist dialog */
     .wl-selection-grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-      gap: 10px;
+      gap: 8px;
       max-height: 420px;
       overflow-y: auto;
-      padding-right: 6px;
     }
-
     .wl-stock-item {
-      background: var(--bg-card-alt);
-      border: 1px solid var(--border-subtle);
-      border-radius: 8px;
-      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 8px 10px;
       display: flex;
       justify-content: space-between;
       align-items: center;
-      transition: all 0.15s ease;
+      gap: 8px;
     }
+    .wl-stock-item.watched { border-color: var(--border-strong); background: var(--surface-2); }
+    .wl-stock-item input[type="checkbox"] { accent-color: var(--text) !important; }
+    .btn-remove-stock { background: transparent; border: none; color: var(--text-3); font-size: 16px; line-height: 1; cursor: pointer; padding: 0 4px; }
+    .btn-remove-stock:hover { color: var(--neg); }
 
-    .wl-stock-item.watched {
-      border-color: rgba(6, 182, 212, 0.5);
-      background: rgba(6, 182, 212, 0.06);
-    }
-
-    .btn-toggle-watch {
-      background: transparent;
-      border: 1px solid var(--border-subtle);
-      color: var(--text-muted);
-      padding: 3px 8px;
-      border-radius: 4px;
-      font-size: 11px;
-      cursor: pointer;
-    }
-
-    .wl-stock-item.watched .btn-toggle-watch {
-      background: rgba(16, 185, 129, 0.15);
-      border-color: var(--emerald);
-      color: var(--emerald);
-      font-weight: 600;
-    }
-
-    .btn-remove-stock {
-      background: transparent;
-      border: none;
-      color: var(--text-muted);
-      font-size: 16px;
-      line-height: 1;
-      cursor: pointer;
-      padding: 0 4px;
-    }
-    .btn-remove-stock:hover { color: var(--crimson); }
-
-    /* Real Symbol Search */
+    /* Symbol search */
     .symbol-search { position: relative; }
-
     .symbol-results {
       position: absolute;
       top: 58px;
       left: 0;
       right: 0;
-      background: var(--bg-card);
-      border: 1px solid var(--border-focus);
-      border-radius: 6px;
+      background: var(--surface);
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius);
       max-height: 280px;
       overflow-y: auto;
       z-index: 20;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.6);
     }
-
     .symbol-result {
       display: flex;
       align-items: center;
@@ -788,153 +449,72 @@
       width: 100%;
       background: transparent;
       border: none;
-      border-bottom: 1px solid var(--border-subtle);
-      color: var(--text-secondary);
+      border-bottom: 1px solid var(--border);
+      color: var(--text-2);
       padding: 8px 12px;
       text-align: left;
-      font-size: 12px;
+      font-size: 13px;
       cursor: pointer;
     }
     .symbol-result:last-child { border-bottom: none; }
-    .symbol-result:hover, .symbol-result:focus { background: var(--bg-card-hover); color: #fff; outline: none; }
-    .symbol-result-ticker { font-family: var(--font-mono); font-weight: 700; color: #fff; min-width: 64px; }
+    .symbol-result:hover, .symbol-result:focus { background: var(--surface-2); color: var(--text); outline: none; }
+    .symbol-result-ticker { font-weight: 600; color: var(--text); min-width: 64px; }
     .symbol-result-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .symbol-result-meta { font-family: var(--font-mono); font-size: 10px; color: var(--text-muted); white-space: nowrap; }
-
+    .symbol-result-meta { font-size: 11px; color: var(--text-3); white-space: nowrap; }
     .selected-stock {
       display: flex;
       justify-content: space-between;
       align-items: center;
       gap: 12px;
-      background: rgba(6, 182, 212, 0.06);
-      border: 1px solid rgba(6, 182, 212, 0.4);
-      border-radius: 8px;
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius);
       padding: 10px 14px;
     }
 
-    .data-freshness {
-      margin-top: 8px;
-      font-size: 11px;
-      font-family: var(--font-mono);
-      color: var(--text-muted);
-    }
-    .data-freshness strong { color: var(--text-secondary); }
-    .detail-line { margin-bottom: 2px; }
-    .muted { color: var(--text-muted); }
-
-    /* Auth Dialog */
+    /* Auth dialog */
     .auth-card { max-width: 420px; }
     .auth-panel { display: none; flex-direction: column; gap: 12px; }
     #authModal[data-view="signin"] [data-panel="signin"],
     #authModal[data-view="register"] [data-panel="register"],
     #authModal[data-view="reset"] [data-panel="reset"] { display: flex; }
     #authModal[data-view="reset"] [data-auth-tabs] { display: none; }
-
-    .auth-tabs {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      background: var(--bg-main);
-      border: 1px solid var(--border-subtle);
-      border-radius: 8px;
-      padding: 3px;
-    }
-    .auth-tab {
-      background: transparent;
-      border: none;
-      border-radius: 6px;
-      color: var(--text-secondary);
-      font-size: 13px;
-      font-weight: 600;
-      padding: 7px 0;
-      cursor: pointer;
-    }
+    .auth-tabs { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--border); border-radius: var(--radius); padding: 3px; }
+    .auth-tab { background: transparent; border: none; border-radius: 4px; color: var(--text-2); font-size: 13px; font-weight: 500; padding: 6px 0; cursor: pointer; }
     #authModal[data-view="signin"] .auth-tab[data-auth-view="signin"],
-    #authModal[data-view="register"] .auth-tab[data-auth-view="register"] {
-      background: var(--bg-card-alt);
-      color: #fff;
-      box-shadow: inset 0 0 0 1px var(--border-focus);
-    }
-
+    #authModal[data-view="register"] .auth-tab[data-auth-view="register"] { background: var(--surface-3); color: var(--text); }
     .btn-google {
       display: flex;
       align-items: center;
       justify-content: center;
       gap: 10px;
       width: 100%;
-      background: #fff;
-      color: #1f1f1f;
-      border: 1px solid #dadce0;
-      border-radius: 6px;
-      padding: 9px 12px;
+      background: var(--surface-2);
+      color: var(--text);
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius);
+      padding: 8px 12px;
       font-size: 14px;
-      font-weight: 600;
+      font-weight: 500;
       cursor: pointer;
     }
-    .btn-google:hover { background: #f5f7fa; }
+    .btn-google:hover { background: var(--surface-3); }
     .btn-google:disabled, .auth-submit:disabled { opacity: 0.6; cursor: wait; }
-
-    .auth-divider {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      color: var(--text-muted);
-      font-size: 11px;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-    }
-    .auth-divider::before, .auth-divider::after { content: ""; flex: 1; height: 1px; background: var(--border-subtle); }
-
-    .auth-label { display: block; color: var(--text-muted); font-size: 11px; margin-bottom: 4px; }
-    .auth-input {
-      width: 100%;
-      background: var(--bg-card-alt);
-      border: 1px solid var(--border-subtle);
-      color: #fff;
-      padding: 9px 12px;
-      border-radius: 6px;
-      font-size: 14px;
-    }
-    .auth-input:focus { outline: none; border-color: var(--accent-cyan); box-shadow: 0 0 0 3px var(--accent-cyan-glow); }
-    .auth-input[aria-invalid="true"] { border-color: var(--crimson); }
+    .auth-divider { display: flex; align-items: center; gap: 10px; color: var(--text-3); font-size: 12px; }
+    .auth-divider::before, .auth-divider::after { content: ""; flex: 1; height: 1px; background: var(--border); }
+    .auth-label { display: block; color: var(--text-3); font-size: 12px; margin-bottom: 4px; }
+    .auth-input { width: 100%; background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 8px 12px; border-radius: var(--radius); font-size: 14px; }
+    .auth-input:focus { outline: none; border-color: var(--text-3); }
+    .auth-input[aria-invalid="true"] { border-color: var(--neg); }
     .auth-password { position: relative; }
     .auth-password .auth-input { padding-right: 60px; }
-    .auth-reveal {
-      position: absolute;
-      right: 6px;
-      top: 50%;
-      transform: translateY(-50%);
-      background: transparent;
-      border: none;
-      color: var(--text-muted);
-      font-size: 11px;
-      font-weight: 600;
-      cursor: pointer;
-      padding: 4px 6px;
-    }
-    .auth-reveal:hover { color: #fff; }
-    .auth-submit { justify-content: center; padding: 10px; }
-    .auth-error {
-      background: rgba(239, 68, 68, 0.08);
-      border: 1px solid rgba(239, 68, 68, 0.35);
-      color: #fca5a5;
-      border-radius: 6px;
-      padding: 8px 10px;
-      font-size: 12px;
-    }
-    .auth-success {
-      background: rgba(16, 185, 129, 0.08);
-      border: 1px solid rgba(16, 185, 129, 0.35);
-      color: #a7f3d0;
-      border-radius: 6px;
-      padding: 10px 12px;
-      font-size: 12px;
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-    }
-    .auth-footer { text-align: center; font-size: 12px; color: var(--text-muted); }
-    .auth-footer a { color: var(--accent-cyan); text-decoration: none; }
-    .auth-link-muted { color: var(--text-secondary); font-size: 11px; text-decoration: none; }
+    .auth-reveal { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); background: transparent; border: none; color: var(--text-3); font-size: 12px; cursor: pointer; padding: 4px 6px; }
+    .auth-reveal:hover { color: var(--text); }
+    .auth-submit { justify-content: center; padding: 9px; }
+    .auth-error { border: 1px solid rgba(224, 96, 90, 0.4); color: #eba19d; border-radius: var(--radius); padding: 8px 10px; font-size: 12px; }
+    .auth-success { border: 1px solid rgba(79, 176, 105, 0.4); color: #a9d9b5; border-radius: var(--radius); padding: 10px 12px; font-size: 12px; display: flex; flex-direction: column; gap: 4px; }
+    .auth-footer { text-align: center; font-size: 12px; color: var(--text-3); }
+    .auth-footer a { color: var(--text); text-decoration: none; }
+    .auth-link-muted { color: var(--text-2); font-size: 12px; text-decoration: none; }
     .auth-link-muted:hover, .auth-footer a:hover { text-decoration: underline; }
 
     /* Toast */
@@ -942,249 +522,95 @@
       position: fixed;
       bottom: 20px;
       right: 20px;
-      background: #1f2937;
-      border: 1px solid var(--accent-cyan);
-      color: #fff;
-      padding: 10px 16px;
-      border-radius: 6px;
-      font-size: 12px;
-      font-family: var(--font-mono);
+      background: var(--surface-3);
+      border: 1px solid var(--border-strong);
+      color: var(--text);
+      padding: 9px 14px;
+      border-radius: var(--radius);
+      font-size: 13px;
       z-index: 2000;
       display: none;
-      box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+      max-width: 420px;
     }
-
-    .toast.show { display: block; animation: fadeIn 0.2s ease-out; }
-    @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    .toast.show { display: block; }
   </style>
 </head>
 <body>
 
-  <!-- Top Utility Navigation -->
-  <header>
-    <div class="brand">
-      <div class="brand-logo">Ω</div>
-      <div class="brand-title">
-        StockWatcher
-        <span class="brand-badge">GitHub Cloud</span>
-      </div>
-    </div>
+  <header class="topbar">
+    <div class="brand">StockWatcher</div>
     <div class="header-actions">
-      <div class="fomo-shield" title="Skeptical Bias: Most of the time, the correct answer is WAIT.">
-        <div class="fomo-pulse"></div>
-        <span>ANTI-FOMO SHIELD: ACTIVE</span>
-      </div>
-
-      <button class="btn-secondary" id="btnManageWatchlist" title="Choose which stocks you want to monitor">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
-        <span id="headerWlCountText">My Watchlist (17)</span>
+      <button class="btn-secondary" id="btnManageWatchlist" title="Choose which stocks you track">
+        <span id="headerWlCountText">Watchlist</span>
       </button>
-
-      <button class="btn-secondary" id="btnExportJournal" title="Copy full markdown report">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg>
-        Copy Journal
-      </button>
-
-      <!-- User Account Controls -->
-      <div id="authPillContainer">
-        <!-- Injected via JavaScript based on session -->
-      </div>
+      <button class="btn-secondary" id="btnExportJournal" title="Copy the current table as a markdown report">Copy report</button>
+      <div id="authPillContainer"></div>
     </div>
   </header>
 
-  <!-- Main Container -->
-  <main class="container">
+  <main class="page">
+    <div class="page-head">
+      <h1>Overview</h1>
+      <div id="dataFreshness" class="data-freshness">Loading market data…</div>
+    </div>
 
-    <!-- Hero Panel with Big Run Button -->
-    <section class="hero-panel">
-      <div class="hero-content">
-        <div class="hero-info">
-          <h1>Deterministic Stock & Options Scanner</h1>
-          <p>
-            Personalized research assistant enforcing institutional skepticism. Scans your selected watchlist across 
-            <strong>Technicals</strong>, <strong>Fundamentals</strong>, <strong>Valuation Reality</strong>, <strong>Catalysts</strong>, and <strong>Options (Implied vs Realized Volatility, Delta, Theta)</strong>.
-          </p>
-          <div class="watchlist-status-bar">
-            <span>Account: <strong id="heroAccountName" style="color:var(--accent-cyan);">Guest</strong></span>
-            <span>•</span>
-            <span id="heroWlStats">Monitoring <strong>17</strong> stocks</span>
-            <button class="btn-manage-wl" id="btnHeroEditWl">Change Monitored Stocks</button>
-          </div>
-          <div id="dataFreshness" class="data-freshness">Loading real market data…</div>
-        </div>
-
-        <!-- The Large Run Button -->
-        <div class="run-button-wrapper">
-          <button id="btnRunScan" class="btn-run-scan" title="Trigger deterministic audit on your watchlist">
-            <svg viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
-            <span>RUN MARKET SCAN</span>
-          </button>
-          <div style="font-size:10px; font-family:var(--font-mono); color:var(--text-muted); text-transform:uppercase;">
-            Auditing Your Account Watchlist
-          </div>
-        </div>
+    <section class="overview">
+      <div class="stat">
+        <div class="stat-label">Market regime</div>
+        <div class="stat-value" id="statRegime">—</div>
+        <div class="stat-sub" id="statRegimeSub"></div>
       </div>
-
-      <!-- Live Scan Terminal Diagnostic Log -->
-      <div id="scanDiagnostic" class="scan-diagnostic">
-        <div class="progress-bar-bg">
-          <div id="progressBarFill" class="progress-bar-fill"></div>
-        </div>
-        <div class="diagnostic-terminal">
-          <span>⚙</span>
-          <span id="diagnosticText">Awaiting scan trigger...</span>
-        </div>
+      <div class="stat">
+        <div class="stat-label">SPY</div>
+        <div class="stat-value" id="statSpy">—</div>
+        <div class="stat-sub" id="statSpySub"></div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">QQQ</div>
+        <div class="stat-value" id="statQqq">—</div>
+        <div class="stat-sub" id="statQqqSub"></div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Best idea</div>
+        <div class="stat-value" id="statBest">—</div>
+        <div class="stat-sub" id="statBestSub"></div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Verdicts</div>
+        <div class="stat-value" id="statVerdicts">—</div>
+        <div class="stat-sub" id="statVerdictsSub"></div>
       </div>
     </section>
 
-    <!-- Controls Strip -->
-    <section class="controls-strip">
-      <div class="filter-group">
-        <button class="filter-btn active" data-filter="my_watchlist">My Watchlist Only</button>
-        <button class="filter-btn" data-filter="all" id="filterAllBtn">Full Library</button>
-        <button class="filter-btn" data-filter="primary" id="filterPrimaryBtn">Primary Core</button>
-        <button class="filter-btn" data-filter="alerts">Triggered Alerts Only</button>
+    <section class="toolbar">
+      <div class="segmented">
+        <button class="filter-btn active" data-filter="my_watchlist">Watchlist</button>
+        <button class="filter-btn" data-filter="all">All</button>
+        <button class="filter-btn" data-filter="primary">Primary</button>
+        <button class="filter-btn" data-filter="alerts">Alerts</button>
       </div>
-      <div style="display:flex; align-items:center; gap: 8px;">
-        <label style="font-size:11px; color:var(--text-muted); font-family:var(--font-mono);">Stress Test:</label>
-        <select id="scenarioSelector" style="background:var(--bg-main); border:1px solid var(--border-subtle); color:#fff; font-size:11px; font-family:var(--font-mono); padding:4px 8px; border-radius:4px;">
-          <option value="baseline">Real Market Data (No Simulation)</option>
-          <option value="pullback">Simulate -8% Tech Pullback (Tests Support)</option>
-          <option value="high_iv">Simulate IV Spike (IV x1.6)</option>
-          <option value="overbought">Simulate Extended Rally (FOMO Resistance)</option>
+      <div class="toolbar-right">
+        <input type="search" id="tableSearch" class="search-input" placeholder="Filter ticker or name" autocomplete="off" spellcheck="false">
+        <label for="scenarioSelector">Stress test</label>
+        <select id="scenarioSelector" class="select">
+          <option value="baseline">None (real data)</option>
+          <option value="pullback">Tech pullback −8%</option>
+          <option value="high_iv">Implied volatility ×1.6</option>
+          <option value="overbought">Broad rally +8%</option>
         </select>
       </div>
     </section>
 
-    <!-- SECTION 1: MARKET CONDITIONS -->
-    <section id="marketConditionsSection" class="market-banner neutral">
-      <div>
-        <div class="market-status-title">Market Regime Assessment (SPY & QQQ Multi-Trend)</div>
-        <div id="marketRegimeText" class="market-status-value"><span>LOADING…</span></div>
-      </div>
-      <div class="market-indices">
-        <div class="index-stat">
-          <span class="index-name">SPY (S&P 500 ETF)</span>
-          <span id="spySummary" class="index-val">Loading…</span>
-        </div>
-        <div class="index-stat">
-          <span class="index-name">QQQ (Nasdaq-100 ETF)</span>
-          <span id="qqqSummary" class="index-val">Loading…</span>
-        </div>
-      </div>
-    </section>
-
-    <!-- SECTION 2: BEST OPPORTUNITY TODAY -->
-    <section>
-      <div class="section-headline">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
-        SECTION 2 — BEST OPPORTUNITY TODAY (FROM YOUR WATCHLIST)
-      </div>
-      <div id="bestOpportunityContainer"></div>
-    </section>
-
-    <!-- SECTION 3: TOP OPPORTUNITIES -->
-    <section>
-      <div class="section-headline">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 18l6-6-6-6"></path><path d="M8 6l-6 6 6 6"></path></svg>
-        SECTION 3 — TOP OPPORTUNITIES (RANKED BY STRICT RISK/REWARD)
-      </div>
-      <div id="topOpportunitiesGrid" class="top-three-grid"></div>
-    </section>
-
-    <!-- WATCHLIST STOCKS AWAITING THEIR FIRST DATA REFRESH -->
-    <section id="pendingSection" hidden>
-      <div class="section-headline" style="color: var(--text-secondary);">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-        ADDED TO YOUR WATCHLIST — MARKET DATA PENDING (NOT SCORED YET)
-      </div>
-      <div class="table-panel">
-        <table class="data-table" id="pendingTable">
-          <thead>
-            <tr>
-              <th>Ticker</th>
-              <th>Company</th>
-              <th>Exchange</th>
-              <th>Your Thesis</th>
-              <th>Added</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody></tbody>
-        </table>
-      </div>
-    </section>
-
-    <!-- SECTION 4: NOT READY YET -->
-    <section>
-      <div class="section-headline">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-        SECTION 4 — NOT READY YET (PATIENT WATCHLIST: AWAITING SUPPORT TEST OR CONFIRMATION)
-      </div>
-      <div class="table-panel">
-        <table class="data-table" id="notReadyTable">
-          <thead>
-            <tr>
-              <th>Ticker</th>
-              <th>Current Price</th>
-              <th>Score</th>
-              <th>Missing Prerequisite</th>
-              <th>Target Entry Support</th>
-              <th>Invalidation Level</th>
-              <th>Action Needed</th>
-            </tr>
-          </thead>
-          <tbody></tbody>
-        </table>
-      </div>
-    </section>
-
-    <!-- SECTION 5: AVOID / HIGH RISK -->
-    <section>
-      <div class="section-headline" style="color: var(--crimson);">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="7.86 2 16.14 2 22 7.86 22 16.14 16.14 22 7.86 22 2 16.14 2 7.86 7.86 2"></polygon><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
-        SECTION 5 — AVOID / HIGH RISK (EXTENDED OR ASYMMETRIC DOWNSIDE)
-      </div>
-      <div class="table-panel">
-        <table class="data-table" id="avoidTable">
-          <thead>
-            <tr>
-              <th>Ticker</th>
-              <th>Price</th>
-              <th>Score</th>
-              <th>Primary Red Flag</th>
-              <th>Technical Extension</th>
-              <th>Valuation Strain</th>
-              <th>Prescription</th>
-            </tr>
-          </thead>
-          <tbody></tbody>
-        </table>
-      </div>
-    </section>
-
-    <!-- SECTION 6: WHAT I WOULD WATCH NEXT -->
-    <section>
-      <div class="section-headline" style="color: var(--purple);">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
-        SECTION 6 — WHAT I WOULD WATCH NEXT (CONDITIONAL TRIGGERS & CATALYSTS)
-      </div>
-      <div class="table-panel">
-        <table class="data-table" id="watchNextTable">
-          <thead>
-            <tr>
-              <th>Asset</th>
-              <th>Upcoming Milestone</th>
-              <th>Days to Event</th>
-              <th>Conditional Price Level</th>
-              <th>Options: IV vs Realized Vol</th>
-            </tr>
-          </thead>
-          <tbody></tbody>
-        </table>
-      </div>
-    </section>
-
+    <div class="table-wrap">
+      <table class="bench" id="benchTable">
+        <thead></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <p class="table-note">
+      Rank lists actionable setups first, then not ready, then avoid, each by score. Actionable means a score of 70+, price within 3.5% of major support, and no earnings inside 14 days.
+      Click a column to sort and a row for the full breakdown.
+    </p>
   </main>
 
   <!-- ========================================================================= -->
@@ -1196,20 +622,20 @@
     <div class="modal-card" style="max-width:760px;">
       <div class="modal-header">
         <div>
-          <h3 style="font-size:16px;">Customize Your Monitored Watchlist</h3>
-          <div style="font-size:12px; color:var(--text-secondary);">Toggle which stocks your account actively tracks. Changes persist automatically.</div>
+          <h3 style="font-size:16px;">Edit watchlist</h3>
+          <div style="font-size:12px; color:var(--text-secondary);">Choose which stocks appear in your table.</div>
         </div>
         <button id="wlModalCloseBtn" class="modal-close">&times;</button>
       </div>
       <div class="modal-content">
         <div style="display:flex; justify-content:space-between; align-items:center;">
-          <div style="font-size:12px; font-family:var(--font-mono);" id="wlSelectStats">
+          <div style="font-size:12px; color:var(--text-secondary);" id="wlSelectStats">
             Selected: <strong id="wlSelectedCount">17</strong> stocks
           </div>
           <div style="display:flex; gap:8px;">
-            <button class="btn-secondary" id="btnSelectAllWl" style="font-size:11px; padding:4px 8px;">Select All</button>
-            <button class="btn-secondary" id="btnSelectPrimaryOnly" style="font-size:11px; padding:4px 8px;">Primary Only</button>
-            <button class="btn-secondary" id="btnOpenAddCustom" style="font-size:11px; padding:4px 8px; color:var(--accent-cyan);">+ Add Stock</button>
+            <button class="btn-secondary" id="btnSelectAllWl" style="font-size:12px; padding:4px 8px;">Select all</button>
+            <button class="btn-secondary" id="btnSelectPrimaryOnly" style="font-size:12px; padding:4px 8px;">Primary only</button>
+            <button class="btn-secondary" id="btnOpenAddCustom" style="font-size:12px; padding:4px 8px;">Add stock</button>
           </div>
         </div>
 
@@ -1218,7 +644,7 @@
         </div>
 
         <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:10px;">
-          <button id="btnSaveWatchlist" class="btn-primary-blue">Save & Update Dashboard</button>
+          <button id="btnSaveWatchlist" class="btn-primary">Save</button>
         </div>
       </div>
     </div>
@@ -1263,7 +689,7 @@
             </div>
           </div>
           <div class="auth-error" data-auth-error hidden></div>
-          <button type="submit" class="btn-primary-blue auth-submit">Sign In</button>
+          <button type="submit" class="btn-primary auth-submit">Sign In</button>
           <div class="auth-footer">Don&rsquo;t have an account? <a href="#" data-auth-view="register">Create one</a></div>
         </form>
 
@@ -1294,7 +720,7 @@
             <input class="auth-input" type="password" id="regPasswordConfirm" required autocomplete="new-password" placeholder="Re-enter password">
           </div>
           <div class="auth-error" data-auth-error hidden></div>
-          <button type="submit" class="btn-primary-blue auth-submit">Create Account</button>
+          <button type="submit" class="btn-primary auth-submit">Create Account</button>
           <div class="auth-footer">Already have an account? <a href="#" data-auth-view="signin">Sign in</a></div>
         </form>
 
@@ -1311,7 +737,7 @@
             <div style="margin-top:6px; color:var(--text-muted);">Signed up with Google? Use &ldquo;Continue with Google&rdquo; instead &mdash; there&rsquo;s no password to reset.</div>
           </div>
           <div class="auth-error" data-auth-error hidden></div>
-          <button type="submit" class="btn-primary-blue auth-submit" data-reset-request>Send Reset Link</button>
+          <button type="submit" class="btn-primary auth-submit" data-reset-request>Send Reset Link</button>
           <div class="auth-footer"><a href="#" data-auth-view="signin">&larr; Back to sign in</a></div>
         </form>
       </div>
@@ -1323,15 +749,15 @@
     <div class="modal-card" style="max-width:680px;">
       <div class="modal-header">
         <div>
-          <h3 style="font-size:16px;">Add Stock to Your Watchlist</h3>
-          <div style="font-size:12px; color:var(--text-secondary);">Search every US-listed stock and ETF. Explain why it deserves attention. Do not add random stocks.</div>
+          <h3 style="font-size:16px;">Add a stock</h3>
+          <div style="font-size:12px; color:var(--text-secondary);">Search US-listed stocks and ETFs. A short thesis is required.</div>
         </div>
         <button id="addTickerCloseBtn" class="modal-close">&times;</button>
       </div>
       <form id="addTickerForm" class="modal-content" style="font-size:13px; gap:14px;">
         <div class="symbol-search">
-          <label style="color:var(--text-muted); font-size:11px;">Search by ticker or company name</label>
-          <input type="text" id="addSearch" autocomplete="off" spellcheck="false" placeholder="e.g. PLTR or Palantir" style="width:100%; background:var(--bg-card-alt); border:1px solid var(--border-subtle); color:#fff; padding:8px 12px; border-radius:6px; font-family:var(--font-mono);">
+          <label class="auth-label" for="addSearch">Ticker or company name</label>
+          <input type="text" id="addSearch" autocomplete="off" spellcheck="false" placeholder="e.g. PLTR or Palantir" class="auth-input">
           <div id="addSearchResults" class="symbol-results" hidden></div>
           <div id="addSearchStatus" style="font-size:11px; color:var(--text-muted); margin-top:4px;"></div>
         </div>
@@ -1339,8 +765,8 @@
         <div id="addSelectedStock" class="selected-stock" hidden></div>
 
         <div>
-          <label style="color:var(--text-muted); font-size:11px;">Why it deserves attention (Mandatory thesis justifying inclusion)</label>
-          <textarea id="addWhyAttention" required rows="2" maxlength="1000" placeholder="Explain the specific catalyst, moat, or technical development..." style="width:100%; background:var(--bg-card-alt); border:1px solid var(--border-subtle); color:#fff; padding:8px 10px; border-radius:4px; resize:vertical; font-family:var(--font-sans);"></textarea>
+          <label class="auth-label" for="addWhyAttention">Thesis: why it deserves attention</label>
+          <textarea id="addWhyAttention" class="auth-input" required rows="3" maxlength="1000" placeholder="The catalyst, moat, or technical setup you're watching" style="resize:vertical;"></textarea>
         </div>
 
 
@@ -1348,7 +774,7 @@
 
         <div style="display:flex; justify-content:flex-end; gap:10px;">
           <button type="button" id="addCancelBtn" class="btn-secondary">Cancel</button>
-          <button type="submit" class="btn-primary-blue">Add & Include in My Watchlist</button>
+          <button type="submit" class="btn-primary">Add to watchlist</button>
         </div>
       </form>
     </div>
@@ -1359,21 +785,22 @@
     <div class="modal-card">
       <div class="modal-header">
         <div>
-          <span id="modalSymbol" style="font-size:24px; font-weight:800; font-family:var(--font-mono); color:#ffffff;">NVDA</span>
-          <span id="modalName" style="color:var(--text-secondary); margin-left:8px; font-size:14px;">Nvidia Corp</span>
+          <span id="modalSymbol" style="font-size:20px; font-weight:600;"></span>
+          <span id="modalName" style="color:var(--text-secondary); margin-left:8px; font-size:13px;"></span>
         </div>
         <button id="modalCloseBtn" class="modal-close">&times;</button>
       </div>
 
       <div class="modal-content">
-        <!-- SVG Price & Moving Averages Visualizer -->
-        <div style="background:#080c14; border:1px solid var(--border-subtle); border-radius:8px; padding:14px;">
-          <div style="display:flex; gap:14px; font-family:var(--font-mono); font-size:11px; margin-bottom:8px;">
-            <div><span style="color:#38bdf8;">■</span> Price ($)</div>
-            <div><span style="color:#f59e0b;">■</span> 20d SMA</div>
-            <div><span style="color:#10b981;">■</span> 50d SMA</div>
-            <div><span style="color:#8b5cf6;">■</span> 200d SMA</div>
-            <div><span style="color:#ef4444;">■</span> Support Zone</div>
+        <div id="modalScoreLine" style="display:flex; flex-wrap:wrap; gap:6px 18px; font-size:13px;"></div>
+
+        <div class="chart-box">
+          <div class="chart-legend">
+            <span><i style="border-color:#ececec;"></i>Price</span>
+            <span><i style="border-color:#6f6f75;"></i>20d SMA</span>
+            <span><i style="border-color:#a3a3a8;"></i>50d SMA</span>
+            <span><i style="border-color:#a3a3a8; border-top-style:dashed;"></i>200d SMA</span>
+            <span><i style="border-color:#e0605a; border-top-style:dashed;"></i>Support</span>
           </div>
           <svg id="modalSvgChart" width="100%" height="180" viewBox="0 0 800 180" style="overflow:visible;"></svg>
         </div>
@@ -1381,44 +808,44 @@
         <!-- Pillar Details Grid -->
         <div class="grid-2col">
           <div class="sub-box">
-            <div class="sub-box-title">1. Technical & Trend Metrics</div>
+            <div class="sub-box-title">Technicals</div>
             <div id="modalTechnicalDetails"></div>
           </div>
           <div class="sub-box">
-            <div class="sub-box-title">2. Fundamental Health & Trajectory</div>
+            <div class="sub-box-title">Fundamentals</div>
             <div id="modalFundamentalDetails"></div>
           </div>
           <div class="sub-box">
-            <div class="sub-box-title">3. Valuation & Multiples Reality</div>
+            <div class="sub-box-title">Valuation</div>
             <div id="modalValuationDetails"></div>
           </div>
           <div class="sub-box">
-            <div class="sub-box-title">4. Catalysts, Earnings & Risks</div>
+            <div class="sub-box-title">Earnings and analysts</div>
             <div id="modalCatalystDetails"></div>
           </div>
         </div>
 
         <!-- Options Analysis -->
         <div class="vehicle-preference-box">
-          <div class="sub-box-title">5. Options vs Shares Quantitative Engine</div>
+          <div class="sub-box-title">Options vs shares</div>
           <div id="modalOptionsDetails"></div>
         </div>
 
         <!-- Facts, Interpretation, Speculation Separation -->
-        <div class="sub-box" style="background: rgba(0,0,0,0.4);">
-          <div class="sub-box-title">Epistemic Discipline (Rule 10 Separation)</div>
+        <div class="sub-box">
+          <div class="sub-box-title">Fact, interpretation, speculation</div>
           <div id="modalEpistemicDetails" style="display:flex; flex-direction:column; gap:6px;"></div>
         </div>
 
         <!-- Bear Case and Invalidation -->
-        <div class="sub-box" style="border-color: rgba(239, 68, 68, 0.4); background: rgba(239, 68, 68, 0.05);">
-          <div class="sub-box-title" style="color: var(--crimson);">Bear Case & Strict Invalidation Trigger (Rule 8)</div>
+        <div class="sub-box">
+          <div class="sub-box-title">Bear case and invalidation</div>
           <div id="modalBearCaseDetails"></div>
         </div>
 
         <!-- Score Breakdown, Data Gaps and Sources -->
         <div class="sub-box">
-          <div class="sub-box-title">Score Breakdown, Data Sources & Freshness</div>
+          <div class="sub-box-title">Score, data gaps and sources</div>
           <div id="modalSourcesDetails" style="display:flex; flex-direction:column; gap:4px;"></div>
         </div>
       </div>
@@ -1463,6 +890,13 @@
     const compactUsd = (v) => isNum(v)
       ? new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", notation: "compact", maximumFractionDigits: 1 }).format(v)
       : "N/A";
+    const VERDICTS = {
+      actionable: { label: "Actionable", tone: "pos", order: 0 },
+      notReady: { label: "Not ready", tone: "warn", order: 1 },
+      avoid: { label: "Avoid", tone: "neg", order: 2 },
+      pending: { label: "Data pending", tone: "muted", order: 3 }
+    };
+    const scoreTone = (score) => score >= RULES.actionableScore ? "pos" : score >= RULES.avoidScore ? "warn" : "neg";
     const shortDateTime = (iso) => iso ? new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : "N/A";
 
     /**
@@ -1689,7 +1123,8 @@
         this.initDOM();
         this.attachEvents();
         this.renderAuthUI();
-        this.loadMarketData(false);
+        this.sort = { key: "rank", dir: "asc" };
+        this.loadMarketData();
 
         if (accountManager) {
           accountManager.onSessionChange(
@@ -1711,39 +1146,33 @@
         this.scenarioSelector.value = "baseline";
         this.dataset = this.buildDataset();
         this.renderAuthUI();
-        this.executeScan(false);
+        this.rescore();
       }
 
       buildDataset() {
         return simulateScenario(this.marketData.records(), this.scenarioSelector.value);
       }
 
-      /** Fetches the latest data/market.json (picks up scheduled refreshes without a page reload), then scans. */
-      async loadMarketData(animate) {
-        this.diagnosticText.textContent = "Loading real market data…";
-        this.scanDiagnostic.classList.add("active");
+      async loadMarketData() {
         try {
           await this.marketData.load();
         } catch (err) {
           console.error(err);
           this.dataFreshness.textContent = "Market data could not be loaded. Refresh the page to try again.";
-          this.diagnosticText.textContent = "Market data unavailable.";
           return;
         }
         this.dataset = this.buildDataset();
-        this.filterAllBtn.textContent = `Full Library (${this.dataset.length})`;
-        this.filterPrimaryBtn.textContent = `Primary Core (${this.marketData.universe.primary.length})`;
         this.renderFreshness();
         this.renderAuthUI();
-        await this.executeScan(animate);
+        this.rescore();
       }
 
       renderFreshness() {
         const { generatedAt, stocks } = this.marketData.data;
         const quoteTimes = Object.values(stocks).map(r => r.asOf).filter(Boolean).sort();
         const hoursOld = (Date.now() - new Date(generatedAt).getTime()) / 36e5;
-        const stale = hoursOld > 96 ? ` · <span style="color:var(--amber);">last refresh was ${Math.round(hoursOld / 24)} days ago</span>` : "";
-        this.dataFreshness.innerHTML = `Real market data · prices as of <strong>${escapeHtml(shortDateTime(quoteTimes[quoteTimes.length - 1]))}</strong> · built ${escapeHtml(shortDateTime(generatedAt))} · ${REFRESH_NOTE}${stale}`;
+        const stale = hoursOld > 96 ? ` · <span class="tone-warn">last refresh was ${Math.round(hoursOld / 24)} days ago</span>` : "";
+        this.dataFreshness.innerHTML = `Prices as of <strong>${escapeHtml(shortDateTime(quoteTimes[quoteTimes.length - 1]))}</strong> · built ${escapeHtml(shortDateTime(generatedAt))} · ${REFRESH_NOTE}${stale}`;
       }
 
       async persistProfile() {
@@ -1767,18 +1196,11 @@
       initDOM() {
         this.authPillContainer = document.getElementById("authPillContainer");
         this.headerWlCountText = document.getElementById("headerWlCountText");
-        this.heroAccountName = document.getElementById("heroAccountName");
-        this.heroWlStats = document.getElementById("heroWlStats");
-        this.btnRunScan = document.getElementById("btnRunScan");
-        this.scanDiagnostic = document.getElementById("scanDiagnostic");
-        this.progressBarFill = document.getElementById("progressBarFill");
-        this.diagnosticText = document.getElementById("diagnosticText");
         this.scenarioSelector = document.getElementById("scenarioSelector");
 
         // Modals
         this.watchlistModal = document.getElementById("watchlistModal");
         this.btnManageWatchlist = document.getElementById("btnManageWatchlist");
-        this.btnHeroEditWl = document.getElementById("btnHeroEditWl");
         this.wlModalCloseBtn = document.getElementById("wlModalCloseBtn");
         this.wlSelectionContainer = document.getElementById("wlSelectionContainer");
         this.wlSelectedCount = document.getElementById("wlSelectedCount");
@@ -1811,22 +1233,13 @@
         this.toastNotification = document.getElementById("toastNotification");
         this.toastMessage = document.getElementById("toastMessage");
 
-        // Sections
-        this.bestOpportunityContainer = document.getElementById("bestOpportunityContainer");
-        this.topOpportunitiesGrid = document.getElementById("topOpportunitiesGrid");
-        this.notReadyTableBody = document.querySelector("#notReadyTable tbody");
-        this.avoidTableBody = document.querySelector("#avoidTable tbody");
-        this.watchNextTableBody = document.querySelector("#watchNextTable tbody");
-        this.pendingSection = document.getElementById("pendingSection");
-        this.pendingTableBody = document.querySelector("#pendingTable tbody");
         this.dataFreshness = document.getElementById("dataFreshness");
-        this.filterAllBtn = document.getElementById("filterAllBtn");
-        this.filterPrimaryBtn = document.getElementById("filterPrimaryBtn");
+        this.benchHead = document.querySelector("#benchTable thead");
+        this.benchBody = document.querySelector("#benchTable tbody");
+        this.tableSearch = document.getElementById("tableSearch");
       }
 
       attachEvents() {
-        this.btnRunScan.addEventListener("click", () => this.loadMarketData(true));
-
         this.scenarioSelector.addEventListener("change", (e) => {
           this.applyScenario(e.target.value);
         });
@@ -1840,17 +1253,32 @@
           });
         });
 
+        this.tableSearch.addEventListener("input", () => this.renderOutput());
+        this.benchHead.addEventListener("click", (e) => {
+          const th = e.target.closest("th[data-sort]");
+          if (!th) return;
+          const key = th.dataset.sort;
+          const firstDir = th.dataset.defaultDir || "asc";
+          this.sort = this.sort.key === key
+            ? { key, dir: this.sort.dir === "asc" ? "desc" : "asc" }
+            : { key, dir: firstDir };
+          this.renderOutput();
+        });
+        this.benchBody.addEventListener("click", (e) => {
+          const row = e.target.closest("tr[data-ticker]");
+          if (row) this.showDetailModal(row.dataset.ticker);
+        });
+
         // Watchlist Modal
         const openWl = () => { this.renderWatchlistModalGrid(); this.watchlistModal.classList.add("active"); };
         this.btnManageWatchlist.addEventListener("click", openWl);
-        this.btnHeroEditWl.addEventListener("click", openWl);
         this.wlModalCloseBtn.addEventListener("click", () => this.watchlistModal.classList.remove("active"));
         this.btnSaveWatchlist.addEventListener("click", async () => {
           this.watchlistModal.classList.remove("active");
           const saved = await this.saveWatchlistSelection();
           if (saved) this.showToast("Account watchlist saved!");
           else if (!this.currentUser) this.showToast("Sign in to save your watchlist to an account.");
-          this.executeScan(false);
+          this.rescore();
         });
 
         this.wlSelectionContainer.addEventListener("click", (e) => {
@@ -2058,26 +1486,23 @@
 
       renderAuthUI() {
         if (!this.authResolved) {
-          this.heroAccountName.textContent = "Loading…";
-          this.authPillContainer.innerHTML = `<span style="font-size:12px; color:var(--text-muted); font-family:var(--font-mono);">Checking session…</span>`;
+          this.authPillContainer.innerHTML = `<span style="font-size:12px; color:var(--text-muted);">Checking session…</span>`;
           return;
         }
 
         if (this.currentUser) {
-          this.heroAccountName.textContent = this.currentUser.name;
           const count = this.currentUser.watchlist.length;
-          this.headerWlCountText.textContent = `My Watchlist (${count})`;
-          this.heroWlStats.innerHTML = `Monitoring <strong>${count}</strong> stocks in your account`;
+          this.headerWlCountText.textContent = `Watchlist (${count})`;
 
           this.authPillContainer.innerHTML = `
             <div class="user-pill" id="userAccountPill">
               <div class="user-avatar">${escapeHtml(this.currentUser.name.charAt(0))}</div>
               <span class="user-name">${escapeHtml(this.currentUser.name)}</span>
               <div class="user-menu-dropdown" id="userMenuDropdown">
-                <div class="dropdown-item" style="cursor:default; font-size:11px; color:var(--text-muted);">${escapeHtml(this.currentUser.email)}</div>
-                <div class="dropdown-item" id="btnMenuEditWl">Edit My Watchlist (${count})</div>
-                <div class="dropdown-item" id="btnMenuSwitchUser">Switch Account</div>
-                <div class="dropdown-item" id="btnMenuLogout" style="color:#f87171;">Sign Out</div>
+                <div class="dropdown-item" style="cursor:default; font-size:12px; color:var(--text-muted);">${escapeHtml(this.currentUser.email)}</div>
+                <div class="dropdown-item" id="btnMenuEditWl">Edit watchlist</div>
+                <div class="dropdown-item" id="btnMenuSwitchUser">Switch account</div>
+                <div class="dropdown-item" id="btnMenuLogout">Sign out</div>
               </div>
             </div>
           `;
@@ -2101,14 +1526,12 @@
             this.showToast("Signed out.");
           });
         } else {
-          this.heroAccountName.textContent = "Guest";
-          this.headerWlCountText.textContent = "My Watchlist (Guest)";
-          this.heroWlStats.innerHTML = `Viewing full market library (Sign in to save custom list)`;
+          this.headerWlCountText.textContent = "Watchlist";
 
           this.authPillContainer.innerHTML = `
             <div style="display:flex; gap:8px;">
-              <button class="btn-secondary" id="btnNavLogin">Sign In</button>
-              <button class="btn-primary-blue" id="btnNavRegister">Create Account</button>
+              <button class="btn-secondary" id="btnNavLogin">Sign in</button>
+              <button class="btn-primary" id="btnNavRegister">Create account</button>
             </div>
           `;
           document.getElementById("btnNavLogin").addEventListener("click", () => this.openAuthModal("signin"));
@@ -2183,7 +1606,7 @@
         this.renderWatchlistModalGrid();
         this.renderAuthUI();
         if (await this.persistProfile()) this.showToast(`Removed ${ticker} from your account.`);
-        this.executeScan(false);
+        this.rescore();
       }
 
       async openAddStockModal() {
@@ -2293,49 +1716,26 @@
         this.dataset = this.buildDataset();
         const labels = { pullback: "-8% Tech Pullback", high_iv: "IV Spike (x1.6)", overbought: "Extended Rally (+8%)" };
         if (labels[scenario]) this.showToast(`Stress test applied: ${labels[scenario]}. Simulated prices, not real data.`);
-        this.executeScan(true);
+        this.rescore();
       }
 
-      async executeScan(animate = false) {
+      rescore() {
         if (!this.marketData.data) return;
-        this.btnRunScan.classList.add("scanning");
-        this.scanDiagnostic.classList.add("active");
-        this.progressBarFill.style.width = "0%";
-
-        const steps = [
-          "Loading real prices, filings, analyst estimates and options chains...",
-          "Auditing 20d, 50d, and 200d Moving Averages against swing-point support...",
-          "Inspecting revenue growth, margins, FCF and leverage from SEC filings...",
-          "Comparing ATM implied volatility with 30-day realized volatility...",
-          "Applying strict skepticism bias & synthesizing Opportunity Scores..."
-        ];
-        if (animate) {
-          for (let i = 0; i < steps.length; i++) {
-            this.diagnosticText.textContent = steps[i];
-            this.progressBarFill.style.width = `${((i + 1) / steps.length) * 100}%`;
-            await new Promise(r => setTimeout(r, 160));
-          }
-        }
-
         const regime = determineMarketRegime(this.dataset);
         this.marketRegime = regime.regime;
         this.marketRegimeDesc = regime.description;
         this.currentEvaluations = this.dataset.map(item => evaluateAsset(item, this.marketRegime));
+        classifyEvaluations(this.currentEvaluations);
         this.renderOutput();
-
-        const simulated = this.scenarioSelector.value !== "baseline" ? " Stress test active: prices are simulated." : "";
-        this.diagnosticText.textContent = `Scan complete. ${this.currentEvaluations.length} assets scored from real market data.${simulated}`;
-        this.progressBarFill.style.width = "100%";
-        this.btnRunScan.classList.remove("scanning");
       }
 
-      getFilteredEvaluations() {
-        if (this.currentFilter === "my_watchlist") {
+      getFilteredEvaluations(filter = this.currentFilter) {
+        if (filter === "my_watchlist") {
           const watchlist = new Set(this.getWatchlistTickers());
           return this.currentEvaluations.filter(e => watchlist.has(e.item.ticker));
         }
-        if (this.currentFilter === "primary") return this.currentEvaluations.filter(e => e.item.isPrimary);
-        if (this.currentFilter === "alerts") {
+        if (filter === "primary") return this.currentEvaluations.filter(e => e.item.isPrimary);
+        if (filter === "alerts") {
           return this.currentEvaluations.filter(e => e.tech.nearSupport || e.cat.earningsWarning || e.totalScore >= RULES.actionableScore);
         }
         return this.currentEvaluations;
@@ -2358,203 +1758,261 @@
         return (item.price - item.majorSupport) / item.price;
       }
 
-      renderOutput() {
-        if (!this.marketData.data) return;
-
-        const sec = document.getElementById("marketConditionsSection");
-        sec.className = `market-banner ${this.marketRegime.toLowerCase()}`;
-        document.getElementById("marketRegimeText").innerHTML = `
-          <span>${this.marketRegime}</span>
-          <span style="font-size:12px; font-weight:400; color:var(--text-secondary); margin-left:8px;">${escapeHtml(this.marketRegimeDesc)}</span>
-        `;
-        const indexSummary = (ticker) => {
-          const r = this.dataset.find(x => x.ticker === ticker);
-          if (!r) return "N/A";
-          const vs200 = isNum(r.sma200) ? `${r.price > r.sma200 ? "Above" : "Below"} 200d SMA` : "200d SMA N/A";
-          const vs50 = isNum(r.sma50) ? `${r.price > r.sma50 ? "above" : "below"} 50d` : "";
-          return `${money(r.price)} | ${vs200}, ${vs50} | RSI ${fixed(r.rsi14)}`;
-        };
-        document.getElementById("spySummary").textContent = indexSummary("SPY");
-        document.getElementById("qqqSummary").textContent = indexSummary("QQQ");
-
-        const { best, actionable, notReady, avoid } = classifyEvaluations(this.getFilteredEvaluations());
-
-        if (!best) {
-          this.bestOpportunityContainer.innerHTML = `
-            <div class="best-opportunity-card none-found">
-              <div class="card-top-row">
-                <div class="ticker-spotlight">
-                  <div class="spotlight-symbol" style="color:var(--text-muted);">NONE TODAY</div>
-                  <div>
-                    <div style="font-size:15px; font-weight:700; color:#fff;">Recommendation: PATIENT WAIT</div>
-                    <div class="spotlight-name">Nothing on this list scores ${RULES.bestScore}+ while sitting at major support with no earnings inside ${RULES.earningsWarningDays} days.</div>
-                  </div>
-                </div>
-                <div class="score-badge-huge wait">
-                  <div class="score-num wait">WAIT</div>
-                  <div class="score-label">Disciplined Stance</div>
-                </div>
-              </div>
-            </div>
-          `;
-        } else {
-          const item = best.item;
-          const thesis = this.thesisFor(item.ticker);
-          this.bestOpportunityContainer.innerHTML = `
-            <div class="best-opportunity-card">
-              <div class="card-top-row">
-                <div class="ticker-spotlight">
-                  <div class="spotlight-symbol">${escapeHtml(item.ticker)}</div>
-                  <div>
-                    <div style="font-size:15px; font-weight:700; color:#fff;">${escapeHtml(item.name)}</div>
-                    <div class="spotlight-name">${escapeHtml([item.sector, item.industry].filter(Boolean).join(" · ") || (item.etf ? "ETF" : ""))} | Price: <strong>${money(item.price)}</strong></div>
-                  </div>
-                </div>
-                <div class="score-badge-huge">
-                  <div class="score-num">${best.totalScore}</div>
-                  <div class="score-label">Opportunity Score</div>
-                </div>
-              </div>
-
-              <div class="grid-2col">
-                <div class="sub-box">
-                  <div class="sub-box-title">Why It Deserves Attention</div>
-                  <div><span class="epistemic-tag tag-fact">FACT</span> ${money(item.price)}, ${percent(this.supportDistance(item))} above support ${money(item.majorSupport)}, ${fixed(best.tech.drawdownPct)}% below the 52w high.</div>
-                  <div style="margin-top:4px;"><span class="epistemic-tag tag-interpretation">INTERPRETATION</span> ${escapeHtml([...best.tech.flags, `Fundamentals: ${best.fund.assessment}`].join(". "))}.</div>
-                  ${thesis ? `<div style="margin-top:4px;"><span class="epistemic-tag tag-speculation">YOUR THESIS</span> ${escapeHtml(thesis)}</div>` : ''}
-                </div>
-                <div class="sub-box">
-                  <div class="sub-box-title">Key Levels & Wait Thresholds</div>
-                  <div><strong>Major Support:</strong> ${money(item.majorSupport)} | <strong>Resistance:</strong> ${money(item.majorResistance)}</div>
-                  <div><strong>What Would Make Me Wait:</strong> a daily close below ${money(item.majorSupport)}${isNum(item.catalysts.daysToEarnings) ? `, or earnings drawing within ${RULES.earningsWarningDays} days (currently ${item.catalysts.daysToEarnings})` : ''}.</div>
-                </div>
-              </div>
-
-              <div class="vehicle-preference-box">
-                <div class="sub-box-title">Vehicle Preference: Stock vs Options</div>
-                <div style="font-weight:700; color:var(--emerald);">${escapeHtml(best.optionsEval.recommendation)}</div>
-                <div style="font-size:12px; color:var(--text-secondary);">${escapeHtml(best.optionsEval.reason)}</div>
-              </div>
-
-              <div style="display:flex; justify-content:flex-end;">
-                <button class="btn-secondary" onclick="window.stockApp.showDetailModal('${escapeHtml(item.ticker)}')">Inspect Quantitative Breakdown & Chart →</button>
-              </div>
-            </div>
-          `;
+      /** What a stock needs before it becomes actionable, shown in the table and the detail view. */
+      nextStep(e) {
+        const { item } = e;
+        if (e.bucket === "actionable") return { text: `At support ${money(item.majorSupport)}`, tone: "pos" };
+        if (e.bucket === "avoid") {
+          return e.tech.isExtended && isNum(item.sma50)
+            ? { text: `Wait for a pullback toward the 50d (${money(item.sma50)})`, tone: "neg" }
+            : { text: "Pass until the score recovers", tone: "neg" };
         }
-
-        const top3 = actionable.slice(0, 3);
-        this.topOpportunitiesGrid.innerHTML = top3.length ? top3.map((e, idx) => {
-          const item = e.item;
-          return `
-            <div class="stock-card" onclick="window.stockApp.showDetailModal('${escapeHtml(item.ticker)}')">
-              <div class="card-header-flex">
-                <div>
-                  <span class="card-symbol">#${idx + 1} ${escapeHtml(item.ticker)}</span>
-                  <span class="card-price">${money(item.price)}</span>
-                </div>
-                <span class="score-chip high">Score: ${e.totalScore}</span>
-              </div>
-              <div class="stat-pills-row">
-                <span class="stat-pill">Support: ${money(item.majorSupport)}</span>
-                <span class="stat-pill">RSI: ${fixed(item.rsi14)}</span>
-                <span class="stat-pill">Fwd P/E: ${multiple(item.valuation.forwardPe)}</span>
-              </div>
-              <div style="font-size:12px; color:var(--text-secondary); line-height:1.4;">${escapeHtml(e.tech.flags[0] || "Orderly technical structure.")}</div>
-              <div style="margin-top:auto; padding-top:8px; border-top:1px solid var(--border-subtle); display:flex; justify-content:space-between; font-size:11px;">
-                <span style="color:var(--text-muted);">VEHICLE: <strong style="color:#fff;">${escapeHtml(e.optionsEval.recommendation)}</strong></span>
-                <span style="color:var(--accent-cyan); font-weight:600;">Inspect →</span>
-              </div>
-            </div>
-          `;
-        }).join("") : `
-          <div class="stock-card" style="cursor:default;">
-            <div class="card-symbol" style="color:var(--text-muted);">Nothing actionable today</div>
-            <div style="font-size:12px; color:var(--text-secondary);">An actionable setup needs a score of ${RULES.actionableScore}+, price within ${percent(RULES.nearSupportPct)} of major support, and no earnings inside ${RULES.earningsWarningDays} days. ${notReady.length} name(s) are waiting for that test in Section 4.</div>
-          </div>
-        `;
-
-        this.notReadyTableBody.innerHTML = notReady.map(e => {
-          const item = e.item;
-          let missing;
-          if (e.cat.earningsWarning) missing = `Earnings in ${item.catalysts.daysToEarnings} days`;
-          else if (!e.tech.nearSupport) missing = `Price ${percent(this.supportDistance(item))} above support`;
-          else missing = `Score below ${RULES.actionableScore} (weakest: ${this.weakestPillar(e)})`;
-          return `
-            <tr onclick="window.stockApp.showDetailModal('${escapeHtml(item.ticker)}')" style="cursor:pointer;">
-              <td class="table-symbol">${escapeHtml(item.ticker)}</td>
-              <td>${money(item.price)}</td>
-              <td><span class="score-chip ${e.totalScore >= RULES.actionableScore ? 'medium' : 'wait'}" style="display:inline-block; padding:2px 6px; font-size:11px;">${e.totalScore}</span></td>
-              <td>${escapeHtml(missing)}</td>
-              <td>${money(item.majorSupport)}</td>
-              <td>Close below ${money(item.majorSupport)}</td>
-              <td><span style="color:var(--purple); font-family:var(--font-mono); font-size:11px;">Set alert at ${money(item.majorSupport * 1.015)}</span></td>
-            </tr>
-          `;
-        }).join("");
-
-        this.avoidTableBody.innerHTML = avoid.map(e => {
-          const item = e.item;
-          const redFlag = [...e.tech.flags.filter(f => f.startsWith("Price extended") || f.startsWith("Below 200d")), ...e.fund.flags, ...e.val.flags, ...e.cat.flags][0]
-            || `Score ${e.totalScore} below ${RULES.avoidScore} (weakest: ${this.weakestPillar(e)})`;
-          return `
-            <tr onclick="window.stockApp.showDetailModal('${escapeHtml(item.ticker)}')" style="cursor:pointer;">
-              <td class="table-symbol" style="color:var(--crimson);">${escapeHtml(item.ticker)}</td>
-              <td>${money(item.price)}</td>
-              <td><span class="score-chip avoid" style="display:inline-block; padding:2px 6px; font-size:11px;">${e.totalScore}</span></td>
-              <td style="color:#f87171;">${escapeHtml(redFlag)}</td>
-              <td>${signedPercent(e.tech.dist50)} vs 50d SMA</td>
-              <td>Fwd P/E ${multiple(item.valuation.forwardPe)} · PEG ${fixed(item.valuation.pegRatio, 2)}</td>
-              <td>${e.tech.isExtended ? "Do not chase. Wait for a pullback toward the 50d SMA." : "Pass. Revisit if the score recovers."}</td>
-            </tr>
-          `;
-        }).join("");
-
-        this.renderPending();
-
-        const watchNext = [...actionable, ...notReady]
-          .sort((a, b) => (a.item.catalysts.daysToEarnings ?? 999) - (b.item.catalysts.daysToEarnings ?? 999) || this.supportDistance(a.item) - this.supportDistance(b.item))
-          .slice(0, 5);
-        this.watchNextTableBody.innerHTML = watchNext.map(e => {
-          const { item } = e;
-          const c = item.catalysts;
-          const o = item.options;
-          const milestone = c.nextEarningsDate ? `Earnings ${c.nextEarningsDate}${c.earningsDateEstimated ? " (estimated)" : ""}` : `Support test at ${money(item.majorSupport)}`;
-          const days = isNum(c.daysToEarnings) ? `${c.daysToEarnings} days` : `${percent(this.supportDistance(item))} away`;
-          const iv = o && isNum(o.ivHvRatio) ? `IV ${percent(o.impliedVolatility)} = ${o.ivHvRatio.toFixed(2)}x realized` : "No options data";
-          return `
-            <tr onclick="window.stockApp.showDetailModal('${escapeHtml(item.ticker)}')" style="cursor:pointer;">
-              <td class="table-symbol">${escapeHtml(item.ticker)}</td>
-              <td>${escapeHtml(milestone)}</td>
-              <td>${escapeHtml(days)}</td>
-              <td><strong style="color:var(--emerald);">${money(item.majorSupport)}</strong></td>
-              <td>${escapeHtml(iv)}</td>
-            </tr>
-          `;
-        }).join("");
+        if (e.cat.earningsWarning) return { text: `Wait for earnings (${item.catalysts.daysToEarnings}d)`, tone: "warn" };
+        if (!e.tech.nearSupport) return { text: `Pullback to ${money(item.majorSupport)} (−${percent(this.supportDistance(item))})`, tone: "warn" };
+        return { text: `Needs a score of ${RULES.actionableScore}+ (weakest: ${this.weakestPillar(e)})`, tone: "warn" };
       }
 
-      renderPending() {
-        const pending = this.currentUser
-          ? this.currentUser.watchlist.filter(t => !this.marketData.has(t) && this.currentUser.addedStocks[t])
-          : [];
-        this.pendingSection.hidden = pending.length === 0;
-        this.pendingTableBody.innerHTML = pending.map(ticker => {
-          const s = this.currentUser.addedStocks[ticker];
-          const status = this.marketData.failed(ticker)
-            ? '<span style="color:var(--amber);">Sources returned no data on the last refresh</span>'
-            : `Queued: data arrives with the next refresh (${REFRESH_NOTE})`;
-          return `
-            <tr>
-              <td class="table-symbol">${escapeHtml(ticker)}</td>
-              <td>${escapeHtml(s.name)}${s.etf ? ' <span class="stat-pill">ETF</span>' : ''}</td>
-              <td style="font-family:var(--font-mono); font-size:11px;">${escapeHtml(s.exchange)}</td>
-              <td style="max-width:420px;">${escapeHtml(s.thesis)}</td>
-              <td style="font-family:var(--font-mono); font-size:11px;">${escapeHtml(new Date(s.addedAt).toLocaleDateString())}</td>
-              <td style="font-size:12px;">${status}</td>
-            </tr>
-          `;
-        }).join("");
+      warningChips(warnings) {
+        if (!warnings.length) return '<span class="tone-muted">None</span>';
+        const short = (text) => text.split(/ \(|:/)[0];
+        const chips = warnings.slice(0, 2).map(w => `<span class="chip" title="${escapeHtml(w)}">${escapeHtml(short(w))}</span>`);
+        if (warnings.length > 2) {
+          chips.push(`<span class="chip more" title="${escapeHtml(warnings.slice(2).join("\n"))}">+${warnings.length - 2}</span>`);
+        }
+        return `<div class="warnings">${chips.join("")}</div>`;
+      }
+
+      /**
+       * Column definitions for the benchmark table. `sort(row)` returns a number, string or null (nulls always sort
+       * last); `cell(row)` returns trusted HTML. Pending rows have no evaluation (`row.e` is null).
+       */
+      benchmarkColumns() {
+        const dash = '<span class="tone-muted">—</span>';
+        const value = (row, fn) => row.e ? fn(row.e, row.e.item) : null;
+        const cell = (row, fn) => {
+          if (!row.e) return dash;
+          const out = fn(row.e, row.e.item);
+          return out === "N/A" || out === null || out === undefined ? dash : out;
+        };
+        const toned = (tone, text) => text === "N/A" ? dash : `<span class="tone-${tone}">${text}</span>`;
+        const vehicleShort = {
+          "WAIT": "Wait", "SHARES": "Shares", "SHARES ONLY (OR WAIT)": "Shares only", "CASH-SECURED PUT OR SHARES": "Cash-secured put",
+          "LONG CALL OR CALL DEBIT SPREAD": "Long call", "CALL DEBIT SPREAD": "Call debit spread"
+        };
+        const trendShort = { "Getting Stronger": "Stronger", "Roughly Unchanged": "Unchanged", "Getting Weaker": "Weaker" };
+        const change1d = (item) => isNum(item.prevClose) && item.prevClose > 0 ? item.price / item.prevClose - 1 : null;
+        const targetUpside = (item) => isNum(item.catalysts.oneYearTarget) ? item.catalysts.oneYearTarget / item.price - 1 : null;
+        const pillar = (score, max, available = true) => available ? String(score) : `<span class="tone-muted" title="No data; scored neutral">${score}</span>`;
+
+        return [
+          { key: "rank", label: "#", cls: "sticky-rank", sort: r => r.rank, cell: r => r.rank ?? dash },
+          {
+            key: "ticker", label: "Ticker", cls: "sticky-ticker", sort: r => r.ticker,
+            cell: r => `<span class="ticker">${escapeHtml(r.ticker)}</span>${r.isBest ? '<span class="tag">Best</span>' : ""}<span class="company" title="${escapeHtml(r.name)}">${escapeHtml(r.name)}</span>`
+          },
+          { key: "verdict", label: "Verdict", sort: r => VERDICTS[r.bucket].order, cell: r => `<span class="verdict tone-${VERDICTS[r.bucket].tone}">${VERDICTS[r.bucket].label}</span>` },
+          {
+            key: "score", label: "Score", num: true, dir: "desc", sort: r => value(r, e => e.totalScore),
+            cell: r => cell(r, e => `<span class="score tone-${scoreTone(e.totalScore)}">${e.totalScore}<span class="score-bar"><span style="width:${e.totalScore}%"></span></span></span>`)
+          },
+          { key: "next", label: "Next step", sort: r => r.next.text, cell: r => `<span class="${r.next.tone === "pos" ? "tone-pos" : ""}">${escapeHtml(r.next.text)}</span>` },
+          { key: "warnings", label: "Warnings", dir: "desc", sort: r => value(r, e => e.warnings.length), cell: r => cell(r, e => this.warningChips(e.warnings)) },
+
+          { key: "tech", group: "Score breakdown", label: "Tech", title: "Technicals, out of 30", num: true, dir: "desc", sort: r => value(r, e => e.tech.score), cell: r => cell(r, e => pillar(e.tech.score, 30)) },
+          { key: "fund", group: "Score breakdown", label: "Fund", title: "Fundamentals, out of 25", num: true, dir: "desc", sort: r => value(r, e => e.fund.score), cell: r => cell(r, e => pillar(e.fund.score, 25, e.fund.available)) },
+          { key: "val", group: "Score breakdown", label: "Value", title: "Valuation, out of 20", num: true, dir: "desc", sort: r => value(r, e => e.val.score), cell: r => cell(r, e => pillar(e.val.score, 20, e.val.available)) },
+          { key: "cat", group: "Score breakdown", label: "Events", title: "Catalysts and event risk, out of 15", num: true, dir: "desc", sort: r => value(r, e => e.cat.score), cell: r => cell(r, e => pillar(e.cat.score, 15)) },
+          { key: "mkt", group: "Score breakdown", label: "Mkt", title: "Market regime, out of 10", num: true, dir: "desc", sort: r => value(r, e => e.marketBonus), cell: r => cell(r, e => String(e.marketBonus)) },
+
+          { key: "price", group: "Price and trend", label: "Price", num: true, dir: "desc", sort: r => value(r, (e, i) => i.price), cell: r => cell(r, (e, i) => money(i.price)) },
+          {
+            key: "chg", group: "Price and trend", label: "1D", title: "Change vs previous close", num: true, dir: "desc", sort: r => value(r, (e, i) => change1d(i)),
+            cell: r => cell(r, (e, i) => { const c = change1d(i); return isNum(c) ? toned(c >= 0 ? "pos" : "neg", signedPercent(c, 2)) : null; })
+          },
+          {
+            key: "vs50", group: "Price and trend", label: "vs 50d", num: true, dir: "desc", sort: r => value(r, e => e.tech.dist50),
+            cell: r => cell(r, e => isNum(e.tech.dist50) ? toned(e.tech.dist50 > RULES.extendedAbove50 ? "neg" : "", signedPercent(e.tech.dist50)) : null)
+          },
+          {
+            key: "vs200", group: "Price and trend", label: "vs 200d", num: true, dir: "desc", sort: r => value(r, e => e.tech.dist200),
+            cell: r => cell(r, e => isNum(e.tech.dist200) ? toned(e.tech.dist200 > RULES.extendedAbove200 || e.tech.dist200 < 0 ? "neg" : "", signedPercent(e.tech.dist200)) : null)
+          },
+          {
+            key: "rsi", group: "Price and trend", label: "RSI", title: "14-day RSI", num: true, dir: "desc", sort: r => value(r, (e, i) => i.rsi14),
+            cell: r => cell(r, (e, i) => isNum(i.rsi14) ? toned(i.rsi14 > 68 ? "neg" : i.rsi14 < 38 ? "warn" : "", fixed(i.rsi14)) : null)
+          },
+          { key: "support", group: "Price and trend", label: "Support", num: true, sort: r => value(r, (e, i) => i.majorSupport), cell: r => cell(r, (e, i) => money(i.majorSupport)) },
+          {
+            key: "toSupport", group: "Price and trend", label: "To support", title: "Distance from price down to major support", num: true, sort: r => value(r, (e, i) => this.supportDistance(i)),
+            cell: r => cell(r, (e, i) => toned(e.tech.nearSupport ? "pos" : "", percent(this.supportDistance(i))))
+          },
+          { key: "resistance", group: "Price and trend", label: "Resistance", num: true, sort: r => value(r, (e, i) => i.majorResistance), cell: r => cell(r, (e, i) => money(i.majorResistance)) },
+          { key: "range", group: "Price and trend", label: "52w range", title: "52-week low to high", num: true, sort: r => value(r, (e, i) => e.tech.drawdownPct), cell: r => cell(r, (e, i) => `${money(i.low52)} – ${money(i.high52)}`) },
+
+          { key: "revg", group: "Fundamentals", label: "Rev growth", title: "Revenue growth, trailing twelve months vs prior year (SEC filings)", num: true, dir: "desc", sort: r => value(r, (e, i) => i.fundamentals?.revenueGrowthYoY ?? null), cell: r => cell(r, (e, i) => signedPercent(i.fundamentals?.revenueGrowthYoY)) },
+          { key: "margin", group: "Fundamentals", label: "Op margin", num: true, dir: "desc", sort: r => value(r, (e, i) => i.fundamentals?.operatingMargin ?? null), cell: r => cell(r, (e, i) => percent(i.fundamentals?.operatingMargin)) },
+          { key: "fcfy", group: "Fundamentals", label: "FCF yield", num: true, dir: "desc", sort: r => value(r, (e, i) => i.valuation.fcfYield), cell: r => cell(r, (e, i) => percent(i.valuation.fcfYield)) },
+          { key: "lev", group: "Fundamentals", label: "Net debt/EBITDA", num: true, sort: r => value(r, (e, i) => i.fundamentals?.netDebtToEbitda ?? null), cell: r => cell(r, (e, i) => multiple(i.fundamentals?.netDebtToEbitda)) },
+          {
+            key: "trend", group: "Fundamentals", label: "Trend", sort: r => value(r, e => e.fund.available ? e.fund.assessment : null),
+            cell: r => cell(r, e => e.fund.available ? toned(e.fund.assessment === "Getting Weaker" ? "neg" : "", trendShort[e.fund.assessment]) : null)
+          },
+
+          { key: "fpe", group: "Valuation", label: "Fwd P/E", title: "Price / next-twelve-month consensus EPS", num: true, sort: r => value(r, (e, i) => i.valuation.forwardPe), cell: r => cell(r, (e, i) => multiple(i.valuation.forwardPe)) },
+          { key: "tpe", group: "Valuation", label: "Trailing P/E", num: true, sort: r => value(r, (e, i) => i.valuation.trailingPe), cell: r => cell(r, (e, i) => multiple(i.valuation.trailingPe)) },
+          { key: "pe5", group: "Valuation", label: "5y avg P/E", num: true, sort: r => value(r, (e, i) => i.valuation.historical5yPe), cell: r => cell(r, (e, i) => multiple(i.valuation.historical5yPe)) },
+          {
+            key: "peg", group: "Valuation", label: "PEG", num: true, sort: r => value(r, (e, i) => i.valuation.pegRatio),
+            cell: r => cell(r, (e, i) => isNum(i.valuation.pegRatio) ? toned(i.valuation.pegRatio > 2.5 ? "neg" : "", fixed(i.valuation.pegRatio, 2)) : null)
+          },
+          { key: "mcap", group: "Valuation", label: "Market cap", num: true, dir: "desc", sort: r => value(r, (e, i) => i.marketCap), cell: r => cell(r, (e, i) => compactUsd(i.marketCap)) },
+
+          {
+            key: "earn", group: "Events", label: "Earnings", title: "Days until the next earnings report", num: true, sort: r => value(r, (e, i) => i.catalysts.daysToEarnings),
+            cell: r => cell(r, (e, i) => {
+              const c = i.catalysts;
+              if (!isNum(c.daysToEarnings)) return null;
+              return `<span class="${e.cat.earningsWarning ? "tone-warn" : ""}" title="${escapeHtml(`${c.nextEarningsDate}${c.earningsDateEstimated ? " (estimated)" : ""}`)}">${c.daysToEarnings}d</span>`;
+            })
+          },
+          {
+            key: "revisions", group: "Events", label: "EPS revisions", title: "Analyst EPS estimate revisions over the last 4 weeks (up / down)", num: true, dir: "desc",
+            sort: r => value(r, (e, i) => isNum(i.catalysts.revisionsUp) ? i.catalysts.revisionsUp - i.catalysts.revisionsDown : null),
+            cell: r => cell(r, (e, i) => isNum(i.catalysts.revisionsUp) ? `+${i.catalysts.revisionsUp} / −${i.catalysts.revisionsDown}` : null)
+          },
+          { key: "target", group: "Events", label: "Target", title: "Analyst 1-year price target vs current price", num: true, dir: "desc", sort: r => value(r, (e, i) => targetUpside(i)), cell: r => cell(r, (e, i) => signedPercent(targetUpside(i))) },
+
+          {
+            key: "vehicle", group: "Options", label: "Vehicle", sort: r => value(r, e => vehicleShort[e.optionsEval.recommendation] ?? e.optionsEval.recommendation),
+            cell: r => cell(r, e => `<span title="${escapeHtml(e.optionsEval.reason)}">${escapeHtml(vehicleShort[e.optionsEval.recommendation] ?? e.optionsEval.recommendation)}</span>`)
+          },
+          {
+            key: "expiry", group: "Options", label: "Expiry", num: true, sort: r => value(r, (e, i) => i.options?.daysToExpiration ?? null),
+            cell: r => cell(r, (e, i) => i.options ? `${new Date(`${i.options.expiration}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" })} · ${i.options.daysToExpiration}d` : null)
+          },
+          { key: "strike", group: "Options", label: "ATM strike", num: true, sort: r => value(r, (e, i) => i.options?.atmCallStrike ?? null), cell: r => cell(r, (e, i) => i.options ? money(i.options.atmCallStrike) : null) },
+          { key: "iv", group: "Options", label: "IV", title: "At-the-money implied volatility", num: true, dir: "desc", sort: r => value(r, (e, i) => i.options?.impliedVolatility ?? null), cell: r => cell(r, (e, i) => percent(i.options?.impliedVolatility)) },
+          {
+            key: "ivrv", group: "Options", label: "IV/RV", title: "Implied volatility divided by 30-day realized volatility (above 1.3 = expensive, below 0.9 = cheap)", num: true, dir: "desc",
+            sort: r => value(r, (e, i) => i.options?.ivHvRatio ?? null),
+            cell: r => cell(r, (e, i) => isNum(i.options?.ivHvRatio) ? `${i.options.ivHvRatio.toFixed(2)}x` : null)
+          },
+          { key: "delta", group: "Options", label: "Delta", num: true, sort: r => value(r, (e, i) => i.options?.atmCallDelta ?? null), cell: r => cell(r, (e, i) => fixed(i.options?.atmCallDelta, 2)) },
+          { key: "theta", group: "Options", label: "Theta", num: true, sort: r => value(r, (e, i) => i.options?.atmCallTheta ?? null), cell: r => cell(r, (e, i) => fixed(i.options?.atmCallTheta, 3)) },
+          { key: "exp_move", group: "Options", label: "Exp. move", title: "Expected move to expiration implied by ATM volatility", num: true, dir: "desc", sort: r => value(r, (e, i) => i.options?.expectedMovePct ?? null), cell: r => cell(r, (e, i) => isNum(i.options?.expectedMovePct) ? `±${percent(i.options.expectedMovePct)}` : null) },
+          {
+            key: "oi", group: "Options", label: "Open int.", title: "Open interest of the ATM call", num: true, dir: "desc", sort: r => value(r, (e, i) => i.options?.atmCallOpenInterest ?? null),
+            cell: r => cell(r, (e, i) => i.options ? toned(i.options.atmCallOpenInterest < RULES.minOpenInterest ? "neg" : "", i.options.atmCallOpenInterest.toLocaleString()) : null)
+          },
+          {
+            key: "spread", group: "Options", label: "Spread", title: "ATM call bid/ask spread as a percent of the ask", num: true, sort: r => value(r, e => e.optionsEval.spreadPct ?? null),
+            cell: r => cell(r, e => isNum(e.optionsEval.spreadPct) ? toned(e.optionsEval.spreadPct > RULES.maxSpreadPct ? "neg" : "", `${e.optionsEval.spreadPct.toFixed(1)}%`) : null)
+          }
+        ];
+      }
+
+      renderOutput() {
+        if (!this.marketData.data) return;
+        const { sorted, best, actionable, notReady, avoid } = classifyEvaluations(this.getFilteredEvaluations());
+        this.renderOverview(best, actionable, notReady, avoid);
+        this.renderFilterCounts();
+        this.renderTable(sorted, best);
+      }
+
+      renderOverview(best, actionable, notReady, avoid) {
+        const set = (id, html) => { document.getElementById(id).innerHTML = html; };
+        const capitalize = (text) => text.charAt(0).toUpperCase() + text.slice(1);
+        const regimeTone = { BULLISH: "pos", NEUTRAL: "", CAUTIOUS: "warn", BEARISH: "neg" }[this.marketRegime];
+        set("statRegime", `<span class="tone-${regimeTone}">${capitalize(this.marketRegime.toLowerCase())}</span>`);
+        set("statRegimeSub", escapeHtml(this.marketRegimeDesc));
+
+        for (const [ticker, id] of [["SPY", "statSpy"], ["QQQ", "statQqq"]]) {
+          const r = this.dataset.find(x => x.ticker === ticker);
+          if (!r) { set(id, "—"); set(`${id}Sub`, ""); continue; }
+          const change = isNum(r.prevClose) ? r.price / r.prevClose - 1 : null;
+          set(id, `${money(r.price)} <span class="stat-sub ${change >= 0 ? "tone-pos" : "tone-neg"}">${isNum(change) ? signedPercent(change, 2) : ""}</span>`);
+          const trend = [
+            isNum(r.sma50) ? `${r.price > r.sma50 ? "above" : "below"} 50d` : null,
+            isNum(r.sma200) ? `${r.price > r.sma200 ? "above" : "below"} 200d` : null
+          ].filter(Boolean).join(", ");
+          set(`${id}Sub`, escapeHtml(`${capitalize(trend)} · RSI ${fixed(r.rsi14)}`));
+        }
+
+        if (best) {
+          set("statBest", `${escapeHtml(best.item.ticker)} <span class="stat-sub tone-pos">${best.totalScore}</span>`);
+          set("statBestSub", escapeHtml(`${capitalize(best.optionsEval.recommendation.toLowerCase())} · support ${money(best.item.majorSupport)}`));
+        } else {
+          set("statBest", '<span class="tone-muted">None</span>');
+          set("statBestSub", "Nothing qualifies today. Wait.");
+        }
+
+        set("statVerdicts", `<span class="tone-pos">${actionable.length}</span> <span class="tone-muted">·</span> <span class="tone-warn">${notReady.length}</span> <span class="tone-muted">·</span> <span class="tone-neg">${avoid.length}</span>`);
+        set("statVerdictsSub", "Actionable · not ready · avoid");
+      }
+
+      renderFilterCounts() {
+        const labels = { my_watchlist: "Watchlist", all: "All", primary: "Primary", alerts: "Alerts" };
+        document.querySelectorAll(".filter-btn").forEach(btn => {
+          const filter = btn.dataset.filter;
+          btn.textContent = `${labels[filter]} (${this.getFilteredEvaluations(filter).length})`;
+        });
+      }
+
+      renderTable(sorted, best) {
+        const cols = this.benchmarkColumns();
+        const ranked = [...sorted].sort((a, b) =>
+          VERDICTS[a.bucket].order - VERDICTS[b.bucket].order || b.totalScore - a.totalScore || a.item.ticker.localeCompare(b.item.ticker));
+        const rows = ranked.map((e, index) => ({
+          ticker: e.item.ticker, name: e.item.name, bucket: e.bucket, rank: index + 1, e, isBest: e === best, next: this.nextStep(e)
+        }));
+
+        const showsPending = this.currentUser && (this.currentFilter === "my_watchlist" || this.currentFilter === "all");
+        if (showsPending) {
+          for (const ticker of this.currentUser.watchlist) {
+            const added = this.currentUser.addedStocks[ticker];
+            if (this.marketData.has(ticker) || !added) continue;
+            rows.push({
+              ticker, name: added.name, bucket: "pending", rank: null, e: null, isBest: false,
+              next: { text: this.marketData.failed(ticker) ? "Sources returned no data on the last refresh" : "Arrives with the next data refresh", tone: "muted" }
+            });
+          }
+        }
+
+        const query = this.tableSearch.value.trim().toLowerCase();
+        const visible = rows.filter(r => !query || r.ticker.toLowerCase().includes(query) || (r.name || "").toLowerCase().includes(query));
+
+        const column = cols.find(c => c.key === this.sort.key) || cols[0];
+        const direction = this.sort.dir === "asc" ? 1 : -1;
+        const missing = (v) => v === null || v === undefined || (typeof v === "number" && !Number.isFinite(v));
+        visible.sort((a, b) => {
+          const va = column.sort(a);
+          const vb = column.sort(b);
+          if (missing(va) || missing(vb)) return missing(va) - missing(vb) || (a.rank ?? 1e9) - (b.rank ?? 1e9);
+          const cmp = typeof va === "string" ? va.localeCompare(vb) : va - vb;
+          return cmp * direction || (a.rank ?? 1e9) - (b.rank ?? 1e9);
+        });
+
+        const groupRow = [];
+        for (const c of cols) {
+          const last = groupRow[groupRow.length - 1];
+          if (!c.cls && last && !last.cls && last.name === (c.group || "")) last.span++;
+          else groupRow.push({ name: c.group || "", span: 1, cls: c.cls || "" });
+        }
+        const startsGroup = (c, i) => i > 0 && c.group && c.group !== cols[i - 1].group;
+        const classes = (c, i) => [c.cls, c.num ? "num" : "", startsGroup(c, i) ? "group-start" : ""].filter(Boolean).join(" ");
+
+        this.benchHead.innerHTML = `
+          <tr class="groups">${groupRow.map(g => `<th colspan="${g.span}" class="${[g.cls, g.name ? "group" : ""].filter(Boolean).join(" ")}">${escapeHtml(g.name)}</th>`).join("")}</tr>
+          <tr class="cols">${cols.map((c, i) => {
+            const ariaSort = this.sort.key === c.key ? ` aria-sort="${this.sort.dir === "asc" ? "ascending" : "descending"}"` : "";
+            const title = c.title ? ` title="${escapeHtml(c.title)}"` : "";
+            return `<th data-sort="${c.key}" data-default-dir="${c.dir || "asc"}" class="sortable ${classes(c, i)}"${title}${ariaSort}>${escapeHtml(c.label)}</th>`;
+          }).join("")}</tr>
+        `;
+
+        this.benchBody.innerHTML = visible.length
+          ? visible.map(r => `<tr${r.e ? ` data-ticker="${escapeHtml(r.ticker)}"` : ' class="pending-row"'}>${cols.map((c, i) => `<td class="${classes(c, i)}">${c.cell(r)}</td>`).join("")}</tr>`).join("")
+          : `<tr class="pending-row"><td colspan="${cols.length}" class="tone-muted" style="padding:24px; text-align:center;">No stocks match this view.</td></tr>`;
       }
 
       showDetailModal(ticker) {
@@ -2568,6 +2026,13 @@
 
         document.getElementById("modalSymbol").textContent = item.ticker;
         document.getElementById("modalName").textContent = [item.name, item.sector, item.industry].filter(Boolean).join(" · ");
+        const verdict = VERDICTS[e.bucket];
+        document.getElementById("modalScoreLine").innerHTML = `
+          <span>Score <strong class="tone-${scoreTone(e.totalScore)}">${e.totalScore}</strong></span>
+          <span class="tone-${verdict.tone}">${verdict.label}</span>
+          <span class="muted">${escapeHtml(this.nextStep(e).text)}</span>
+          <span class="muted">Vehicle: ${escapeHtml(e.optionsEval.recommendation.toLowerCase())}</span>
+        `;
 
         const svg = document.getElementById("modalSvgChart");
         const series = item.historicalSeries?.length > 1 ? item.historicalSeries : [item.price, item.price];
@@ -2580,14 +2045,14 @@
         const hline = (val, color, width, dash = "") => isNum(val)
           ? `<line x1="0" y1="${getY(val)}" x2="${w}" y2="${getY(val)}" stroke="${color}" stroke-width="${width}" ${dash ? `stroke-dasharray="${dash}"` : ""} />` : "";
         svg.innerHTML = `
-          ${hline(item.majorSupport, "#ef4444", 2, "6,4")}
-          ${hline(item.sma200, "#8b5cf6", 1.5, "4,4")}
-          ${hline(item.sma50, "#10b981", 1.5)}
-          ${hline(item.sma20, "#f59e0b", 1)}
-          <polyline fill="none" stroke="#38bdf8" stroke-width="2.5" points="${series.map((val, idx) => `${getX(idx)},${getY(val)}`).join(" ")}" />
-          <circle cx="${w}" cy="${getY(series[series.length - 1])}" r="5" fill="#38bdf8" />
-          <text x="${w - 80}" y="${getY(series[series.length - 1]) - 8}" fill="#38bdf8" font-size="11" font-weight="bold" font-family="monospace">${money(item.price)}</text>
-          <text x="0" y="${h + 12}" fill="#6b7280" font-size="10" font-family="monospace">Daily closes since ${escapeHtml(item.historicalStart || "")} · lines show current SMA levels</text>
+          ${hline(item.majorSupport, "#e0605a", 1.5, "6,4")}
+          ${hline(item.sma200, "#a3a3a8", 1.2, "4,4")}
+          ${hline(item.sma50, "#a3a3a8", 1.2)}
+          ${hline(item.sma20, "#6f6f75", 1)}
+          <polyline fill="none" stroke="#ececec" stroke-width="2" points="${series.map((val, idx) => `${getX(idx)},${getY(val)}`).join(" ")}" />
+          <circle cx="${w}" cy="${getY(series[series.length - 1])}" r="4" fill="#ececec" />
+          <text x="${w - 80}" y="${getY(series[series.length - 1]) - 8}" fill="#ececec" font-size="11" font-weight="600">${money(item.price)}</text>
+          <text x="0" y="${h + 14}" fill="#6f6f75" font-size="10">Daily closes since ${escapeHtml(item.historicalStart || "")} · lines show current SMA levels</text>
         `;
 
         const line = (label, value) => `<div class="detail-line"><strong>${label}:</strong> ${value}</div>`;
@@ -2603,7 +2068,7 @@
           line("Revenue Growth", `${signedPercent(f.revenueGrowthYoY)} | <strong>Earnings Growth:</strong> ${signedPercent(f.earningsGrowthYoY)}`),
           line("Operating Margin", `${percent(f.operatingMargin)}${isNum(f.operatingMarginChange) ? ` (${signedPercent(f.operatingMarginChange)} YoY)` : ""}`),
           line("Free Cash Flow", `${f.reportingCurrency === "USD" ? compactUsd(f.freeCashFlow) : "N/A"}${f.fcfTrend ? ` (${f.fcfTrend})` : ""} | <strong>Net Debt/EBITDA:</strong> ${multiple(f.netDebtToEbitda)}`),
-          line("Trajectory", `<span style="color:var(--emerald); font-weight:700;">${escapeHtml(e.fund.assessment)}</span>`),
+          line("Trajectory", escapeHtml(e.fund.assessment)),
           `<div class="muted" style="font-size:11px;">${f.basis === "ttm" ? "Trailing twelve months" : "Latest quarter vs same quarter last year"} ending ${escapeHtml(f.periodEnd)}${f.foreignFiler ? " (foreign filer)" : ""}. Source: SEC EDGAR filings.</div>`
         ].join("") : `<div>${escapeHtml(e.fund.assessment)}</div>`;
 
@@ -2622,7 +2087,7 @@
 
         const spec = (k, val) => `<div class="spec-item"><div class="spec-k">${k}</div><div class="spec-v">${val}</div></div>`;
         document.getElementById("modalOptionsDetails").innerHTML = `
-          <div style="font-weight:700; color:var(--emerald); margin-bottom:4px;">Vehicle: ${escapeHtml(e.optionsEval.recommendation)}</div>
+          <div style="font-weight:600; margin-bottom:4px;">${escapeHtml(e.optionsEval.recommendation)}</div>
           <div style="font-size:12px; color:var(--text-secondary); margin-bottom:8px;">${escapeHtml(e.optionsEval.reason)}</div>
           ${o ? `<div class="options-specs-grid">
             ${spec("Expiration", `${escapeHtml(o.expiration)} (${o.daysToExpiration}d)`)}
@@ -2655,8 +2120,8 @@
           <div><strong>Score ${e.totalScore}</strong> = Technicals ${e.tech.score}/30 + Fundamentals ${e.fund.score}/25 + Valuation ${e.val.score}/20 + Catalysts ${e.cat.score}/15 + Market ${e.marketBonus}/10${e.tech.isExtended ? " − 12 extension penalty" : ""}${e.cat.earningsWarning ? " − 8 earnings penalty" : ""} (${escapeHtml(e.tierLabel)})</div>
           <div class="muted">Missing data (scored neutral): ${escapeHtml(e.dataGaps.join(", ") || "none")}</div>
           <div class="muted">Sources: ${escapeHtml(sources)}</div>
-          ${item.errors?.length ? `<div style="color:var(--amber);">Last refresh warnings: ${escapeHtml(item.errors.join("; "))}</div>` : ""}
-          ${this.scenarioSelector.value !== "baseline" ? '<div style="color:var(--amber);">Stress test active: price and volatility figures are simulated.</div>' : ""}
+          ${item.errors?.length ? `<div class="tone-warn">Last refresh warnings: ${escapeHtml(item.errors.join("; "))}</div>` : ""}
+          ${this.scenarioSelector.value !== "baseline" ? '<div class="tone-warn">Stress test active: price and volatility figures are simulated.</div>' : ""}
         `;
 
         this.detailModal.classList.add("active");

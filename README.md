@@ -72,9 +72,9 @@ Stocks users add to their watchlists are recorded in the public Firestore `ticke
 - **Add Real Stocks:** Search ~11,800 US-listed stocks and ETFs (NASDAQ, NYSE, NYSE American, NYSE Arca, Cboe BZX, IEX) by ticker or company name, with a mandatory written justification (*"Why it deserves attention"*). The stock is scored once the next data build includes it.
 - **Synced Across Devices:** Your watchlist, added stocks and theses are saved to your account in Cloud Firestore.
 
-### 2. "RUN MARKET SCAN" Button & Diagnostic Terminal
-- Reloads the latest data build and re-scores your active watchlist.
-- Active **Anti-FOMO Shield** reinforces that the default answer is **WAIT**.
+### 2. Overview
+- Market regime (SPY and QQQ vs their moving averages), SPY and QQQ prices with daily change, the best idea, and verdict counts.
+- When prices were last updated and when the data was built.
 
 ### 3. Multi-Pillar Deterministic Rules Engine ([`js/engine.js`](js/engine.js))
 Calculates an **Opportunity Score (0–100)**. Missing inputs (ETFs have no fundamentals, new listings lack a 200-day history) score the pillar's neutral midpoint and are listed as data gaps.
@@ -93,20 +93,20 @@ True IV Rank needs a year of implied-volatility history that no free source prov
 - `≥ 1.3`: options expensive → **Cash-Secured Put** at support or **Shares**.
 - Illiquid chains (open interest under 500 or bid/ask spread over 6%) → **Shares**; earnings inside 14 days → **Shares only**; score under 70 → **WAIT**.
 
-### 5. Structured Research Outputs
-1. **MARKET CONDITIONS:** SPY & QQQ moving average diagnostics and regime.
-2. **BEST OPPORTUNITY TODAY:** Top actionable idea from your watchlist, or an honest *"WAIT"* banner.
-3. **TOP OPPORTUNITIES:** Actionable setups with support, resistance and preferred vehicle.
-4. **NOT READY YET:** What each stock is missing, with alert levels at support.
-5. **AVOID / HIGH RISK:** Extended or low-scoring names and their main red flag.
-6. **WHAT I WOULD WATCH NEXT:** Upcoming earnings and support tests.
-7. **THE BEAR CASE:** Data-driven risks and the invalidation level for every stock.
-8. **EPISTEMIC DISCIPLINE:** **FACT**, **INTERPRETATION** and **SPECULATION** tagging, plus a score breakdown, data gaps and sources in every detail view.
+### 5. Benchmark Table
+One sortable table ranks every stock in the current view (watchlist, all, primary, or alerts):
+- **Ranking:** rank, verdict (actionable / not ready / avoid), Opportunity Score, the next step each stock needs, and warnings (extension, earnings inside 14 days, weak fundamentals, stretched valuation, illiquid options).
+- **Score breakdown:** technicals, fundamentals, valuation, events and market regime points.
+- **Price and trend:** price, daily change, distance from the 50d and 200d SMAs, RSI, support, distance to support, resistance, 52-week range.
+- **Fundamentals and valuation:** revenue growth, operating margin, FCF yield, net debt/EBITDA, trend, forward/trailing/5-year P/E, PEG, market cap.
+- **Events:** days to earnings, analyst EPS revisions, 1-year target upside.
+- **Options:** vehicle, expiration, ATM strike, implied volatility, IV vs realized volatility, delta, theta, expected move, open interest, bid/ask spread.
 
-### 6. Interactive Visuals & Utilities
-- **SVG Charts:** 120 daily closes with current 20d/50d/200d SMA and support levels.
-- **Stress-Test Scenarios:** Simulated -8% tech pullback, IV spike or extended rally applied to the real data (clearly labeled as simulated).
-- **Copy Journal Report:** One-click markdown export.
+Click any column to sort (missing values always sort last) and any row for the detail view: price chart with SMAs and support, every metric with its source and date, fact/interpretation/speculation tagging, the bear case and invalidation level, and the full score breakdown with data gaps. Stocks you added that are waiting for their first data build appear as "Data pending" rows.
+
+### 6. Utilities
+- **Stress tests:** simulated -8% tech pullback, implied volatility x1.6, or +8% rally applied to the real data and labeled as simulated.
+- **Copy report:** markdown export of the current view.
 
 ---
 

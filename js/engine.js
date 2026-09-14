@@ -34,12 +34,14 @@ const pct = (v, digits = 1) => `${(v * 100).toFixed(digits)}%`;
 export function evaluateTechnicals(item) {
   let score = 15;
   const flags = [];
+  const warnings = [];
+  const warn = (text) => { flags.push(text); warnings.push(text); };
   const gaps = [];
   const drawdownPct = isNum(item.high52) && item.high52 > 0 ? ((item.high52 - item.price) / item.high52) * 100 : 0;
 
   if (isNum(item.sma200)) {
     if (item.price > item.sma200) score += 4;
-    else { score -= 6; flags.push("Below 200d SMA (long-term downtrend)"); }
+    else { score -= 6; warn("Below 200d SMA (long-term downtrend)"); }
   } else {
     gaps.push("200-day SMA (under 200 days of trading history)");
   }
@@ -49,7 +51,7 @@ export function evaluateTechnicals(item) {
   const isExtended = (dist50 !== null && dist50 > RULES.extendedAbove50) || (dist200 !== null && dist200 > RULES.extendedAbove200);
   if (isExtended) {
     score -= 8;
-    flags.push(dist50 !== null && dist50 > RULES.extendedAbove50
+    warn(dist50 !== null && dist50 > RULES.extendedAbove50
       ? `Price extended ${pct(dist50)} above 50d SMA`
       : `Price extended ${pct(dist200)} above 200d SMA`);
   }
@@ -66,23 +68,23 @@ export function evaluateTechnicals(item) {
     const above200 = isNum(item.sma200) && item.price > item.sma200;
     if (item.rsi14 < 38) {
       if (nearSupport && above200) { score += 3; flags.push(`RSI ${item.rsi14.toFixed(1)} oversold at support`); }
-      else { score -= 2; flags.push(`RSI ${item.rsi14.toFixed(1)} weak without support`); }
+      else { score -= 2; warn(`RSI ${item.rsi14.toFixed(1)} weak without support`); }
     } else if (item.rsi14 > 68) {
       score -= 5;
-      flags.push(`RSI ${item.rsi14.toFixed(1)} overbought`);
+      warn(`RSI ${item.rsi14.toFixed(1)} overbought`);
     }
   } else {
     gaps.push("RSI");
   }
 
-  return { score: clamp(Math.round(score), 0, 30), flags, gaps, isExtended, nearSupport, drawdownPct, dist50, dist200 };
+  return { score: clamp(Math.round(score), 0, 30), flags, warnings, gaps, isExtended, nearSupport, drawdownPct, dist50, dist200 };
 }
 
 export function evaluateFundamentals(item) {
   const f = item.fundamentals;
   if (!f) {
     return {
-      score: 12, available: false, flags: [],
+      score: 12, available: false, flags: [], warnings: [],
       assessment: item.etf ? "N/A (ETF)" : "N/A (no recent SEC filing data)",
       gaps: item.etf ? [] : ["SEC fundamentals"]
     };
@@ -111,7 +113,7 @@ export function evaluateFundamentals(item) {
   if (f.direction === "getting_stronger") { score += 3; assessment = "Getting Stronger"; }
   else if (f.direction === "getting_weaker") { score -= 5; assessment = "Getting Weaker"; }
 
-  return { score: clamp(Math.round(score), 0, 25), available: true, assessment, flags, gaps: [] };
+  return { score: clamp(Math.round(score), 0, 25), available: true, assessment, flags, warnings: flags, gaps: [] };
 }
 
 export function evaluateValuation(item) {
@@ -146,7 +148,7 @@ export function evaluateValuation(item) {
   if (status === "unknown" && available) status = score > 12 ? "attractive" : score < 8 ? "stretched" : "fair";
   return {
     score: clamp(Math.round(score), 0, 20), available, assessment: available ? status : (item.etf ? "N/A (ETF)" : "N/A"),
-    flags, gaps: available || item.etf ? [] : ["valuation multiples"]
+    flags, warnings: flags, gaps: available || item.etf ? [] : ["valuation multiples"]
   };
 }
 
@@ -154,25 +156,27 @@ export function evaluateCatalysts(item) {
   const c = item.catalysts || {};
   let score = 8;
   const flags = [];
+  const warnings = [];
+  const warn = (text) => { flags.push(text); warnings.push(text); };
   let earningsWarning = false;
 
   if (isNum(c.daysToEarnings) && c.daysToEarnings <= RULES.earningsWarningDays) {
     score -= 4;
     earningsWarning = true;
-    flags.push(`Earnings in ${c.daysToEarnings} days (${c.nextEarningsDate}${c.earningsDateEstimated ? ", estimated" : ""}): binary gap risk`);
+    warn(`Earnings in ${c.daysToEarnings} days (${c.nextEarningsDate}${c.earningsDateEstimated ? ", estimated" : ""}): binary gap risk`);
   }
   if (isNum(c.revisionsUp) && isNum(c.revisionsDown)) {
     const net = c.revisionsUp - c.revisionsDown;
     if (net >= 2) { score += 3; flags.push(`${net} net upward EPS estimate revisions (4 weeks)`); }
-    else if (net <= -2) { score -= 3; flags.push(`${-net} net downward EPS estimate revisions (4 weeks)`); }
+    else if (net <= -2) { score -= 3; warn(`${-net} net downward EPS estimate revisions (4 weeks)`); }
   }
   if (isNum(c.oneYearTarget) && item.price > 0) {
     const upside = c.oneYearTarget / item.price - 1;
     if (upside > 0.15) score += 2;
-    else if (upside < -0.05) { score -= 2; flags.push(`Price above analyst 1y target ($${c.oneYearTarget.toFixed(2)})`); }
+    else if (upside < -0.05) { score -= 2; warn(`Price above analyst 1y target ($${c.oneYearTarget.toFixed(2)})`); }
   }
 
-  return { score: clamp(Math.round(score), 0, 15), flags, earningsWarning };
+  return { score: clamp(Math.round(score), 0, 15), flags, warnings, earningsWarning };
 }
 
 export function determineMarketRegime(records) {
@@ -271,10 +275,14 @@ export function evaluateAsset(item, marketRegime) {
   totalScore = clamp(Math.round(totalScore), 0, 100);
 
   const dataGaps = [...tech.gaps, ...fund.gaps, ...val.gaps, ...(item.options ? [] : ["options chain"])];
+  const optionsEval = evaluateOptions(item, totalScore, cat.earningsWarning);
+  const warnings = [...tech.warnings, ...fund.warnings, ...val.warnings, ...cat.warnings];
+  if (optionsEval.isLiquid === false) {
+    warnings.push(`Illiquid options (OI ${item.options.atmCallOpenInterest}, spread ${optionsEval.spreadPct.toFixed(1)}%)`);
+  }
   return {
     item, totalScore, tierLabel: scoreTier(totalScore), marketBonus,
-    tech, fund, val, cat, dataGaps,
-    optionsEval: evaluateOptions(item, totalScore, cat.earningsWarning),
+    tech, fund, val, cat, dataGaps, warnings, optionsEval,
     bearCase: synthesizeBearCase(item, tech, fund, val, cat, marketRegime)
   };
 }
