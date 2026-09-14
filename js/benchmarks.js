@@ -4,24 +4,21 @@
  * surface that. They are for display only and never feed the Opportunity Score.
  */
 
-const isNum = (v) => typeof v === "number" && Number.isFinite(v);
+import { relativeToSpy } from "./engine.js";
 
-/** Return relative to SPY over the same window, e.g. 0.05 = beat SPY by 5%. */
-export function relativeToSpy(item, spy, key) {
-  const r = item?.[key];
-  const s = spy?.[key];
-  return isNum(r) && isNum(s) && s > -1 ? (1 + r) / (1 + s) - 1 : null;
-}
+export { relativeToSpy };
+
+const isNum = (v) => typeof v === "number" && Number.isFinite(v);
 
 /**
  * Metrics ranked across stocks. `get(e, spy)` returns the value or null; `higherIsBetter` sets rank order;
  * ETFs are ranked only on metrics marked `includeEtfs` (they have no fundamentals, analysts or earnings).
  */
 export const PEER_METRICS = [
-  { key: "tech", label: "Technicals", pillar: true, includeEtfs: true, get: (e) => e.tech.score },
-  { key: "fund", label: "Fundamentals", pillar: true, get: (e) => e.fund.available ? e.fund.score : null },
-  { key: "val", label: "Valuation", pillar: true, get: (e) => e.val.available ? e.val.score : null },
-  { key: "cat", label: "Events", pillar: true, get: (e) => e.cat.score },
+  { key: "quality", label: "Quality", pillar: true, get: (e) => e.scores.quality.score },
+  { key: "trend", label: "Trend", pillar: true, includeEtfs: true, get: (e) => e.scores.trend.score },
+  { key: "entry", label: "Entry", pillar: true, includeEtfs: true, get: (e) => e.scores.entry.score },
+  { key: "trade", label: "Trade", pillar: true, includeEtfs: true, get: (e) => e.scores.trade.score },
   { key: "revg", label: "Revenue growth", get: (e) => e.item.fundamentals?.revenueGrowthYoY ?? null },
   { key: "margin", label: "Operating margin", get: (e) => e.item.fundamentals?.operatingMargin ?? null },
   { key: "lev", label: "Low leverage", higherIsBetter: false, get: (e) => e.item.fundamentals?.netDebtToEbitda ?? null },

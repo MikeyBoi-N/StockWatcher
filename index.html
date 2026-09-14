@@ -325,6 +325,28 @@
     .chip.strength { color: var(--text); border-color: rgba(79, 176, 105, 0.45); }
     .chip.strength::before { background: var(--pos); }
     .bench td.leader { background: rgba(79, 176, 105, 0.12); }
+    .bench tbody tr:hover td.leader { background: rgba(79, 176, 105, 0.22); }
+    .score-mini { font-weight: 600; }
+
+    /* Scores and diagnostics in the detail view */
+    .score-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(185px, 1fr)); gap: 10px; }
+    .score-card { border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 12px; }
+    .score-card-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
+    .score-card-head strong { font-size: 13px; font-weight: 600; }
+    .score-card-head span { font-size: 20px; font-weight: 600; }
+    .factor-row { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; padding: 2px 0; }
+    .factor-row .factor-detail { color: var(--text-3); font-size: 11px; }
+    .factor-row .factor-points { white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .diag-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 14px 20px; }
+    .diag-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-2); margin-bottom: 4px; }
+    .diag-row { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; padding: 2px 0; }
+    .diag-row .diag-name { color: var(--text-2); }
+    .diag-row .diag-value { font-weight: 600; text-align: right; }
+    .horizon-picker { display: inline-flex; border: 1px solid var(--border-strong); border-radius: var(--radius); overflow: hidden; margin-bottom: 10px; }
+    .horizon-picker button { background: transparent; border: none; color: var(--text-2); padding: 4px 10px; font-size: 12px; cursor: pointer; }
+    .horizon-picker button:hover { color: var(--text); }
+    .horizon-picker button.active { background: var(--surface-3); color: var(--text); }
+    .auth-input.alert-select { width: auto; display: inline-block; padding: 4px 8px; font-size: 13px; margin: 0 4px; }
 
     /* Bear / bull meter */
     .bb-meter { margin-bottom: 10px; }
@@ -636,9 +658,9 @@
       </table>
     </div>
     <p class="table-note">
-      Score = Technicals (30) + Fundamentals (25) + Valuation (20) + Events (15) + Market regime (10), minus 12 when the price is extended and 8 when earnings are inside 14 days.
-      Headlines, 8-K events and returns vs SPY are context only and never change the score.
-      Rank lists actionable setups first, then not ready, then avoid, each by score. Actionable means a score of 70+, price within 3.5% of major support, and no earnings inside 14 days.
+      Four scores answer different questions: <strong>Quality</strong> (is it a strong business), <strong>Trend</strong> (is it in a healthy uptrend), <strong>Entry</strong> (is today's price a good buy point) and <strong>Trade</strong> (is the risk/reward worth it).
+      Overall = 30% Quality + 25% Trend + 25% Entry + 20% Trade and is only used for sorting; verdicts come from the four scores. Headlines and 8-K events never change a score.
+      Buy zone needs Entry 75+, Trend 60+, Quality 60+, Trade 60+, reward/risk of 1.5 : 1 or better, chase risk below high and no earnings inside 14 days; a strong asset that misses says what is missing.
       <span class="tone-pos">Green-tinted cells</span> rank in the top 10% (at least top 3) of all tracked stocks on that measure, so strengths show even when the composite is lower.
       Click a column to sort and a row for the full breakdown.
     </p>
@@ -856,15 +878,34 @@
       <div class="modal-content">
         <div id="modalScoreLine" style="display:flex; flex-wrap:wrap; gap:6px 18px; font-size:13px;"></div>
 
+        <!-- Four scores with the factors behind them -->
+        <div class="sub-box">
+          <div class="sub-box-title">Scores and how they are calculated</div>
+          <div id="modalScoreCards" class="score-cards"></div>
+        </div>
+
+        <!-- Entry diagnostics -->
+        <div class="sub-box">
+          <div class="sub-box-title">Entry diagnostics</div>
+          <div id="modalEntryDiagnostics" class="diag-grid"></div>
+        </div>
+
         <div class="chart-box">
           <div class="chart-legend">
             <span><i style="border-color:#ececec;"></i>Price</span>
             <span><i style="border-color:#6f6f75;"></i>20d SMA</span>
             <span><i style="border-color:#a3a3a8;"></i>50d SMA</span>
             <span><i style="border-color:#a3a3a8; border-top-style:dashed;"></i>200d SMA</span>
-            <span><i style="border-color:#e0605a; border-top-style:dashed;"></i>Support</span>
+            <span><i style="border-color:#d6a73a; border-top-style:dashed;"></i>Entry support</span>
+            <span><i style="border-color:#e0605a; border-top-style:dashed;"></i>Structural support</span>
           </div>
           <svg id="modalSvgChart" width="100%" height="180" viewBox="0 0 800 180" style="overflow:visible;"></svg>
+        </div>
+
+        <!-- Market context, asset quality and technical state -->
+        <div class="sub-box">
+          <div class="sub-box-title">Market context, asset quality and technical state</div>
+          <div id="modalDiagnostics" class="diag-grid"></div>
         </div>
 
         <!-- Pillar Details Grid -->
@@ -937,12 +978,12 @@
     import { getFirestore, doc, getDoc, setDoc, updateDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
     import { firebaseConfig } from "./firebase-config.js";
     import {
-      RULES, applyScenario as simulateScenario, classifyEvaluations, determineMarketRegime, evaluateAsset
+      RULES, SCORE_KEYS, SCORE_LABELS, applyScenario as simulateScenario, buildMarketContext, classifyEvaluations, evaluateAsset, valuationLabel
     } from "./js/engine.js";
-    import { ALERT_TRIGGERS, normalizeAlertPrefs } from "./js/alerts.js";
+    import { ALERT_SCORE_KEYS, ALERT_TRIGGERS, normalizeAlertPrefs } from "./js/alerts.js";
     import { capitalReturns, developmentsLine, filingActions, quarterSummary } from "./js/developments.js";
     import { leaderCutoff, rankPeers, relativeToSpy, strengths } from "./js/benchmarks.js";
-    import { bullBearReading, grade } from "./js/grades.js";
+    import { HORIZONS, grade, horizonReading } from "./js/grades.js";
 
     const SYMBOLS_URL = "data/symbols.json";
     const MARKET_URL = "data/market.json";
@@ -962,13 +1003,15 @@
     const compactUsd = (v) => isNum(v)
       ? new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", notation: "compact", maximumFractionDigits: 1 }).format(v)
       : "N/A";
+    // Buckets set the tone and table order; the label shown is the evaluation's own verdict (it says what is missing).
     const VERDICTS = {
-      actionable: { label: "Actionable", tone: "pos", order: 0 },
-      notReady: { label: "Not ready", tone: "warn", order: 1 },
-      avoid: { label: "Avoid", tone: "neg", order: 2 },
-      pending: { label: "Data pending", tone: "muted", order: 3 }
+      buy: { label: "Buy zone", tone: "pos", order: 0 },
+      strong: { label: "Strong asset", tone: "warn", order: 1 },
+      watch: { label: "Watch", tone: "muted", order: 2 },
+      avoid: { label: "Avoid", tone: "neg", order: 3 },
+      pending: { label: "Data pending", tone: "muted", order: 4 }
     };
-    const scoreTone = (score) => score >= RULES.actionableScore ? "pos" : score >= RULES.avoidScore ? "warn" : "neg";
+    const scoreTone = (score) => !isNum(score) ? "muted" : score >= RULES.goodScore ? "pos" : score >= RULES.weakScore ? "warn" : "neg";
     const shortDateTime = (iso) => iso ? new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : "N/A";
 
     /**
@@ -1481,6 +1524,12 @@
         document.getElementById("btnSendVerification").addEventListener("click", (e) => this.sendVerificationEmail(e.target));
 
         this.modalCloseBtn.addEventListener("click", () => this.detailModal.classList.remove("active"));
+        document.getElementById("modalBearCaseDetails").addEventListener("click", (e) => {
+          const button = e.target.closest("[data-horizon]");
+          if (!button) return;
+          this.horizon = button.dataset.horizon;
+          this.renderBearBull();
+        });
         this.btnExportJournal.addEventListener("click", () => this.exportMarkdown());
         document.getElementById("btnDownloadCsv").addEventListener("click", () => this.downloadCsv());
       }
@@ -1834,7 +1883,7 @@
         this.alertsTriggers.disabled = !prefs.enabled;
         const number = (id, value, min, max) => `<input type="number" class="auth-input alert-number" id="${id}" value="${value}" min="${min}" max="${max}" required>`;
         const extra = {
-          score: ` of ${number("alertsScoreThreshold", prefs.scoreThreshold, 1, 100)}`,
+          score: `: <select id="alertsScoreKey" class="auth-input alert-select">${ALERT_SCORE_KEYS.map(k => `<option value="${k}" ${prefs.scoreKey === k ? "selected" : ""}>${SCORE_LABELS[k]}</option>`).join("")}</select> reaches ${number("alertsScoreThreshold", prefs.scoreThreshold, 1, 100)}`,
           earnings: ` within ${number("alertsEarningsDays", prefs.earningsDays, 1, 30)} days`
         };
         this.alertsTriggers.innerHTML = `<legend class="auth-label" style="padding:0 4px;">Alert me when a watchlist stock…</legend>` + ALERT_TRIGGERS.map(t => `
@@ -1861,6 +1910,7 @@
         this.currentUser.alerts = normalizeAlertPrefs({
           enabled: this.alertsEnabled.checked,
           triggers: Object.fromEntries([...this.alertsTriggers.querySelectorAll("[data-trigger]")].map(cb => [cb.dataset.trigger, cb.checked])),
+          scoreKey: document.getElementById("alertsScoreKey").value,
           scoreThreshold: Number(document.getElementById("alertsScoreThreshold").value),
           earningsDays: Number(document.getElementById("alertsEarningsDays").value)
         });
@@ -1900,14 +1950,13 @@
 
       rescore() {
         if (!this.marketData.data) return;
-        const regime = determineMarketRegime(this.dataset);
-        this.marketRegime = regime.regime;
-        this.marketRegimeDesc = regime.description;
-        this.currentEvaluations = this.dataset.map(item => evaluateAsset(item, this.marketRegime));
-        classifyEvaluations(this.currentEvaluations);
+        this.marketContext = buildMarketContext(this.dataset, this.marketData.data.sectors);
+        this.marketRegime = this.marketContext.regime;
+        this.marketRegimeDesc = this.marketContext.regimeDescription;
+        this.currentEvaluations = this.dataset.map(item => evaluateAsset(item, this.marketContext));
         // Peer ranks always compare against every tracked stock, whichever view is showing.
         this.peerRanks = rankPeers(this.currentEvaluations);
-        this.spy = this.dataset.find(r => r.ticker === "SPY") ?? null;
+        this.spy = this.marketContext.spy;
         this.renderOutput();
       }
 
@@ -1918,40 +1967,30 @@
         }
         if (filter === "primary") return this.currentEvaluations.filter(e => e.item.isPrimary);
         if (filter === "alerts") {
-          return this.currentEvaluations.filter(e => e.tech.nearSupport || e.cat.earningsWarning || e.totalScore >= RULES.actionableScore);
+          return this.currentEvaluations.filter(e => e.bucket === "buy" || e.earningsWarning || e.scores.entry.score >= RULES.buyZone.entry);
         }
         return this.currentEvaluations;
-      }
-
-      /** The weakest pillar relative to its maximum, used to explain what is holding a score back. */
-      weakestPillar(e) {
-        const pillars = [
-          ["technicals", e.tech.score / 30], ["fundamentals", e.fund.available ? e.fund.score / 25 : 1],
-          ["valuation", e.val.available ? e.val.score / 20 : 1], ["catalysts", e.cat.score / 15]
-        ];
-        return pillars.sort((a, b) => a[1] - b[1])[0][0];
       }
 
       thesisFor(ticker) {
         return this.currentUser?.addedStocks[ticker]?.thesis;
       }
 
-      supportDistance(item) {
-        return (item.price - item.majorSupport) / item.price;
-      }
-
-      /** What a stock needs before it becomes actionable, shown in the table and the detail view. */
+      /** What a stock needs before it becomes a buy, shown in the table and the detail view. */
       nextStep(e) {
-        const { item } = e;
-        if (e.bucket === "actionable") return { text: `At support ${money(item.majorSupport)}`, tone: "pos" };
+        const { item, levels, diagnostics: d } = e;
+        const zone = isNum(levels.zoneLow) ? `${money(levels.zoneLow)}–${money(levels.zoneHigh)}` : null;
+        if (e.bucket === "buy") return { text: zone ? `In range: entry ${zone}, stop below ${money(levels.entrySupport)}` : "In the buy zone", tone: "pos" };
         if (e.bucket === "avoid") {
-          return e.tech.isExtended && isNum(item.sma50)
-            ? { text: `Wait for a pullback toward the 50d (${money(item.sma50)})`, tone: "neg" }
-            : { text: "Pass until the score recovers", tone: "neg" };
+          if (isNum(e.scores.quality.score) && e.scores.quality.score < RULES.avoid.quality) return { text: "Pass: the business is weak", tone: "neg" };
+          return { text: isNum(item.sma200) && item.price < item.sma200 ? `Pass until it reclaims the 200D (${money(item.sma200)})` : "Pass until the trend repairs", tone: "neg" };
         }
-        if (e.cat.earningsWarning) return { text: `Wait for earnings (${item.catalysts.daysToEarnings}d)`, tone: "warn" };
-        if (!e.tech.nearSupport) return { text: `Pullback to ${money(item.majorSupport)} (−${percent(this.supportDistance(item))})`, tone: "warn" };
-        return { text: `Needs a score of ${RULES.actionableScore}+ (weakest: ${this.weakestPillar(e)})`, tone: "warn" };
+        if (e.earningsWarning) return { text: `Wait for earnings (${item.catalysts.daysToEarnings}d)`, tone: "warn" };
+        if (e.scores.entry.score < RULES.buyZone.entry || d.chase === "High") {
+          return { text: d.entryType === "Breakout" || d.entryType === "Continuation" || !zone ? d.trigger : `Wait for ${zone} (${signedPercent(-levels.distanceFromIdeal)})`, tone: "warn" };
+        }
+        if (e.scores.trade.score < RULES.buyZone.trade || !(levels.rewardRisk >= RULES.buyZone.rewardRisk)) return { text: `Risk/reward too thin (${isNum(levels.rewardRisk) ? `${levels.rewardRisk.toFixed(1)} : 1` : "no stop"})`, tone: "warn" };
+        return { text: `Needs Trend ${RULES.buyZone.trend}+ and Quality ${RULES.buyZone.quality}+`, tone: "warn" };
       }
 
       strengthChips(list) {
@@ -1990,10 +2029,21 @@
           "WAIT": "Wait", "SHARES": "Shares", "SHARES ONLY (OR WAIT)": "Shares only", "CASH-SECURED PUT OR SHARES": "Cash-secured put",
           "LONG CALL OR CALL DEBIT SPREAD": "Long call", "CALL DEBIT SPREAD": "Call debit spread"
         };
-        const trendShort = { "Getting Stronger": "Stronger", "Roughly Unchanged": "Unchanged", "Getting Weaker": "Weaker" };
+        const trajectory = { getting_stronger: ["Stronger", "pos"], roughly_unchanged: ["Unchanged", "warn"], getting_weaker: ["Weaker", "neg"] };
         const change1d = (item) => isNum(item.prevClose) && item.prevClose > 0 ? item.price / item.prevClose - 1 : null;
         const targetUpside = (item) => isNum(item.catalysts.oneYearTarget) ? item.catalysts.oneYearTarget / item.price - 1 : null;
-        const pillar = (score, max, available = true) => available ? String(score) : `<span class="tone-muted" title="No data; scored neutral">${score}</span>`;
+        const diag = (e, section, name) => e.diagnostics[section].find(x => x.name === name);
+        const scoreColumn = (key, title) => ({
+          key, group: "Scores", label: SCORE_LABELS[key], title, num: true, dir: "desc", peer: key === "overall" ? undefined : key,
+          sort: r => value(r, e => key === "overall" ? e.overall : e.scores[key].score),
+          cell: r => cell(r, e => {
+            const score = key === "overall" ? e.overall : e.scores[key].score;
+            if (!isNum(score)) return null;
+            return key === "overall"
+              ? `<span class="score tone-${scoreTone(score)}">${score}<span class="score-bar"><span style="width:${score}%"></span></span></span>`
+              : `<span class="score-mini tone-${scoreTone(score)}">${score}</span>`;
+          })
+        });
 
         return [
           { key: "rank", label: "#", cls: "sticky-rank", sort: r => r.rank, cell: r => r.rank ?? dash },
@@ -2001,22 +2051,27 @@
             key: "ticker", label: "Ticker", cls: "sticky-ticker", sort: r => r.ticker,
             cell: r => `<span class="ticker">${escapeHtml(r.ticker)}</span>${r.isBest ? '<span class="tag">Best</span>' : ""}<span class="company" title="${escapeHtml(r.name)}">${escapeHtml(r.name)}</span>`
           },
-          { key: "verdict", label: "Verdict", csv: r => VERDICTS[r.bucket].label, sort: r => VERDICTS[r.bucket].order, cell: r => `<span class="verdict tone-${VERDICTS[r.bucket].tone}">${VERDICTS[r.bucket].label}</span>` },
           {
-            key: "score", label: "Score", num: true, dir: "desc", sort: r => value(r, e => e.totalScore),
-            cell: r => cell(r, e => `<span class="score tone-${scoreTone(e.totalScore)}">${e.totalScore}<span class="score-bar"><span style="width:${e.totalScore}%"></span></span></span>`)
+            key: "verdict", label: "Verdict", csv: r => r.e ? r.e.verdict : VERDICTS[r.bucket].label, sort: r => VERDICTS[r.bucket].order,
+            cell: r => `<span class="verdict tone-${VERDICTS[r.bucket].tone}">${escapeHtml(r.e ? r.e.verdict : VERDICTS[r.bucket].label)}</span>`
           },
+          scoreColumn("overall", "Overall = 30% Quality + 25% Trend + 25% Entry + 20% Trade. Used for sorting only."),
+          scoreColumn("quality", "Quality: revenue and earnings growth, margins and their trend, free cash flow, leverage, analyst revisions"),
+          scoreColumn("trend", "Trend: price vs 50- and 200-day SMAs, 3- and 12-month return vs SPY, RSI momentum, market regime"),
+          scoreColumn("entry", "Entry: distance to entry support and resistance in volatility units, stretch above the 50- and 200-day, RSI"),
+          scoreColumn("trade", "Trade: reward vs risk, valuation, PEG, analyst target, earnings timing, options conditions"),
           { key: "next", label: "Next step", sort: r => r.next.text, cell: r => `<span class="${r.next.tone === "pos" ? "tone-pos" : ""}">${escapeHtml(r.next.text)}</span>` },
           { key: "warnings", label: "Warnings", dir: "desc", csv: r => r.e ? r.e.warnings.join("; ") : "", sort: r => value(r, e => e.warnings.length), cell: r => cell(r, e => this.warningChips(e.warnings)) },
           {
             key: "strengths", label: "Stands out in", dir: "desc",
-            title: "Measures where this stock ranks in the top 10% (at least top 3) of all tracked stocks, even when its composite score is lower",
+            title: "Measures where this stock ranks in the top 10% (at least top 3) of all tracked stocks, even when its overall score is lower",
             sort: r => value(r, (e, i) => strengths(this.peerRanks.get(i.ticker)).length || null),
             csv: r => r.e ? strengths(this.peerRanks.get(r.ticker)).map(x => `${x.label} #${x.rank} of ${x.of}`).join("; ") : "",
             cell: r => cell(r, (e, i) => this.strengthChips(strengths(this.peerRanks.get(i.ticker))))
           },
           {
-            key: "developments", label: "What's happening", csv: r => r.e ? developmentsLine(r.e.item)?.text ?? "" : "", title: "Latest quarter (SEC filings), recent 8-K events and headline tone. Click a row for details.", dir: "desc",
+            key: "developments", label: "What's happening", csv: r => r.e ? developmentsLine(r.e.item)?.text ?? "" : "",
+            title: "Latest quarter (SEC filings), recent 8-K events and headline tone. Click a row for details.", dir: "desc",
             sort: r => value(r, (e, i) => developmentsLine(i)?.negatives ?? null),
             cell: r => cell(r, (e, i) => {
               const line = developmentsLine(i);
@@ -2024,11 +2079,38 @@
             })
           },
 
-          { key: "tech", peer: "tech", group: "Score breakdown", label: "Tech", title: "Technicals, out of 30", num: true, dir: "desc", sort: r => value(r, e => e.tech.score), cell: r => cell(r, e => pillar(e.tech.score, 30)) },
-          { key: "fund", peer: "fund", group: "Score breakdown", label: "Fund", title: "Fundamentals, out of 25", num: true, dir: "desc", sort: r => value(r, e => e.fund.score), cell: r => cell(r, e => pillar(e.fund.score, 25, e.fund.available)) },
-          { key: "val", peer: "val", group: "Score breakdown", label: "Value", title: "Valuation, out of 20", num: true, dir: "desc", sort: r => value(r, e => e.val.score), cell: r => cell(r, e => pillar(e.val.score, 20, e.val.available)) },
-          { key: "cat", peer: "cat", group: "Score breakdown", label: "Events", title: "Catalysts and event risk, out of 15", num: true, dir: "desc", sort: r => value(r, e => e.cat.score), cell: r => cell(r, e => pillar(e.cat.score, 15)) },
-          { key: "mkt", group: "Score breakdown", label: "Mkt", title: "Market regime, out of 10", num: true, dir: "desc", sort: r => value(r, e => e.marketBonus), cell: r => cell(r, e => String(e.marketBonus)) },
+          { key: "entryType", group: "Entry", label: "Type", sort: r => value(r, e => e.diagnostics.entryType), cell: r => cell(r, e => escapeHtml(e.diagnostics.entryType)) },
+          {
+            key: "rr", group: "Entry", label: "R/R", title: "Reward to risk: upside to resistance (or analyst target) vs downside to entry support", num: true, dir: "desc",
+            sort: r => value(r, e => e.levels.rewardRisk), csv: r => isNum(r.e?.levels.rewardRisk) ? Math.round(r.e.levels.rewardRisk * 10) / 10 : null,
+            cell: r => cell(r, e => isNum(e.levels.rewardRisk) ? toned(e.levels.rewardRisk >= 2 ? "pos" : e.levels.rewardRisk >= 1 ? "warn" : "neg", `${e.levels.rewardRisk.toFixed(1)} : 1`) : null)
+          },
+          {
+            key: "zone", group: "Entry", label: "Preferred entry", title: "Just above entry support, about a third of a typical week's move wide", num: true,
+            sort: r => value(r, e => e.levels.zoneLow), csv: r => isNum(r.e?.levels.zoneLow) ? `${r.e.levels.zoneLow.toFixed(2)} - ${r.e.levels.zoneHigh.toFixed(2)}` : "",
+            cell: r => cell(r, e => isNum(e.levels.zoneLow) ? `${money(e.levels.zoneLow)}–${money(e.levels.zoneHigh)}` : null)
+          },
+          {
+            key: "fromIdeal", group: "Entry", label: "From ideal", title: "How far price is above the preferred entry zone", num: true, pct: true,
+            sort: r => value(r, e => e.levels.distanceFromIdeal),
+            cell: r => cell(r, e => { const d = diag(e, "entry", "Distance from ideal entry"); return isNum(e.levels.distanceFromIdeal) ? toned(d.tone, d.value) : null; })
+          },
+          {
+            key: "chase", group: "Entry", label: "Chase risk", sort: r => value(r, e => ({ Low: 0, Moderate: 1, High: 2 })[e.diagnostics.chase]), csv: r => r.e?.diagnostics.chase ?? "",
+            cell: r => cell(r, e => toned({ Low: "pos", Moderate: "warn", High: "neg" }[e.diagnostics.chase], e.diagnostics.chase))
+          },
+          {
+            key: "entrySupport", group: "Entry", label: "Entry support", title: "Nearest tradable support (50/200-day SMA or 3-month swing low within a month's move); the trade stop", num: true,
+            sort: r => value(r, e => e.levels.entrySupport), cell: r => cell(r, e => isNum(e.levels.entrySupport) ? `<span title="${escapeHtml(e.levels.entryMethod)}">${money(e.levels.entrySupport)}</span>` : null)
+          },
+          {
+            key: "downside", group: "Entry", label: "To stop", title: "Distance from price down to entry support", num: true, pct: true,
+            sort: r => value(r, e => e.levels.downside), cell: r => cell(r, e => isNum(e.levels.downside) ? `−${percent(e.levels.downside)}` : null)
+          },
+          {
+            key: "structural", group: "Entry", label: "Structural support", title: "One-year swing-low support: where the longer-term thesis breaks", num: true,
+            sort: r => value(r, e => e.levels.structural), cell: r => cell(r, e => isNum(e.levels.structural) ? money(e.levels.structural) : null)
+          },
 
           { key: "price", group: "Price and trend", label: "Price", num: true, dir: "desc", sort: r => value(r, (e, i) => i.price), cell: r => cell(r, (e, i) => money(i.price)) },
           {
@@ -2037,45 +2119,47 @@
           },
           ...[["rs3m", "3M vs SPY", "return3m", "3-month"], ["rs12m", "12M vs SPY", "return12m", "12-month"]].map(([key, label, field, span]) => ({
             key, group: "Price and trend", label, peer: key, pct: true, num: true, dir: "desc",
-            title: `${span} return relative to SPY (compounded). Context only; not part of the score.`,
+            title: `${span} return relative to SPY (compounded). Feeds the Trend score.`,
             sort: r => value(r, (e, i) => relativeToSpy(i, this.spy, field)),
             cell: r => cell(r, (e, i) => { const v = relativeToSpy(i, this.spy, field); return isNum(v) ? toned(v >= 0 ? "pos" : "neg", signedPercent(v)) : null; })
           })),
           {
-            key: "vs50", pct: true, group: "Price and trend", label: "vs 50d", num: true, dir: "desc", sort: r => value(r, e => e.tech.dist50),
-            cell: r => cell(r, e => isNum(e.tech.dist50) ? toned(e.tech.dist50 > RULES.extendedAbove50 ? "neg" : "", signedPercent(e.tech.dist50)) : null)
+            key: "vs50", pct: true, group: "Price and trend", label: "vs 50d", num: true, dir: "desc", sort: r => value(r, (e, i) => isNum(i.sma50) ? i.price / i.sma50 - 1 : null),
+            cell: r => cell(r, (e, i) => isNum(i.sma50) ? toned(grade.trend50(i.price / i.sma50 - 1), signedPercent(i.price / i.sma50 - 1)) : null)
           },
           {
-            key: "vs200", pct: true, group: "Price and trend", label: "vs 200d", num: true, dir: "desc", sort: r => value(r, e => e.tech.dist200),
-            cell: r => cell(r, e => isNum(e.tech.dist200) ? toned(e.tech.dist200 > RULES.extendedAbove200 || e.tech.dist200 < 0 ? "neg" : "", signedPercent(e.tech.dist200)) : null)
+            key: "vs200", pct: true, group: "Price and trend", label: "vs 200d", num: true, dir: "desc", sort: r => value(r, (e, i) => isNum(i.sma200) ? i.price / i.sma200 - 1 : null),
+            cell: r => cell(r, (e, i) => isNum(i.sma200) ? toned(grade.trend200(i.price / i.sma200 - 1), signedPercent(i.price / i.sma200 - 1)) : null)
           },
           {
             key: "rsi", group: "Price and trend", label: "RSI", title: "14-day RSI", num: true, dir: "desc", sort: r => value(r, (e, i) => i.rsi14),
-            cell: r => cell(r, (e, i) => isNum(i.rsi14) ? toned(i.rsi14 > 68 ? "neg" : i.rsi14 < 38 ? "warn" : "", fixed(i.rsi14)) : null)
+            cell: r => cell(r, (e, i) => isNum(i.rsi14) ? toned(i.rsi14 > 70 ? "neg" : i.rsi14 < 30 ? "warn" : "", fixed(i.rsi14)) : null)
           },
-          { key: "support", group: "Price and trend", label: "Support", num: true, sort: r => value(r, (e, i) => i.majorSupport), cell: r => cell(r, (e, i) => money(i.majorSupport)) },
           {
-            key: "toSupport", pct: true, group: "Price and trend", label: "To support", title: "Distance from price down to major support", num: true, sort: r => value(r, (e, i) => this.supportDistance(i)),
-            cell: r => cell(r, (e, i) => toned(e.tech.nearSupport ? "pos" : "", percent(this.supportDistance(i))))
+            key: "resistance", group: "Price and trend", label: "Resistance", num: true, sort: r => value(r, e => e.levels.resistance),
+            cell: r => cell(r, e => e.levels.resistance ? `${money(e.levels.resistance)} <span class="tone-muted">(${signedPercent(e.levels.upside)})</span>` : "Clear")
           },
-          { key: "resistance", group: "Price and trend", label: "Resistance", num: true, sort: r => value(r, (e, i) => i.majorResistance), cell: r => cell(r, (e, i) => money(i.majorResistance)) },
-          { key: "range", group: "Price and trend", label: "52w range", csv: r => r.e ? `${r.e.item.low52} - ${r.e.item.high52}` : "", title: "52-week low to high", num: true, sort: r => value(r, (e, i) => e.tech.drawdownPct), cell: r => cell(r, (e, i) => `${money(i.low52)} – ${money(i.high52)}`) },
+          { key: "range", group: "Price and trend", label: "52w range", csv: r => r.e ? `${r.e.item.low52} - ${r.e.item.high52}` : "", title: "52-week low to high", num: true, sort: r => value(r, (e, i) => i.high52 > 0 ? i.price / i.high52 - 1 : null), cell: r => cell(r, (e, i) => `${money(i.low52)} – ${money(i.high52)}`) },
 
           { key: "revg", peer: "revg", pct: true, group: "Fundamentals", label: "Rev growth", title: "Revenue growth, trailing twelve months vs prior year (SEC filings)", num: true, dir: "desc", sort: r => value(r, (e, i) => i.fundamentals?.revenueGrowthYoY ?? null), cell: r => cell(r, (e, i) => signedPercent(i.fundamentals?.revenueGrowthYoY)) },
           { key: "margin", peer: "margin", pct: true, group: "Fundamentals", label: "Op margin", num: true, dir: "desc", sort: r => value(r, (e, i) => i.fundamentals?.operatingMargin ?? null), cell: r => cell(r, (e, i) => percent(i.fundamentals?.operatingMargin)) },
           { key: "fcfy", peer: "fcfy", pct: true, group: "Fundamentals", label: "FCF yield", num: true, dir: "desc", sort: r => value(r, (e, i) => i.valuation.fcfYield), cell: r => cell(r, (e, i) => percent(i.valuation.fcfYield)) },
           { key: "lev", peer: "lev", group: "Fundamentals", label: "Net debt/EBITDA", num: true, sort: r => value(r, (e, i) => i.fundamentals?.netDebtToEbitda ?? null), cell: r => cell(r, (e, i) => multiple(i.fundamentals?.netDebtToEbitda)) },
           {
-            key: "trend", group: "Fundamentals", label: "Trend", sort: r => value(r, e => e.fund.available ? e.fund.assessment : null),
-            cell: r => cell(r, e => e.fund.available ? toned(e.fund.assessment === "Getting Weaker" ? "neg" : "", trendShort[e.fund.assessment]) : null)
+            key: "trend", group: "Fundamentals", label: "Trajectory", sort: r => value(r, (e, i) => trajectory[i.fundamentals?.direction]?.[0] ?? null),
+            cell: r => cell(r, (e, i) => trajectory[i.fundamentals?.direction] ? toned(trajectory[i.fundamentals.direction][1], trajectory[i.fundamentals.direction][0]) : null)
           },
 
+          {
+            key: "valLabel", group: "Valuation", label: "Valuation", sort: r => value(r, (e, i) => ({ Cheap: 0, Fair: 1, Expensive: 2, Extreme: 3, Unprofitable: 4 })[valuationLabel(i)] ?? null), csv: r => r.e ? valuationLabel(r.e.item) ?? "" : "",
+            cell: r => cell(r, (e, i) => { const d = diag(e, "quality", "Valuation"); return d && d.value !== "N/A" ? toned(d.tone, d.value) : null; })
+          },
           { key: "fpe", peer: "fpe", group: "Valuation", label: "Fwd P/E", title: "Price / next-twelve-month consensus EPS", num: true, sort: r => value(r, (e, i) => i.valuation.forwardPe), cell: r => cell(r, (e, i) => multiple(i.valuation.forwardPe)) },
           { key: "tpe", group: "Valuation", label: "Trailing P/E", num: true, sort: r => value(r, (e, i) => i.valuation.trailingPe), cell: r => cell(r, (e, i) => multiple(i.valuation.trailingPe)) },
           { key: "pe5", group: "Valuation", label: "5y avg P/E", num: true, sort: r => value(r, (e, i) => i.valuation.historical5yPe), cell: r => cell(r, (e, i) => multiple(i.valuation.historical5yPe)) },
           {
             key: "peg", peer: "peg", group: "Valuation", label: "PEG", num: true, sort: r => value(r, (e, i) => i.valuation.pegRatio),
-            cell: r => cell(r, (e, i) => isNum(i.valuation.pegRatio) ? toned(i.valuation.pegRatio > 2.5 ? "neg" : "", fixed(i.valuation.pegRatio, 2)) : null)
+            cell: r => cell(r, (e, i) => isNum(i.valuation.pegRatio) ? toned(grade.peg(i.valuation.pegRatio), fixed(i.valuation.pegRatio, 2)) : null)
           },
           { key: "mcap", group: "Valuation", label: "Market cap", num: true, dir: "desc", sort: r => value(r, (e, i) => i.marketCap), cell: r => cell(r, (e, i) => compactUsd(i.marketCap)) },
 
@@ -2084,7 +2168,7 @@
             cell: r => cell(r, (e, i) => {
               const c = i.catalysts;
               if (!isNum(c.daysToEarnings)) return null;
-              return `<span class="${e.cat.earningsWarning ? "tone-warn" : ""}" title="${escapeHtml(`${c.nextEarningsDate}${c.earningsDateEstimated ? " (estimated)" : ""}`)}">${c.daysToEarnings}d</span>`;
+              return `<span class="${e.earningsWarning ? "tone-warn" : ""}" title="${escapeHtml(`${c.nextEarningsDate}${c.earningsDateEstimated ? " (estimated)" : ""}`)}">${c.daysToEarnings}d</span>`;
             })
           },
           {
@@ -2107,31 +2191,31 @@
           {
             key: "ivrv", group: "Options", label: "IV/RV", title: "Implied volatility divided by 30-day realized volatility (above 1.3 = expensive, below 0.9 = cheap)", num: true, dir: "desc",
             sort: r => value(r, (e, i) => i.options?.ivHvRatio ?? null),
-            cell: r => cell(r, (e, i) => isNum(i.options?.ivHvRatio) ? `${i.options.ivHvRatio.toFixed(2)}x` : null)
+            cell: r => cell(r, (e, i) => isNum(i.options?.ivHvRatio) ? toned(grade.ivRatio(i.options.ivHvRatio), `${i.options.ivHvRatio.toFixed(2)}x`) : null)
           },
           { key: "delta", group: "Options", label: "Delta", num: true, sort: r => value(r, (e, i) => i.options?.atmCallDelta ?? null), cell: r => cell(r, (e, i) => fixed(i.options?.atmCallDelta, 2)) },
           { key: "theta", group: "Options", label: "Theta", num: true, sort: r => value(r, (e, i) => i.options?.atmCallTheta ?? null), cell: r => cell(r, (e, i) => fixed(i.options?.atmCallTheta, 3)) },
           { key: "exp_move", pct: true, group: "Options", label: "Exp. move", title: "Expected move to expiration implied by ATM volatility", num: true, dir: "desc", sort: r => value(r, (e, i) => i.options?.expectedMovePct ?? null), cell: r => cell(r, (e, i) => isNum(i.options?.expectedMovePct) ? `±${percent(i.options.expectedMovePct)}` : null) },
           {
             key: "oi", group: "Options", label: "Open int.", title: "Open interest of the ATM call", num: true, dir: "desc", sort: r => value(r, (e, i) => i.options?.atmCallOpenInterest ?? null),
-            cell: r => cell(r, (e, i) => i.options ? toned(i.options.atmCallOpenInterest < RULES.minOpenInterest ? "neg" : "", i.options.atmCallOpenInterest.toLocaleString()) : null)
+            cell: r => cell(r, (e, i) => i.options ? toned(grade.openInterest(i.options.atmCallOpenInterest), i.options.atmCallOpenInterest.toLocaleString()) : null)
           },
           {
             key: "spread", group: "Options", label: "Spread", csv: r => isNum(r.e?.optionsEval.spreadPct) ? Math.round(r.e.optionsEval.spreadPct * 100) / 100 : null, title: "ATM call bid/ask spread as a percent of the ask", num: true, sort: r => value(r, e => e.optionsEval.spreadPct ?? null),
-            cell: r => cell(r, e => isNum(e.optionsEval.spreadPct) ? toned(e.optionsEval.spreadPct > RULES.maxSpreadPct ? "neg" : "", `${e.optionsEval.spreadPct.toFixed(1)}%`) : null)
+            cell: r => cell(r, e => isNum(e.optionsEval.spreadPct) ? toned(grade.spreadPct(e.optionsEval.spreadPct), `${e.optionsEval.spreadPct.toFixed(1)}%`) : null)
           }
         ];
       }
 
       renderOutput() {
         if (!this.marketData.data) return;
-        const { sorted, best, actionable, notReady, avoid } = classifyEvaluations(this.getFilteredEvaluations());
-        this.renderOverview(best, actionable, notReady, avoid);
+        const { sorted, best, buy, strong, watch, avoid } = classifyEvaluations(this.getFilteredEvaluations());
+        this.renderOverview(best, { buy, strong, watch, avoid });
         this.renderFilterCounts();
         this.renderTable(sorted, best);
       }
 
-      renderOverview(best, actionable, notReady, avoid) {
+      renderOverview(best, groups) {
         const set = (id, html) => { document.getElementById(id).innerHTML = html; };
         const capitalize = (text) => text.charAt(0).toUpperCase() + text.slice(1);
         const regimeTone = { BULLISH: "pos", NEUTRAL: "", CAUTIOUS: "warn", BEARISH: "neg" }[this.marketRegime];
@@ -2151,15 +2235,16 @@
         }
 
         if (best) {
-          set("statBest", `${escapeHtml(best.item.ticker)} <span class="stat-sub tone-pos">${best.totalScore}</span>`);
-          set("statBestSub", escapeHtml(`${capitalize(best.optionsEval.recommendation.toLowerCase())} · support ${money(best.item.majorSupport)}`));
+          set("statBest", `${escapeHtml(best.item.ticker)} <span class="stat-sub tone-pos">${best.overall}</span>`);
+          set("statBestSub", escapeHtml(`Entry ${best.scores.entry.score} · ${best.diagnostics.entryType.toLowerCase()} · stop ${money(best.levels.entrySupport)}`));
         } else {
           set("statBest", '<span class="tone-muted">None</span>');
           set("statBestSub", "Nothing qualifies today. Wait.");
         }
 
-        set("statVerdicts", `<span class="tone-pos">${actionable.length}</span> <span class="tone-muted">·</span> <span class="tone-warn">${notReady.length}</span> <span class="tone-muted">·</span> <span class="tone-neg">${avoid.length}</span>`);
-        set("statVerdictsSub", "Actionable · not ready · avoid");
+        const sep = ' <span class="tone-muted">·</span> ';
+        set("statVerdicts", [`<span class="tone-pos">${groups.buy.length}</span>`, `<span class="tone-warn">${groups.strong.length}</span>`, `<span class="tone-muted">${groups.watch.length}</span>`, `<span class="tone-neg">${groups.avoid.length}</span>`].join(sep));
+        set("statVerdictsSub", "Buy zone · strong asset · watch · avoid");
       }
 
       renderFilterCounts() {
@@ -2173,7 +2258,7 @@
       renderTable(sorted, best) {
         const cols = this.benchmarkColumns();
         const ranked = [...sorted].sort((a, b) =>
-          VERDICTS[a.bucket].order - VERDICTS[b.bucket].order || b.totalScore - a.totalScore || a.item.ticker.localeCompare(b.item.ticker));
+          VERDICTS[a.bucket].order - VERDICTS[b.bucket].order || b.overall - a.overall || a.item.ticker.localeCompare(b.item.ticker));
         const rows = ranked.map((e, index) => ({
           ticker: e.item.ticker, name: e.item.name, bucket: e.bucket, rank: index + 1, e, isBest: e === best, next: this.nextStep(e)
         }));
@@ -2240,68 +2325,109 @@
         const v = item.valuation;
         const c = item.catalysts;
         const o = item.options;
+        const lv = e.levels;
+        const g = (tone, html) => tone ? `<span class="tone-${tone}">${html}</span>` : html;
 
         document.getElementById("modalSymbol").textContent = item.ticker;
         document.getElementById("modalName").textContent = [item.name, item.sector, item.industry].filter(Boolean).join(" · ");
-        const verdict = VERDICTS[e.bucket];
+        const scoreChip = (key) => {
+          const score = key === "overall" ? e.overall : e.scores[key].score;
+          return `<span>${SCORE_LABELS[key]} <strong class="tone-${scoreTone(score)}">${isNum(score) ? score : "N/A"}</strong></span>`;
+        };
         document.getElementById("modalScoreLine").innerHTML = `
-          <span>Score <strong class="tone-${scoreTone(e.totalScore)}">${e.totalScore}</strong></span>
-          <span class="tone-${verdict.tone}">${verdict.label}</span>
+          <span class="verdict tone-${VERDICTS[e.bucket].tone}">${escapeHtml(e.verdict)}</span>
+          ${["overall", ...SCORE_KEYS].map(scoreChip).join("")}
           <span class="muted">${escapeHtml(this.nextStep(e).text)}</span>
           <span class="muted">Vehicle: ${escapeHtml(e.optionsEval.recommendation.toLowerCase())}</span>
-          <span class="muted"><span class="tone-pos">Green</span> earns points · <span class="tone-warn">yellow</span> in between · <span class="tone-neg">red</span> costs points</span>
+          <span class="muted"><span class="tone-pos">Green</span> is favorable · <span class="tone-warn">yellow</span> in between · <span class="tone-neg">red</span> unfavorable</span>
         `;
+
+        const ranks = this.peerRanks.get(item.ticker);
+        const questions = { quality: "Is this a strong business?", trend: "Is the stock in a healthy uptrend?", entry: "Is today's price a good buy point?", trade: "Is the risk/reward worth it?" };
+        document.getElementById("modalScoreCards").innerHTML = SCORE_KEYS.map(key => {
+          const sc = e.scores[key];
+          const rank = ranks?.get(key);
+          const body = sc.available
+            ? sc.factors.map(fc => {
+                const share = fc.points / fc.max;
+                const tone = fc.missing ? "muted" : share >= 0.7 ? "pos" : share >= 0.4 ? "warn" : "neg";
+                return `<div class="factor-row"><div>${escapeHtml(fc.label)}<div class="factor-detail">${escapeHtml(fc.detail)}</div></div><div class="factor-points tone-${tone}">${+fc.points.toFixed(1)} / ${fc.max}</div></div>`;
+              }).join("")
+            : '<div class="muted" style="font-size:12px;">Not scored: no company fundamentals (ETF or no recent SEC filings). Overall reweights the other three.</div>';
+          return `
+            <div class="score-card">
+              <div class="score-card-head"><strong>${SCORE_LABELS[key]}</strong><span class="tone-${scoreTone(sc.score)}">${isNum(sc.score) ? sc.score : "N/A"}</span></div>
+              <div class="muted" style="font-size:11px; margin-bottom:6px;">${questions[key]}${rank ? ` · #${rank.rank} of ${rank.of} tracked` : ""}</div>
+              ${body}
+            </div>`;
+        }).join("");
+
+        const diagSection = (title, rows) => `
+          <div>
+            <div class="diag-title">${escapeHtml(title)}</div>
+            ${rows.map(x => `<div class="diag-row" title="${escapeHtml(x.detail || "")}"><span class="diag-name">${escapeHtml(x.name)}</span><span class="diag-value${x.tone ? ` tone-${x.tone}` : ""}">${escapeHtml(x.value)}</span></div>`).join("")}
+          </div>`;
+        const entryRows = e.diagnostics.entry;
+        document.getElementById("modalEntryDiagnostics").innerHTML =
+          diagSection("Setup", entryRows.slice(0, 5)) + diagSection("Plan", entryRows.slice(5));
+        document.getElementById("modalDiagnostics").innerHTML =
+          diagSection("Market context", e.diagnostics.market) + diagSection("Asset quality", e.diagnostics.quality) + diagSection("Technical state", e.diagnostics.technical);
 
         const svg = document.getElementById("modalSvgChart");
         const series = item.historicalSeries?.length > 1 ? item.historicalSeries : [item.price, item.price];
-        const levels = [item.sma20, item.sma50, item.sma200, item.majorSupport, item.majorResistance].filter(isNum);
-        const minVal = Math.min(...series, ...levels) * 0.98;
-        const maxVal = Math.max(...series, ...levels) * 1.02;
+        const chartLevels = [item.sma20, item.sma50, item.sma200, lv.entrySupport, lv.structural, lv.resistance].filter(isNum);
+        const minVal = Math.min(...series, ...chartLevels) * 0.98;
+        const maxVal = Math.max(...series, ...chartLevels) * 1.02;
         const w = 800, h = 180;
         const getY = (val) => h - ((val - minVal) / (maxVal - minVal)) * (h - 20) - 10;
         const getX = (idx) => (idx / (series.length - 1)) * w;
         const hline = (val, color, width, dash = "") => isNum(val)
           ? `<line x1="0" y1="${getY(val)}" x2="${w}" y2="${getY(val)}" stroke="${color}" stroke-width="${width}" ${dash ? `stroke-dasharray="${dash}"` : ""} />` : "";
         svg.innerHTML = `
-          ${hline(item.majorSupport, "#e0605a", 1.5, "6,4")}
+          ${hline(lv.structural, "#e0605a", 1.5, "6,4")}
+          ${lv.entrySupport !== lv.structural ? hline(lv.entrySupport, "#d6a73a", 1.5, "6,4") : ""}
           ${hline(item.sma200, "#a3a3a8", 1.2, "4,4")}
           ${hline(item.sma50, "#a3a3a8", 1.2)}
           ${hline(item.sma20, "#6f6f75", 1)}
           <polyline fill="none" stroke="#ececec" stroke-width="2" points="${series.map((val, idx) => `${getX(idx)},${getY(val)}`).join(" ")}" />
           <circle cx="${w}" cy="${getY(series[series.length - 1])}" r="4" fill="#ececec" />
           <text x="${w - 80}" y="${getY(series[series.length - 1]) - 8}" fill="#ececec" font-size="11" font-weight="600">${money(item.price)}</text>
-          <text x="0" y="${h + 14}" fill="#6f6f75" font-size="10">Daily closes since ${escapeHtml(item.historicalStart || "")} · lines show current SMA levels</text>
+          <text x="0" y="${h + 14}" fill="#6f6f75" font-size="10">Daily closes since ${escapeHtml(item.historicalStart || "")} · lines show current SMA and support levels</text>
         `;
 
         const line = (label, value) => `<div class="detail-line"><strong>${label}:</strong> ${value}</div>`;
-        const g = (tone, html) => tone ? `<span class="tone-${tone}">${html}</span>` : html;
         const vsSpy = (field) => {
           const rel = relativeToSpy(item, this.spy, field);
           return isNum(rel) && item.ticker !== "SPY" ? g(rel >= 0 ? "pos" : "neg", signedPercent(rel)) : "N/A";
         };
+        const dist50 = isNum(item.sma50) ? item.price / item.sma50 - 1 : null;
+        const dist200 = isNum(item.sma200) ? item.price / item.sma200 - 1 : null;
         document.getElementById("modalTechnicalDetails").innerHTML = [
           line("Price", `${money(item.price)} | <strong>52w Range:</strong> ${money(item.low52)} – ${money(item.high52)}`),
-          line("SMAs", `20d ${money(item.sma20)} | 50d ${money(item.sma50)} (${g(grade.trend50(e.tech.dist50), signedPercent(e.tech.dist50))}) | 200d ${money(item.sma200)} (${g(grade.trend200(e.tech.dist200), signedPercent(e.tech.dist200))})`),
+          line("SMAs", `20d ${money(item.sma20)} | 50d ${money(item.sma50)} (${g(grade.trend50(dist50), signedPercent(dist50))}) | 200d ${money(item.sma200)} (${g(grade.trend200(dist200), signedPercent(dist200))})`),
           line("RSI(14)", `${g(grade.rsi(item.rsi14), fixed(item.rsi14))} | <strong>30d Realized Vol:</strong> ${percent(item.hv30)}`),
-          line("Support", `${g(e.tech.nearSupport ? "pos" : "", money(item.majorSupport))} (next ${money(item.secondarySupport)}) | <strong>Resistance:</strong> ${money(item.majorResistance)}`),
+          line("Entry support", isNum(lv.entrySupport) ? `${money(lv.entrySupport)} (${escapeHtml(lv.entryMethod)}, −${percent(lv.downside)})` : "N/A"),
+          line("Structural support", isNum(lv.structural) ? `${money(lv.structural)} (−${percent(lv.toStructural)}) | <strong>Resistance:</strong> ${lv.resistance ? money(lv.resistance) : "clear"}` : "N/A"),
           line("Return vs SPY", `3m ${vsSpy("return3m")} | 12m ${vsSpy("return12m")}`),
-          `<div class="muted" style="font-size:11px;">Levels from ${item.supportMethod === "swing_low_cluster" ? "one-year swing-point clusters" : "52-week extremes (no qualifying swing)"}. Volume ${isNum(item.volume) ? item.volume.toLocaleString() : "N/A"} vs 20d avg ${isNum(item.avgVolume20) ? item.avgVolume20.toLocaleString() : "N/A"}. Returns vs SPY are context, not scored.</div>`
+          `<div class="muted" style="font-size:11px;">Entry support is the nearest 50/200-day SMA or 3-month swing low within about a month's typical move; structural support is the one-year swing low. Volume ${isNum(item.volume) ? item.volume.toLocaleString() : "N/A"} vs 20d avg ${isNum(item.avgVolume20) ? item.avgVolume20.toLocaleString() : "N/A"}.</div>`
         ].join("");
 
         const usd = f?.reportingCurrency === "USD";
+        const trajectoryText = { getting_stronger: "Getting Stronger", roughly_unchanged: "Roughly Unchanged", getting_weaker: "Getting Weaker" }[f?.direction];
         document.getElementById("modalFundamentalDetails").innerHTML = f ? [
           line("Revenue Growth", `${g(grade.revenueGrowth(f.revenueGrowthYoY), signedPercent(f.revenueGrowthYoY))} | <strong>Earnings Growth:</strong> ${g(grade.earningsGrowth(f.earningsGrowthYoY), signedPercent(f.earningsGrowthYoY))}`),
           line("Operating Margin", `${g(grade.operatingMargin(f.operatingMargin), percent(f.operatingMargin))}${isNum(f.operatingMarginChange) ? ` (${g(grade.marginChange(f.operatingMarginChange), signedPercent(f.operatingMarginChange))} YoY)` : ""}`),
           line("Free Cash Flow", `${usd ? g(grade.freeCashFlow(f.freeCashFlow), compactUsd(f.freeCashFlow)) : "N/A"}${f.fcfTrend ? ` (${g(grade.fcfTrend(f.fcfTrend), f.fcfTrend)})` : ""} | <strong>Net Debt/EBITDA:</strong> ${g(grade.leverage(f.netDebtToEbitda), multiple(f.netDebtToEbitda))}`),
-          line("Trajectory", g(grade.trajectory(e.fund.assessment), escapeHtml(e.fund.assessment))),
+          line("Trajectory", trajectoryText ? g(grade.trajectory(trajectoryText), trajectoryText) : "N/A"),
           `<div class="muted" style="font-size:11px;">${f.basis === "ttm" ? "Trailing twelve months" : "Latest quarter vs same quarter last year"} ending ${escapeHtml(f.periodEnd)}${f.foreignFiler ? " (foreign filer)" : ""}. Source: SEC EDGAR filings.</div>`
-        ].join("") : `<div>${escapeHtml(e.fund.assessment)}</div>`;
+        ].join("") : `<div>${item.etf ? "N/A (ETF)" : "N/A (no recent SEC filing data)"}</div>`;
 
         const upside = isNum(c.oneYearTarget) ? c.oneYearTarget / item.price - 1 : null;
+        const valuation = valuationLabel(item);
         document.getElementById("modalValuationDetails").innerHTML = [
           line("Forward P/E (NTM)", `${g(grade.forwardPe(v.forwardPe), multiple(v.forwardPe))} | <strong>Trailing:</strong> ${multiple(v.trailingPe)} | <strong>5y Avg:</strong> ${multiple(v.historical5yPe)}`),
           line("PEG", `${g(grade.peg(v.pegRatio), fixed(v.pegRatio, 2))} | <strong>FCF Yield:</strong> ${g(grade.fcfYield(v.fcfYield), percent(v.fcfYield))} | <strong>Market Cap:</strong> ${compactUsd(item.marketCap)}`),
-          line("Assessment", g(grade.valuation(e.val.assessment), escapeHtml(e.val.assessment)))
+          line("Assessment", valuation ? g({ Cheap: "pos", Fair: "warn", Expensive: "neg", Extreme: "neg", Unprofitable: "neg" }[valuation], valuation) : (item.etf ? "N/A (ETF)" : "N/A"))
         ].join("");
 
         document.getElementById("modalCatalystDetails").innerHTML = [
@@ -2327,46 +2453,25 @@
           <div class="muted" style="font-size:11px; margin-top:6px;">Cboe delayed quotes as of ${escapeHtml(o.quoteTime)} (quotes outside market hours can be wide). IV/realized: green is cheap, red is expensive.</div>` : ""}
         `;
 
-        const target = isNum(item.majorResistance) ? (item.majorResistance / item.price - 1) : null;
         document.getElementById("modalEpistemicDetails").innerHTML = `
           <div><span class="epistemic-tag tag-fact">FACT</span> ${money(item.price)} as of ${escapeHtml(shortDateTime(item.asOf))} (${escapeHtml(item.sources.prices)}); forward P/E ${multiple(v.forwardPe)}; RSI ${fixed(item.rsi14)}.</div>
-          <div><span class="epistemic-tag tag-interpretation">INTERPRETATION</span> ${escapeHtml([...e.tech.flags, ...e.fund.flags, ...e.val.flags, ...e.cat.flags].join("; ") || "No technical, fundamental or valuation flags triggered.")}</div>
-          <div><span class="epistemic-tag tag-speculation">SPECULATION</span> If support ${money(item.majorSupport)} holds, a move back to resistance ${money(item.majorResistance)} would be ${signedPercent(target)}.</div>
+          <div><span class="epistemic-tag tag-interpretation">INTERPRETATION</span> ${escapeHtml(e.flags.join("; ") || "No technical, fundamental or valuation flags triggered.")}</div>
+          <div><span class="epistemic-tag tag-speculation">SPECULATION</span> If entry support ${money(lv.entrySupport)} holds, a move to the ${escapeHtml(lv.targetSource)} ${money(lv.target)} would be ${signedPercent(lv.upside)}.</div>
           ${this.thesisFor(item.ticker) ? `<div><span class="epistemic-tag tag-speculation">YOUR THESIS</span> ${escapeHtml(this.thesisFor(item.ticker))}</div>` : ""}
         `;
 
-        const reading = bullBearReading(e.totalScore);
-        const readingTone = reading.position >= RULES.actionableScore ? "pos" : reading.position >= RULES.avoidScore ? "warn" : "neg";
-        document.getElementById("modalBearCaseDetails").innerHTML = `
-          <div class="bb-meter" role="meter" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${reading.position}" aria-label="Bear to bull reading: ${reading.word}">
-            <div class="bb-head">
-              <span class="bb-word tone-${readingTone}">${reading.word}</span>
-              <span class="muted">Opportunity Score ${e.totalScore}/100 · ${escapeHtml(VERDICTS[e.bucket].label)}</span>
-            </div>
-            <div class="bb-track">
-              <span class="bb-tick" style="left:${RULES.avoidScore}%"></span>
-              <span class="bb-tick" style="left:${RULES.actionableScore}%"></span>
-              <span class="bb-marker" style="left:${reading.position}%"></span>
-            </div>
-            <div class="bb-scale">
-              <span style="left:0">Bear</span>
-              <span style="left:${RULES.avoidScore}%">${RULES.avoidScore}</span>
-              <span style="left:${RULES.actionableScore}%">${RULES.actionableScore}</span>
-              <span style="left:100%">Bull</span>
-            </div>
-          </div>
-          <div><strong>Bear Case:</strong> ${escapeHtml(e.bearCase.bearCase)}</div>
-          <div><strong>Invalidation Level:</strong> ${escapeHtml(e.bearCase.invalidationLevel)}</div>
-        `;
-
+        this.detailEvaluation = e;
+        this.renderBearBull();
         this.renderDevelopments(item);
 
         const sources = Object.entries(item.sources).filter(([, name]) => name).map(([kind, name]) => `${kind}: ${name}`).join(" · ");
+        const wt = RULES.weights;
+        const part = (key) => `${Math.round(wt[key] * 100)}% × ${SCORE_LABELS[key]} ${isNum(e.scores[key].score) ? e.scores[key].score : "N/A"}`;
         document.getElementById("modalSourcesDetails").innerHTML = `
-          <div><strong>Score ${e.totalScore}</strong> = Technicals ${e.tech.score}/30 + Fundamentals ${e.fund.score}/25 + Valuation ${e.val.score}/20 + Catalysts ${e.cat.score}/15 + Market ${e.marketBonus}/10${e.tech.isExtended ? " − 12 extension penalty" : ""}${e.cat.earningsWarning ? " − 8 earnings penalty" : ""} (${escapeHtml(e.tierLabel)})</div>
+          <div><strong>Overall ${e.overall}</strong> = ${SCORE_KEYS.map(part).join(" + ")}${isNum(e.scores.quality.score) ? "" : " (weights rescaled without Quality)"}. Overall only sorts the table; the verdict comes from the four scores.</div>
           <div>${this.peerRankLine(e)}</div>
-          <div class="muted">Missing data (scored neutral): ${escapeHtml(e.dataGaps.join(", ") || "none")}</div>
-          <div class="muted">Headlines, 8-K events and returns vs SPY are shown for context and are not part of the score.</div>
+          <div class="muted">Missing data (scored at the factor midpoint): ${escapeHtml(e.dataGaps.join(", ") || "none")}</div>
+          <div class="muted">Headlines and 8-K events are shown for context and are not part of any score.</div>
           <div class="muted">Sources: ${escapeHtml(sources)}</div>
           ${item.errors?.length ? `<div class="tone-warn">Last refresh warnings: ${escapeHtml(item.errors.join("; "))}</div>` : ""}
           ${this.scenarioSelector.value !== "baseline" ? '<div class="tone-warn">Stress test active: price and volatility figures are simulated.</div>' : ""}
@@ -2375,7 +2480,42 @@
         this.detailModal.classList.add("active");
       }
 
-      /** Each pillar's points and rank among all tracked stocks, plus the measures where the stock leads. */
+      /** Bear/bull meter for the chosen period, from price action only; the bear case and invalidation levels follow. */
+      renderBearBull() {
+        const e = this.detailEvaluation;
+        if (!e) return;
+        const horizon = HORIZONS.some(h => h.key === this.horizon) ? this.horizon : "30d";
+        const reading = horizonReading(e.item, this.spy, horizon);
+        const label = HORIZONS.find(h => h.key === horizon).label;
+        const tone = !reading ? "muted" : reading.position >= 58 ? "pos" : reading.position >= 42 ? "warn" : "neg";
+        const picker = `<div class="horizon-picker" role="tablist" aria-label="Bear / bull period">${HORIZONS.map(h =>
+          `<button type="button" role="tab" data-horizon="${h.key}" class="${h.key === horizon ? "active" : ""}" aria-selected="${h.key === horizon}">${h.key}</button>`).join("")}</div>`;
+        const meter = reading ? `
+          <div class="bb-meter" role="meter" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${reading.position}" aria-label="${escapeHtml(label)} bear to bull reading: ${reading.word}">
+            <div class="bb-head">
+              <span class="bb-word tone-${tone}">${reading.word}</span>
+              <span class="muted">${escapeHtml(label)} · ${escapeHtml(reading.parts.join(" · "))}</span>
+            </div>
+            <div class="bb-track">
+              <span class="bb-tick" style="left:50%"></span>
+              <span class="bb-marker" style="left:${reading.position}%"></span>
+            </div>
+            <div class="bb-scale">
+              <span style="left:0">Bearish</span>
+              <span style="left:50%">Neutral</span>
+              <span style="left:100%">Bullish</span>
+            </div>
+          </div>` : `<div class="muted" style="margin-bottom:10px;">Not enough price history for the ${escapeHtml(label.toLowerCase())} reading yet.</div>`;
+        document.getElementById("modalBearCaseDetails").innerHTML = `
+          ${picker}
+          ${meter}
+          <div class="muted" style="font-size:11px; margin-bottom:8px;">Price action only, looking back: the period's return in units of the stock's typical move, its return vs SPY, and where price sits against the matching trend line (20-day for 5d, 50-day for 30d, 200-day for 6m/12m). Not a forecast and not part of any score.</div>
+          <div><strong>Bear Case:</strong> ${escapeHtml(e.bearCase.bearCase)}</div>
+          <div><strong>Invalidation:</strong> ${escapeHtml(e.bearCase.invalidationLevel)}</div>
+        `;
+      }
+
+      /** Each score's rank among all tracked stocks, plus the measures where the stock leads. */
       peerRankLine(e) {
         const ranks = this.peerRanks.get(e.item.ticker);
         const rankText = (key) => {
@@ -2383,8 +2523,7 @@
           if (!r) return "";
           return r.leader ? ` <span class="tone-pos">#${r.rank} of ${r.of}</span>` : ` <span class="muted">#${r.rank} of ${r.of}</span>`;
         };
-        const pillars = [["Technicals", "tech", e.tech.score, 30], ["Fundamentals", "fund", e.fund.score, 25], ["Valuation", "val", e.val.score, 20], ["Events", "cat", e.cat.score, 15]]
-          .map(([label, key, score, max]) => `${label} ${score}/${max}${rankText(key)}`).join(" | ");
+        const pillars = SCORE_KEYS.map(key => `${SCORE_LABELS[key]} ${isNum(e.scores[key].score) ? e.scores[key].score : "N/A"}${rankText(key)}`).join(" | ");
         const leads = strengths(ranks);
         const tracked = this.currentEvaluations.length;
         const leadText = leads.length
@@ -2467,8 +2606,9 @@
 
       exportMarkdown() {
         if (!this.marketData.data) return;
-        const { best, actionable, notReady, avoid } = classifyEvaluations(this.getFilteredEvaluations());
-        const row = (e) => `- **${e.item.ticker}** ${money(e.item.price)}: Score ${e.totalScore} | Support ${money(e.item.majorSupport)} | Vehicle: ${e.optionsEval.recommendation}\n`;
+        const { best, buy, strong, watch, avoid } = classifyEvaluations(this.getFilteredEvaluations());
+        const scores = (e) => `Overall ${e.overall} (Q ${e.scores.quality.score ?? "N/A"} / T ${e.scores.trend.score} / E ${e.scores.entry.score} / Tr ${e.scores.trade.score})`;
+        const row = (e) => `- **${e.item.ticker}** ${money(e.item.price)}: ${e.verdict} | ${scores(e)} | Entry support ${money(e.levels.entrySupport)} | ${this.nextStep(e).text}\n`;
         let md = `# StockWatcher Research Report\n\n`;
         md += `**Account:** ${this.currentUser ? this.currentUser.name : "Guest"}\n`;
         md += `**Data built:** ${shortDateTime(this.marketData.data.generatedAt)} (real market data)\n`;
@@ -2476,17 +2616,20 @@
         if (this.scenarioSelector.value !== "baseline") md += `**Stress test active:** ${this.scenarioSelector.selectedOptions[0].text}\n`;
         md += `\n## BEST OPPORTUNITY TODAY\n`;
         if (best) {
+          const d = best.diagnostics;
           md += `- **Ticker:** ${best.item.ticker} (${money(best.item.price)})\n`;
-          md += `- **Opportunity Score:** ${best.totalScore} / 100 (${best.tierLabel})\n`;
-          md += `- **Support:** ${money(best.item.majorSupport)} | **Resistance:** ${money(best.item.majorResistance)}\n`;
+          md += `- **Scores:** ${scores(best)}\n`;
+          md += `- **Entry:** ${d.entryType}, preferred ${money(best.levels.zoneLow)}–${money(best.levels.zoneHigh)}, trigger ${d.trigger}, chase risk ${d.chase}\n`;
+          md += `- **Risk/reward:** ${isNum(best.levels.rewardRisk) ? `${best.levels.rewardRisk.toFixed(1)} : 1` : "N/A"} | **Invalidation:** ${best.bearCase.invalidationLevel}\n`;
           md += `- **Preferred Vehicle:** ${best.optionsEval.recommendation}\n`;
           md += `- **Bear Case:** ${best.bearCase.bearCase}\n\n`;
         } else {
-          md += `*Recommendation:* **WAIT**. Nothing qualifies today.\n\n`;
+          md += `*Recommendation:* **WAIT**. Nothing is in the buy zone today.\n\n`;
         }
-        md += `## ACTIONABLE\n${actionable.map(row).join("") || "- None\n"}\n`;
-        md += `## NOT READY YET\n${notReady.map(row).join("") || "- None\n"}\n`;
-        md += `## AVOID / HIGH RISK\n${avoid.map(row).join("") || "- None\n"}`;
+        md += `## BUY ZONE\n${buy.map(row).join("") || "- None\n"}\n`;
+        md += `## STRONG ASSET, NOT A BUY YET\n${strong.map(row).join("") || "- None\n"}\n`;
+        md += `## WATCH\n${watch.map(row).join("") || "- None\n"}\n`;
+        md += `## AVOID\n${avoid.map(row).join("") || "- None\n"}`;
         navigator.clipboard.writeText(md).then(() => this.showToast("Markdown report copied to clipboard!"));
       }
     }

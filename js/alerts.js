@@ -4,13 +4,13 @@
  * Alerts fire on transitions between two consecutive data builds: a stock that stays actionable is reported
  * once, and a failed build loses nothing because the next build is compared against the last deployed one.
  */
-import { classifyEvaluations, determineMarketRegime, evaluateAsset } from "./engine.js";
+import { SCORE_LABELS, buildMarketContext, evaluateAsset } from "./engine.js";
 
 export const ALERT_TRIGGERS = [
-  { id: "actionable", label: "Becomes actionable", hint: "Score 70+, at major support, no earnings inside 14 days" },
-  { id: "avoid", label: "Drops to avoid", hint: "Score under 55 or technically extended" },
+  { id: "actionable", label: "Enters the buy zone", hint: "Quality, Trend, Entry and Trade all clear their bars, chase risk isn't high, no earnings inside 14 days" },
+  { id: "avoid", label: "Drops to avoid", hint: "Broken trend (Trend under 35) or weak business (Quality under 40)" },
   { id: "score", label: "Score reaches my threshold" },
-  { id: "supportBreak", label: "Price falls below major support" },
+  { id: "supportBreak", label: "Price falls below entry support", hint: "The trade invalidation level" },
   { id: "earnings", label: "Earnings coming up" },
   { id: "filing", label: "Files a material 8-K", hint: "Restructuring, new debt, leadership change, impairment and similar SEC filings" },
   { id: "regime", label: "Market regime changes", hint: "SPY and QQQ vs their 50d and 200d SMAs" }
@@ -19,9 +19,12 @@ export const ALERT_TRIGGERS = [
 export const DEFAULT_ALERT_PREFS = {
   enabled: false,
   triggers: { actionable: true, avoid: false, score: false, supportBreak: true, earnings: true, filing: true, regime: true },
+  scoreKey: "entry",
   scoreThreshold: 75,
   earningsDays: 7
 };
+
+export const ALERT_SCORE_KEYS = ["overall", "quality", "trend", "entry", "trade"];
 
 const isNum = (v) => typeof v === "number" && Number.isFinite(v);
 const money = (v) => `$${v.toFixed(2)}`;
@@ -34,6 +37,7 @@ export function normalizeAlertPrefs(raw) {
   return {
     enabled: r.enabled === true,
     triggers: Object.fromEntries(ALERT_TRIGGERS.map(({ id }) => [id, typeof t[id] === "boolean" ? t[id] : DEFAULT_ALERT_PREFS.triggers[id]])),
+    scoreKey: ALERT_SCORE_KEYS.includes(r.scoreKey) ? r.scoreKey : DEFAULT_ALERT_PREFS.scoreKey,
     scoreThreshold: clampInt(r.scoreThreshold, 1, 100, DEFAULT_ALERT_PREFS.scoreThreshold),
     earningsDays: clampInt(r.earningsDays, 1, 30, DEFAULT_ALERT_PREFS.earningsDays)
   };
@@ -42,20 +46,21 @@ export function normalizeAlertPrefs(raw) {
 /** Scores a data/market.json payload into the fields alerts compare. */
 export function summarizeSnapshot(market) {
   const records = Object.values(market.stocks);
-  const { regime } = determineMarketRegime(records);
-  const evaluations = records.map(item => evaluateAsset(item, regime));
-  classifyEvaluations(evaluations);
+  const context = buildMarketContext(records, market.sectors);
+  const evaluations = records.map(item => evaluateAsset(item, context));
   return {
     generatedAt: market.generatedAt,
-    regime,
+    regime: context.regime,
     stocks: new Map(evaluations.map(e => [e.item.ticker, {
       ticker: e.item.ticker,
       name: e.item.name,
       bucket: e.bucket,
-      score: e.totalScore,
-      extended: e.tech.isExtended,
+      verdict: e.verdict,
+      scores: { overall: e.overall, quality: e.scores.quality.score, trend: e.scores.trend.score, entry: e.scores.entry.score, trade: e.scores.trade.score },
       price: e.item.price,
-      support: e.item.majorSupport,
+      support: e.levels.entrySupport,
+      zoneLow: e.levels.zoneLow,
+      zoneHigh: e.levels.zoneHigh,
       daysToEarnings: e.item.catalysts.daysToEarnings,
       earningsDate: e.item.catalysts.nextEarningsDate,
       earningsEstimated: e.item.catalysts.earningsDateEstimated,
@@ -88,19 +93,20 @@ export function alertsForUser(prev, cur, prefs, watchlist) {
     if (!a || !b) continue;
     const add = (trigger, message) => alerts.push({ ticker, name: b.name, trigger, message });
 
-    if (on.actionable && a.bucket !== "actionable" && b.bucket === "actionable") {
-      add("actionable", `Now actionable at ${money(b.price)}: score ${b.score}, at major support ${money(b.support)}. Vehicle: ${b.vehicle}.`);
+    const s = b.scores;
+    if (on.actionable && a.bucket !== "buy" && b.bucket === "buy") {
+      const zone = isNum(b.zoneLow) ? ` Preferred entry ${money(b.zoneLow)}–${money(b.zoneHigh)}, invalidation below ${money(b.support)}.` : "";
+      add("actionable", `Entered the buy zone at ${money(b.price)}: Quality ${s.quality ?? "N/A"}, Trend ${s.trend}, Entry ${s.entry}, Trade ${s.trade}.${zone} Vehicle: ${b.vehicle}.`);
     }
     if (on.avoid && a.bucket !== "avoid" && b.bucket === "avoid") {
-      add("avoid", b.extended
-        ? `Dropped to avoid at ${money(b.price)}: technically extended (score ${b.score}).`
-        : `Dropped to avoid at ${money(b.price)}: score fell from ${a.score} to ${b.score}.`);
+      add("avoid", `${b.verdict} at ${money(b.price)}: Quality ${s.quality ?? "N/A"}, Trend ${s.trend} (was ${a.scores.trend}).`);
     }
-    if (on.score && a.score < prefs.scoreThreshold && b.score >= prefs.scoreThreshold) {
-      add("score", `Score rose from ${a.score} to ${b.score}, reaching your threshold of ${prefs.scoreThreshold}.`);
+    const key = prefs.scoreKey;
+    if (on.score && isNum(a.scores[key]) && isNum(b.scores[key]) && a.scores[key] < prefs.scoreThreshold && b.scores[key] >= prefs.scoreThreshold) {
+      add("score", `${SCORE_LABELS[key]} score rose from ${a.scores[key]} to ${b.scores[key]}, reaching your threshold of ${prefs.scoreThreshold}.`);
     }
     if (on.supportBreak && isNum(a.support) && isNum(b.support) && a.price >= a.support && b.price < b.support) {
-      add("supportBreak", `Fell below major support ${money(b.support)} to ${money(b.price)}.`);
+      add("supportBreak", `Fell below entry support ${money(b.support)} to ${money(b.price)} (trade invalidation).`);
     }
     if (on.earnings && inEarningsWindow(b) && !inEarningsWindow(a)) {
       add("earnings", `Earnings in ${b.daysToEarnings} day${b.daysToEarnings === 1 ? "" : "s"} (${b.earningsDate}${b.earningsEstimated ? ", estimated" : ""}).`);

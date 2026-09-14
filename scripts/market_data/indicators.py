@@ -37,8 +37,14 @@ def realized_volatility(closes, period=30):
     return pstdev(returns) * math.sqrt(TRADING_DAYS_PER_YEAR)
 
 
-# Trailing-return windows in trading days, used to compare each stock with SPY.
-RETURN_WINDOWS = {"return1m": 21, "return3m": 63, "return6m": 126, "return12m": 252}
+# Trailing-return windows in trading days, used for returns vs SPY and the per-period bear/bull readings.
+RETURN_WINDOWS = {"return5d": 5, "return1m": 21, "return3m": 63, "return6m": 126, "return12m": 252}
+RANGE_SESSIONS = 60
+MINOR_SWING_LOOKBACK = 63
+MINOR_SWING_K = 5
+# Entry support must sit within about one month's typical move (bounded to 4-25%) to be a usable trading level.
+MIN_ENTRY_REACH, MAX_ENTRY_REACH = 0.04, 0.25
+DEFAULT_MONTHLY_SIGMA = 0.08
 
 
 def trailing_returns(closes, price):
@@ -106,25 +112,61 @@ def support_resistance(highs, lows, price, high52, low52, lookback=TRADING_DAYS_
     }
 
 
+def entry_support(highs, lows, price, sma50, sma200, hv30, structural_support, tolerance=0.015):
+    """
+    The nearest level below price that is close enough to trade against, as opposed to structural support (the
+    one-year swing low), which can sit far below a stock that has run. Candidates: the 50- and 200-day SMAs and
+    3-month minor swing lows (+/- 5 bars, clustered). A candidate must be at least 1% below price and within one
+    month's typical move (30-day realized volatility scaled to 21 sessions, bounded to 4-25%). Falls back to
+    structural support when nothing qualifies.
+    """
+    monthly_sigma = hv30 * math.sqrt(21 / TRADING_DAYS_PER_YEAR) if hv30 else DEFAULT_MONTHLY_SIGMA
+    reach = min(MAX_ENTRY_REACH, max(MIN_ENTRY_REACH, monthly_sigma))
+    recent_lows = lows[-MINOR_SWING_LOOKBACK:]
+    swing_lows = [level for level, _ in _cluster([recent_lows[i] for i in _swing_points(recent_lows, MINOR_SWING_K, min)], tolerance)]
+    candidates = [(sma50, "50-day SMA"), (sma200, "200-day SMA")] + [(level, "3-month swing low") for level in swing_lows]
+    usable = [(level, method) for level, method in candidates
+              if level is not None and level <= price * 0.99 and (price - level) / price <= reach]
+    if not usable:
+        return {"entrySupport": structural_support, "entrySupportMethod": "structural"}
+    level, method = max(usable)
+    return {"entrySupport": round(level, 2), "entrySupportMethod": method}
+
+
+def trading_range(highs, lows, sessions=RANGE_SESSIONS):
+    """Highest high and lowest low of the `sessions` bars before the latest one (for breakout / breakdown status)."""
+    prior_highs, prior_lows = highs[-(sessions + 1):-1], lows[-(sessions + 1):-1]
+    if len(prior_highs) < sessions:
+        return {"rangeHigh60": None, "rangeLow60": None}
+    return {"rangeHigh60": round(max(prior_highs), 2), "rangeLow60": round(min(prior_lows), 2)}
+
+
 def technicals(bars):
     """bars: PriceHistory. Returns the technical fields the scoring engine consumes."""
     closes, highs, lows, volumes = bars.close, bars.high, bars.low, bars.volume
     price = bars.last_price
     high52, low52 = range_52w(highs, lows)
     high52, low52 = max(high52, price), min(low52, price)
+    sma50, sma200, hv30 = sma(closes, 50), sma(closes, 200), realized_volatility(closes, 30)
+    levels = support_resistance(highs, lows, price, high52, low52)
     return {
         "price": round(price, 2),
         "prevClose": round(closes[-2], 2) if len(closes) > 1 else None,
         "high52": round(high52, 2),
         "low52": round(low52, 2),
         "sma20": _round(sma(closes, 20)),
-        "sma50": _round(sma(closes, 50)),
-        "sma200": _round(sma(closes, 200)),
+        "sma50": _round(sma50),
+        # The 50-day SMA one month (21 sessions) ago, for market breadth: share of stocks above their 50-day then vs now.
+        "sma50Prior": _round(sma(closes[:-21], 50)),
+        "close21Prior": round(closes[-22], 2) if len(closes) > 21 else None,
+        "sma200": _round(sma200),
         "rsi14": _round(rsi_wilder(closes, 14), 1),
-        "hv30": _round(realized_volatility(closes, 30), 4),
+        "hv30": _round(hv30, 4),
         "volume": volumes[-1],
         "avgVolume20": round(sma(volumes, 20)) if len(volumes) >= 20 else None,
-        **support_resistance(highs, lows, price, high52, low52),
+        **levels,
+        **entry_support(highs, lows, price, sma50, sma200, hv30, levels["majorSupport"]),
+        **trading_range(highs, lows),
         **trailing_returns(closes, price),
         "historicalSeries": [round(c, 2) for c in closes[-120:]],
         "historicalStart": bars.dates[-min(120, len(closes))].isoformat(),

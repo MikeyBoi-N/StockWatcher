@@ -3,11 +3,12 @@ import assert from "node:assert/strict";
 import { DEFAULT_ALERT_PREFS, alertsForUser, normalizeAlertPrefs } from "../js/alerts.js";
 
 const stock = (overrides = {}) => ({
-  ticker: "TEST", name: "Test Corp", bucket: "notReady", score: 68, extended: false, price: 105, support: 100,
+  ticker: "TEST", name: "Test Corp", bucket: "watch", verdict: "Watch", scores: { overall: 68, quality: 70, trend: 66, entry: 60, trade: 62 },
+  price: 105, support: 100, zoneLow: 100.25, zoneHigh: 102,
   daysToEarnings: 30, earningsDate: "2026-10-14", earningsEstimated: false, vehicle: "SHARES", filingEvents: [], ...overrides
 });
 const snapshot = (stocks, regime = "BULLISH") => ({ generatedAt: "2026-09-14T15:00:00+00:00", regime, stocks: new Map(stocks.map(s => [s.ticker, s])) });
-const allOn = normalizeAlertPrefs({ enabled: true, triggers: { actionable: true, avoid: true, score: true, supportBreak: true, earnings: true, filing: true, regime: true }, scoreThreshold: 70, earningsDays: 7 });
+const allOn = normalizeAlertPrefs({ enabled: true, triggers: { actionable: true, avoid: true, score: true, supportBreak: true, earnings: true, filing: true, regime: true }, scoreKey: "entry", scoreThreshold: 75, earningsDays: 7 });
 const triggers = (alerts) => alerts.map(a => a.trigger).sort();
 
 test("unchanged snapshots produce no alerts", () => {
@@ -15,11 +16,23 @@ test("unchanged snapshots produce no alerts", () => {
   assert.deepEqual(alertsForUser(s, s, allOn, ["TEST"]), []);
 });
 
-test("entering actionable alerts once, staying actionable does not", () => {
+test("entering the buy zone alerts once, staying in it does not", () => {
   const before = snapshot([stock()]);
-  const after = snapshot([stock({ bucket: "actionable", score: 74, price: 101 })]);
-  assert.deepEqual(triggers(alertsForUser(before, after, allOn, ["TEST"])), ["actionable", "score"]);
+  const after = snapshot([stock({ bucket: "buy", verdict: "Buy zone", scores: { overall: 80, quality: 70, trend: 70, entry: 82, trade: 70 }, price: 101 })]);
+  const alerts = alertsForUser(before, after, allOn, ["TEST"]);
+  assert.deepEqual(triggers(alerts), ["actionable", "score"]);
+  assert.match(alerts.find(a => a.trigger === "score").message, /^Entry score rose from 60 to 82/);
+  assert.match(alerts.find(a => a.trigger === "actionable").message, /Preferred entry \$100\.25–\$102\.00/);
   assert.deepEqual(alertsForUser(after, after, allOn, ["TEST"]), []);
+});
+
+test("the threshold alert watches the score the user picked", () => {
+  const before = snapshot([stock()]);
+  const after = snapshot([stock({ scores: { overall: 68, quality: 80, trend: 66, entry: 60, trade: 62 } })]);
+  assert.deepEqual(alertsForUser(before, after, allOn, ["TEST"]), []);
+  const onQuality = { ...allOn, scoreKey: "quality" };
+  assert.match(alertsForUser(before, after, onQuality, ["TEST"])[0].message, /^Quality score rose from 70 to 80/);
+  assert.equal(normalizeAlertPrefs({ scoreKey: "bogus" }).scoreKey, "entry");
 });
 
 test("only watchlist tickers alert, and disabled triggers stay quiet", () => {

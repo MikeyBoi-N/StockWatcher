@@ -18,6 +18,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from market_data.http_client import FetchError, HttpClient
+from market_data.indicators import technicals
 from market_data.snapshot import build_stock_record, failed_checks
 from market_data.sources import CboeOptions, NasdaqAnalyst, NasdaqHistory, Providers, SecEdgar, YahooChart, YahooNews
 
@@ -57,6 +58,24 @@ def requested_tickers(http, directory):
         if not page_token:
             break
     return [t for _, t in sorted(requests, reverse=True)]
+
+
+SECTOR_FIELDS = ("price", "sma50", "sma200", "return1m", "return3m", "return6m", "return12m")
+
+
+def build_sector_benchmarks(sector_etfs, providers):
+    """{sector name: {"etf", price, SMAs, returns}} from sector ETF price history; a sector that fails is left out."""
+    sectors = {}
+    for sector, etf in sector_etfs.items():
+        try:
+            bars = providers.prices.price_history(etf)
+        except FetchError as err:
+            print(f"  sector {etf}: {err}")
+            continue
+        tech = technicals(bars)
+        sectors[sector] = {"etf": etf, **{k: tech[k] for k in SECTOR_FIELDS}}
+    print(f"Sector benchmarks: {len(sectors)}/{len(sector_etfs)}")
+    return sectors
 
 
 def main():
@@ -115,6 +134,8 @@ def main():
             for err in errors:
                 print(f"         - {err}")
 
+    sectors = {} if args.only else build_sector_benchmarks(universe.get("sectorEtfs", {}), providers)
+
     expected_core = [t for t in tickers if t in core]
     core_ok = [t for t in expected_core if t in stocks]
     missing_regime = [t for t in REGIME_TICKERS if t in expected_core and t not in stocks]
@@ -125,6 +146,7 @@ def main():
         "generatedAt": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "universe": universe,
         "requested": [t for t in requested if t in stocks],
+        "sectors": sectors,
         "stocks": stocks,
         "failures": failures,
     }

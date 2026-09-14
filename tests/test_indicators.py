@@ -3,7 +3,8 @@ from datetime import date, timedelta
 
 import pytest
 
-from market_data.indicators import realized_volatility, rsi_wilder, sma, support_resistance, technicals, trailing_returns
+from market_data.indicators import (entry_support, realized_volatility, rsi_wilder, sma, support_resistance, technicals,
+                                    trading_range, trailing_returns)
 from market_data.sources import PriceHistory
 
 # Wilder RSI reference series and values from StockCharts' "Relative Strength Index" worked example.
@@ -82,3 +83,26 @@ def test_trailing_returns_compare_with_the_close_n_sessions_back():
     assert returns["return1m"] == pytest.approx(0.1)      # 21 sessions back is still 110
     assert returns["return3m"] is None                   # needs 64 closes
     assert trailing_returns(closes + [110.0], 121.0)["return3m"] == pytest.approx(0.21)
+
+
+def test_entry_support_uses_the_nearest_tradable_level_not_the_distant_swing_low():
+    # SNDK on 2026-09-14: price far above its one-year swing low, just above the 50-day SMA.
+    highs, lows = [1600.0] * 70, [1550.0] * 70
+    levels = entry_support(highs, lows, price=1531.01, sma50=1513.59, sma200=1040.19, hv30=0.8861, structural_support=998.19)
+    assert levels == {"entrySupport": 1513.59, "entrySupportMethod": "50-day SMA"}
+
+
+def test_entry_support_prefers_a_recent_swing_low_and_falls_back_to_structural():
+    highs, lows = zigzag({30: 96.0}, {}, length=70)
+    levels = entry_support(highs, lows, price=100.0, sma50=90.0, sma200=80.0, hv30=0.30, structural_support=85.0)
+    assert levels == {"entrySupport": 96.0, "entrySupportMethod": "3-month swing low"}
+    # Nothing within a month's move (30% vol -> ~8.7%): use structural support.
+    far = entry_support([101.0] * 70, [99.5] * 70, price=100.0, sma50=80.0, sma200=70.0, hv30=0.30, structural_support=75.0)
+    assert far == {"entrySupport": 75.0, "entrySupportMethod": "structural"}
+
+
+def test_trading_range_excludes_the_latest_bar():
+    highs = [10.0] * 60 + [50.0]
+    lows = [5.0] * 60 + [1.0]
+    assert trading_range(highs, lows) == {"rangeHigh60": 10.0, "rangeLow60": 5.0}
+    assert trading_range(highs[-30:], lows[-30:]) == {"rangeHigh60": None, "rangeLow60": None}

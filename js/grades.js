@@ -37,17 +37,51 @@ export const grade = {
   spreadPct: (v) => isNum(v) ? (v > RULES.maxSpreadPct ? "neg" : "") : ""
 };
 
-const READINGS = [
-  { min: 90, word: "Exceptional" },
-  { min: 80, word: "Strong" },
-  { min: RULES.actionableScore, word: "Bullish" },
-  { min: RULES.avoidScore, word: "Neutral" },
-  { min: 40, word: "Weak" },
-  { min: 0, word: "Bearish" }
+export const HORIZONS = [
+  { key: "24h", label: "24 hours", days: 1, returnOf: (i) => isNum(i.prevClose) && i.prevClose > 0 ? i.price / i.prevClose - 1 : null, spyReturnOf: (s) => isNum(s?.prevClose) && s.prevClose > 0 ? s.price / s.prevClose - 1 : null, line: null },
+  { key: "5d", label: "5 days", days: 5, field: "return5d", line: ["sma20", "20-day SMA"] },
+  { key: "30d", label: "30 days", days: 21, field: "return1m", line: ["sma50", "50-day SMA"] },
+  { key: "6m", label: "6 months", days: 126, field: "return6m", line: ["sma200", "200-day SMA"] },
+  { key: "12m", label: "12 months", days: 252, field: "return12m", line: ["sma200", "200-day SMA"] }
 ];
 
-/** Position (0-100) and one word for the bear/bull meter, from the Opportunity Score and the verdict thresholds. */
-export function bullBearReading(totalScore) {
-  const position = Math.max(0, Math.min(100, totalScore));
-  return { position, word: READINGS.find(r => position >= r.min).word };
+const WORDS = [[75, "Bullish"], [58, "Firm"], [42, "Neutral"], [25, "Weak"], [-Infinity, "Bearish"]];
+
+/**
+ * Backward-looking bear/bull reading for one period, from price action only:
+ *   50% the period's return in units of the stock's own typical move for that period (30-day realized volatility),
+ *   30% the return relative to SPY in the same units, 20% where price sits against the trend line for that period.
+ * Each part is capped at +/-2.5 typical moves; weights of missing parts are redistributed.
+ * @returns {{position: number, word: string, parts: string[]} | null} position 0 (bearish) to 100 (bullish), or null without the period's return
+ */
+export function horizonReading(item, spy, horizonKey) {
+  const h = HORIZONS.find(x => x.key === horizonKey);
+  const r = h.returnOf ? h.returnOf(item) : item[h.field];
+  if (!isNum(r) || r <= -1) return null;
+  const vol = isNum(item.hv30) && item.hv30 > 0 ? item.hv30 : 0.3;
+  const sigma = Math.max(0.005, vol * Math.sqrt(h.days / 252));
+  const capped = (z) => Math.max(-2.5, Math.min(2.5, z)) / 2.5;
+  const signedPct = (v) => `${v >= 0 ? "+" : "−"}${Math.abs(v * 100).toFixed(1)}%`;
+
+  const parts = [];
+  const components = [];
+  const z = Math.log(1 + r) / sigma;
+  components.push([0.5, capped(z)]);
+  parts.push(`${signedPct(r)} return (${z >= 0 ? "+" : "−"}${Math.abs(z).toFixed(1)} typical moves)`);
+
+  const s = h.spyReturnOf ? h.spyReturnOf(spy) : spy?.[h.field];
+  if (item.ticker !== "SPY" && isNum(s) && s > -1) {
+    const rel = (1 + r) / (1 + s) - 1;
+    components.push([0.3, capped(Math.log(1 + rel) / sigma)]);
+    parts.push(`${signedPct(rel)} vs SPY`);
+  }
+  if (h.line && isNum(item[h.line[0]]) && item[h.line[0]] > 0) {
+    const dist = item.price / item[h.line[0]] - 1;
+    components.push([0.2, capped(Math.log(1 + dist) / sigma)]);
+    parts.push(`${Math.abs(dist * 100).toFixed(1)}% ${dist >= 0 ? "above" : "below"} the ${h.line[1]}`);
+  }
+  const weight = components.reduce((sum, [w]) => sum + w, 0);
+  const blended = components.reduce((sum, [w, v]) => sum + w * v, 0) / weight;
+  const position = Math.round(50 + 50 * blended);
+  return { position, word: WORDS.find(([min]) => position >= min)[1], parts };
 }

@@ -61,7 +61,14 @@ async function main() {
     return;
   }
 
-  const prev = summarizeSnapshot(JSON.parse(readFileSync(previousPath, "utf8")));
+  const previousMarket = JSON.parse(readFileSync(previousPath, "utf8"));
+  // Builds before the four-score model lack entry support, so comparing against one would report every scoring
+  // change as a market move. Skip that one build; the next compares like with like.
+  if (!Object.values(previousMarket.stocks).some(r => "entrySupport" in r)) {
+    console.log("The deployed data predates the current scoring model; skipping alerts for this build.");
+    return;
+  }
+  const prev = summarizeSnapshot(previousMarket);
   const cur = summarizeSnapshot(JSON.parse(readFileSync(CURRENT_FILE, "utf8")));
   if (!(Date.parse(cur.generatedAt) > Date.parse(prev.generatedAt))) {
     console.log(`This build (${cur.generatedAt}) is not newer than the deployed one (${prev.generatedAt}); skipping alerts.`);

@@ -44,15 +44,15 @@ The web config values are public identifiers, not secrets; `firestore.rules` is 
 
 Signed-in users turn alerts on from the account menu (**Email alerts**) and choose what triggers them for stocks on their watchlist:
 
-- Becomes actionable
+- Enters the buy zone
 - Drops to avoid
-- Score reaches a chosen threshold
-- Price falls below major support
+- A chosen score (Overall, Quality, Trend, Entry or Trade) reaches a chosen threshold
+- Price falls below entry support (the trade invalidation level)
 - Earnings within a chosen number of days
 - Files a material 8-K (anything but the routine results release)
 - Market regime changes
 
-After each data build, [`scripts/send_alerts.mjs`](scripts/send_alerts.mjs) scores the new `data/market.json` and the copy the site was showing with the same engine ([`js/alerts.js`](js/alerts.js)), and sends each user one email listing what changed. Alerts fire on transitions, so a stock that stays actionable is reported once. Emails go only to the verified address on the Firebase Auth account (Google sign-ins are verified; email/password accounts get a "Send verification email" button in the dialog).
+After each data build, [`scripts/send_alerts.mjs`](scripts/send_alerts.mjs) scores the new `data/market.json` and the copy the site was showing with the same engine ([`js/alerts.js`](js/alerts.js)), and sends each user one email listing what changed. Alerts fire on transitions, so a stock that stays in the buy zone is reported once. The first build after a scoring-model change is skipped, so a model change is never reported as a market move. Emails go only to the verified address on the Firebase Auth account (Google sign-ins are verified; email/password accounts get a "Send verification email" button in the dialog).
 
 **Limits:** checks happen only when the data builds (3x per weekday), so a price that dips below support and recovers between builds is missed. A stock hovering at a threshold can alert on consecutive builds. Gmail allows about 500 emails a day.
 
@@ -71,7 +71,8 @@ Every number on the dashboard comes from a real source. A GitHub Actions job ([`
 
 | Data | Source | Notes |
 |---|---|---|
-| Daily price history (5 years), volume | Yahoo Finance chart API, Nasdaq.com fallback | Moving averages, RSI, realized volatility, 52-week range, support/resistance and 1/3/6/12-month returns are computed from these bars |
+| Daily price history (5 years), volume | Yahoo Finance chart API, Nasdaq.com fallback | Moving averages, RSI, realized volatility, 52-week and 60-session ranges, structural and entry support, resistance and 5-day/1/3/6/12-month returns are computed from these bars |
+| Sector benchmarks | Yahoo Finance chart API (SPDR sector ETFs: XLK, XLF, XLV, XLY, XLP, XLE, XLI, XLU, XLRE, XLB, XLC) | 3-month return vs SPY sets each stock's sector regime |
 | Revenue, operating margin, earnings, free cash flow, leverage, EPS | SEC EDGAR XBRL filings (10-K/10-Q/20-F) | Trailing twelve months; newly registered companies fall back to latest quarter vs the same quarter a year earlier |
 | Forward (next-twelve-month) EPS, PEG, earnings date, estimate revisions, 1y target, sector | Nasdaq.com (Zacks consensus) | Earnings dates are marked when estimated |
 | Options chain: bid/ask, IV, delta, theta, open interest | Cboe delayed quotes (15-minute delay) | ATM call at the monthly expiration nearest 45-60 DTE |
@@ -104,35 +105,51 @@ Stocks users add to their watchlists are recorded in the public Firestore `ticke
 - Market regime (SPY and QQQ vs their moving averages), SPY and QQQ prices with daily change, the best idea, and verdict counts.
 - When prices were last updated and when the data was built.
 
-### 3. Multi-Pillar Deterministic Rules Engine ([`js/engine.js`](js/engine.js))
-Calculates an **Opportunity Score (0–100)**. Missing inputs (ETFs have no fundamentals, new listings lack a 200-day history) score the pillar's neutral midpoint and are listed as data gaps.
-- **Technicals (0–30):** price vs 20d/50d/200d SMAs; extension penalty above +12% vs 50d or +22% vs 200d; within 3.5% of major support; 14-day Wilder RSI. Major support/resistance are one-year swing points (lowest low / highest high within ±15 trading days), clustered within 1.5%.
-- **Fundamentals (0–25):** revenue growth, operating margin, net debt/EBITDA (skipped for financials), negative free cash flow, and business trajectory (*Getting Stronger / Roughly Unchanged / Getting Weaker*, voted from revenue growth, margin change and earnings growth).
-- **Valuation (0–20):** P/E vs the stock's own 5-year average (only when that average is between 5x and 60x), penalty above 60x, PEG ratio, free-cash-flow yield.
-- **Catalysts & Event Risk (0–15):** earnings inside 14 days, net analyst EPS revisions over 4 weeks, analyst 1-year target vs price.
-- **Market Regime (0–10):** SPY and QQQ vs their 50d and 200d SMAs (*Bullish, Neutral, Cautious, Bearish*).
+### 3. Four-Score Rules Engine ([`js/engine.js`](js/engine.js))
+A single score blurs "is this a great company" with "is this a good price", so the engine scores four separate questions from 0 to 100. Each score is a sum of named factors shown in the detail view; a missing input scores its factor's midpoint and is listed as a data gap.
+- **Quality (is it a strong business?):** revenue growth (20), operating margin (20), margin trend (10), earnings growth (15), free cash flow (10), balance sheet (10, skipped for financials), analyst estimate revisions (15). ETFs have no Quality score.
+- **Trend (is it in a healthy uptrend?):** price vs 200-day SMA (20), 50-day vs 200-day (15), price vs 50-day (10), 3-month (15) and 12-month (15) return vs SPY, RSI momentum (10), market regime (15). Being far above the averages does not hurt Trend.
+- **Entry (is today's price a good buy point?):** distance above entry support in weekly moves (35), stretch above the 50-day in monthly moves (20), stretch above the 200-day (15), RSI (15), room to resistance (15). A "typical move" comes from 30-day realized volatility, so a 5% gap means more for a calm stock than a volatile one.
+- **Trade (is the risk/reward worth it?):** reward vs risk to the stop (30), valuation label (20), PEG (10), analyst target (10), earnings timing (15), options liquidity and IV cost (15).
+- **Overall** = 30% Quality + 25% Trend + 25% Entry + 20% Trade (reweighted without Quality for ETFs). It sorts the table and picks the best idea; it never decides the verdict.
 
-Every stock lands in exactly one bucket: **Avoid** (score under 55 or extended), **Actionable** (score 70+, at major support, no earnings inside 14 days), or **Not Ready** (everything else). The **Best Opportunity** is the top actionable stock scoring 75+; otherwise the dashboard says WAIT.
+**Two support levels.** *Structural support* is the one-year swing low (lowest low within ±15 sessions, clustered within 1.5%): where the longer-term thesis breaks. *Entry support* is the nearest level at least 1% below price and within about one month's typical move (bounded to 4–25%): the 50-day SMA, the 200-day SMA, or a 3-month minor swing low (±5 sessions). It is the trade stop, and Entry, reward/risk and the preferred entry zone are measured against it. When nothing qualifies, entry support falls back to structural support.
+
+**Verdicts** come from the four scores, so they say what is missing:
+- **Buy zone:** Entry 75+, Trend 60+, Quality 60+, Trade 60+, reward/risk at least 1.5 : 1, chase risk not High, no earnings inside 14 days.
+- **Strong asset, poor entry / poor risk/reward / wait for earnings:** Quality 65+ (Trend 65+ for ETFs) and Trend 55+, but not a buy yet.
+- **Watch:** everything else.
+- **Avoid, broken trend** (Trend under 35) or **Avoid, weak business** (Quality under 40).
+
+**Diagnostics** in the detail view label each stock in four sections:
+- *Market context:* market regime, sector regime (sector ETF vs SPY), relative strength, market breadth (share of tracked stocks above their 50-day now vs a month ago) and volatility regime (SPY 30-day realized volatility).
+- *Asset quality:* fundamental quality, earnings trend (latest quarter vs trailing twelve months), revenue growth, margin quality, valuation (Cheap / Fair / Expensive / Extreme from forward P/E vs its 5-year average), valuation vs growth (PEG), analyst revision trend.
+- *Technical state:* primary and short-term trend, momentum (1-month return vs the 3-month pace), RSI state, which averages price is above, distance to support and resistance, breakout status (vs the prior 60-session range) and pullback depth.
+- *Entry diagnostics:* entry quality, entry type (Pullback, Breakout, Continuation, Reversal, Mean Reversion), risk/reward, upside to resistance, downside to support, distance from the preferred entry, chase risk, invalidation level, trigger (e.g. *Break & hold > $553.72*) and preferred entry zone.
+
+The thresholds are starting points chosen by hand, not fitted to past returns.
 
 ### 4. Options vs Shares Engine
 True IV Rank needs a year of implied-volatility history that no free source provides, so the engine compares at-the-money implied volatility with the stock's 30-day realized volatility:
 - `IV / realized ≤ 0.9`: options cheap → **Long Call** (monthly expiration nearest 45–60 DTE) or **Call Debit Spread**.
 - `0.9 – 1.3`: moderate → **Vertical Call Debit Spread**.
 - `≥ 1.3`: options expensive → **Cash-Secured Put** at support or **Shares**.
-- Illiquid chains (open interest under 500 or bid/ask spread over 6%) → **Shares**; earnings inside 14 days → **Shares only**; score under 70 → **WAIT**.
+- Illiquid chains (open interest under 500 or bid/ask spread over 6%) → **Shares**; earnings inside 14 days → **Shares only**; not in the buy zone → **WAIT**.
 
 ### 5. Benchmark Table
 One sortable table ranks every stock in the current view (watchlist, all, primary, or alerts):
-- **Ranking:** rank, verdict (actionable / not ready / avoid), Opportunity Score, the next step each stock needs, warnings (extension, earnings inside 14 days, weak fundamentals, stretched valuation, illiquid options), what the stock stands out in, and what's happening.
-- **Score breakdown:** technicals, fundamentals, valuation, events and market regime points.
-- **Price and trend:** price, daily change, 3- and 12-month return vs SPY, distance from the 50d and 200d SMAs, RSI, support, distance to support, resistance, 52-week range.
-- **Fundamentals and valuation:** revenue growth, operating margin, FCF yield, net debt/EBITDA, trend, forward/trailing/5-year P/E, PEG, market cap.
+- **Ranking:** rank, verdict, Overall and the four scores, the next step each stock needs, warnings (extension, earnings inside 14 days, weak fundamentals, stretched valuation, illiquid options), what the stock stands out in, and what's happening.
+- **Entry:** entry type, reward/risk, preferred entry zone, distance from it, chase risk, entry support, distance to the stop, structural support.
+- **Price and trend:** price, daily change, 3- and 12-month return vs SPY, distance from the 50d and 200d SMAs, RSI, resistance, 52-week range.
+- **Fundamentals and valuation:** revenue growth, operating margin, FCF yield, net debt/EBITDA, trajectory, valuation label, forward/trailing/5-year P/E, PEG, market cap.
 - **Events:** days to earnings, analyst EPS revisions, 1-year target upside.
 - **Options:** vehicle, expiration, ATM strike, implied volatility, IV vs realized volatility, delta, theta, expected move, open interest, bid/ask spread.
 
-**Peer benchmarks ([`js/benchmarks.js`](js/benchmarks.js)):** every stock is ranked against all tracked stocks on each score pillar and on revenue growth, operating margin, leverage, FCF yield, forward P/E, PEG, EPS revisions, analyst upside and 3- and 12-month return vs SPY. Cells in the top 10% (at least the top 3) are tinted green, and the "Stands out in" column lists those measures, so a stock with a lower composite still shows where it leads. A tie only counts as leading when the tied group is small. Peer ranks and returns vs SPY are display-only and never change the score; neither do headlines or 8-K events.
+**Peer benchmarks ([`js/benchmarks.js`](js/benchmarks.js)):** every stock is ranked against all tracked stocks on each of the four scores and on revenue growth, operating margin, leverage, FCF yield, forward P/E, PEG, EPS revisions, analyst upside and 3- and 12-month return vs SPY. Cells in the top 10% (at least the top 3) are tinted green, and the "Stands out in" column lists those measures, so a stock with a lower Overall still shows where it leads. A tie only counts as leading when the tied group is small. Peer ranks are display-only; headlines and 8-K events never change any score.
 
-Click any column to sort (missing values always sort last) and any row for the detail view: price chart with SMAs and support, every metric with its source and date, colored green (earns points), yellow (in between) or red (costs points) using the scoring thresholds ([`js/grades.js`](js/grades.js)), fact/interpretation/speculation tagging, a bear/bull meter (the Opportunity Score on a red-to-green scale with the 55 and 70 verdict lines and one word: Bearish, Weak, Neutral, Bullish, Strong or Exceptional) above the bear case and invalidation level, and the full score breakdown with each pillar's rank among tracked stocks. Stocks you added that are waiting for their first data build appear as "Data pending" rows.
+Click any column to sort (missing values always sort last) and any row for the detail view: the verdict and all five scores, a card per score listing every factor's points, entry diagnostics, market/quality/technical diagnostics, a price chart with SMAs, entry support and structural support, every metric colored green (favorable), yellow (in between) or red (unfavorable) ([`js/grades.js`](js/grades.js)), fact/interpretation/speculation tagging, the bear/bull evaluation, and each score's rank among tracked stocks.
+
+**Bear/bull evaluation:** pick 24h, 5d, 30d, 6m or 12m. The meter is price action only, looking back: 50% the period's return in units of the stock's typical move for that period, 30% its return vs SPY in the same units, 20% where price sits against the matching trend line (20-day for 5d, 50-day for 30d, 200-day for 6m and 12m), each capped at ±2.5 typical moves. One word describes it: Bearish, Weak, Neutral, Firm or Bullish. It is not a forecast and not part of any score. The bear case and both invalidation levels (trade and thesis) sit below it. Stocks you added that are waiting for their first data build appear as "Data pending" rows.
 
 ### 6. What's Happening ([`js/developments.js`](js/developments.js))
 Each table row carries a one-line summary, with the full version in the detail view. No language model or text interpretation is involved; every statement comes from a number or a form item:

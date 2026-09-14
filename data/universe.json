@@ -9,5 +9,10 @@
     "UNH", "JNJ", "MRK", "ABBV",
     "WMT", "PG", "KO", "PEP", "HD", "MCD", "NKE", "DIS",
     "CVX", "CAT", "GE", "LMT", "BA"
-  ]
+  ],
+  "sectorEtfs": {
+    "Technology": "XLK", "Telecommunications": "XLC", "Finance": "XLF", "Health Care": "XLV",
+    "Consumer Discretionary": "XLY", "Consumer Staples": "XLP", "Energy": "XLE", "Industrials": "XLI",
+    "Utilities": "XLU", "Real Estate": "XLRE", "Basic Materials": "XLB"
+  }
 }
