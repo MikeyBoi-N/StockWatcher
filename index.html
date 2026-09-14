@@ -939,11 +939,13 @@
       onSessionChange(onUser, onError) {
         return onAuthStateChanged(this.auth, async (fbUser) => {
           if (!fbUser) return onUser(null);
+          let profile;
           try {
-            onUser(await this.loadProfile(fbUser));
+            profile = await this.loadProfile(fbUser);
           } catch (err) {
-            onError(err);
+            return onError(err);
           }
+          onUser(profile);
         });
       }
 

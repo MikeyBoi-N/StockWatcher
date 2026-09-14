@@ -309,7 +309,8 @@ export function classifyEvaluations(evaluations) {
 
 /** Returns modified copies for stress tests; SMAs and levels stay put so the shock is measured against them. */
 export function applyScenario(records, scenario) {
-  const copies = structuredClone(records);
+  // Records are plain JSON; a JSON round-trip avoids structuredClone, which older mobile browsers lack.
+  const copies = JSON.parse(JSON.stringify(records));
   for (const r of copies) {
     if (scenario === "pullback" && (/technology/i.test(r.sector || "") || r.ticker === "QQQ")) {
       r.price = Math.round(r.price * 0.92 * 100) / 100;
