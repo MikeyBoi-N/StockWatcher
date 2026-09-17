@@ -137,7 +137,7 @@ True IV Rank needs a year of implied-volatility history that no free source prov
 - Illiquid chains (open interest under 500 or bid/ask spread over 6%) → **Shares**; earnings inside 14 days → **Shares only**; not in the buy zone → **WAIT**.
 
 ### 5. Benchmark Table
-One sortable table ranks every stock in the current view (watchlist, all, primary, or alerts):
+One sortable table ranks every stock in the current view (watchlist, all, primary, or alerts; the historical view is described below):
 - **Ranking:** rank, verdict, Overall and the four scores, the next step each stock needs, warnings (extension, earnings inside 14 days, weak fundamentals, stretched valuation, illiquid options), what the stock stands out in, and what's happening.
 - **Entry:** entry type, reward/risk, preferred entry zone, distance from it, chase risk, entry support, distance to the stop, structural support.
 - **Price and trend:** price, daily change, 3- and 12-month return vs SPY, distance from the 50d and 200d SMAs, RSI, resistance, 52-week range.
@@ -158,8 +158,15 @@ Each table row carries a one-line summary, with the full version in the detail v
 - **What the company did:** 8-K events from the last 120 days, linked to the filing, negative ones (restructuring, impairment, restatement, delisting notice) first.
 - **Headlines:** up to six from the last week that name the company, marked + or − when they contain event words ("downgrade", "raises guidance", "lawsuit"). Most headlines are opinion pieces and stay neutral.
 
-### 7. Utilities
-- **Download CSV:** the current view with its search and sort, one column per table column plus the company name; percentages are plain numbers (12.5 means 12.5%).
+### 7. Recommendation History ([`js/history.js`](js/history.js))
+The **Historical** view is a second table: one row per stock, one column per market day, newest first. Each cell shows what the engine said that day and the Overall score it gave, so you can check whether a reading held up. Use **Show** to switch the cell between the bear/bull word, the verdict and each of the five scores, **Period** to pick the bear/bull horizon, and **Days** for how far back to load. Hovering a cell gives the verdict, all five scores, the price, and what the price did over the following 5 and 30 sessions. The **Outcome** columns on the left are the scoreboard: price change since the first recorded day, and the average change over the 5 and 30 sessions after each recorded day.
+
+Every data build appends to it. The builds inside one market day (US Eastern, so the three weekday builds all count as one day) are folded into a running mean, so a column is that day's average rather than one moment; the bear/bull word is re-derived from the averaged position, and the verdict, which is a rule-based label, keeps the last build of the day. Each day also stores the raw inputs the engine read - prices, SMAs, RSI, realized volatility, returns, fundamentals, valuation, catalysts, options and the derived levels - not just the scores, because the scoring rules will be retuned and **none of this can be backfilled**. Download CSV in this view writes one row per stock per day with the market regime, every input, every score and the forward returns, which is the file to tune or train a model on.
+
+[`scripts/record_history.mjs`](scripts/record_history.mjs) writes it after each build into the Firestore `history/{YYYY-MM-DD}` collection, using the same engine the page uses. The collection is public-read and written only by the build's service account (see [`firestore.rules`](firestore.rules)), so the view works signed out. A build whose data sources failed is skipped rather than recorded twice, and history only starts accumulating from the first build after this was deployed.
+
+### 8. Utilities
+- **Download CSV:** the current view with its search and sort, one column per table column plus the company name; percentages are plain numbers (12.5 means 12.5%). In the Historical view it is written long instead - one row per stock per day.
 - **Stress tests:** simulated -8% tech pullback, implied volatility x1.6, or +8% rally applied to the real data and labeled as simulated.
 - **Copy report:** markdown export of the current view.
 
@@ -183,7 +190,12 @@ To test locally without installing dependencies:
 SEC_USER_AGENT="StockWatcher you@example.com" python scripts/build_market_data.py   # core + requested tickers
 python scripts/build_market_data.py --only AAPL,SPY                                  # quick partial build
 python -m pip install pytest && python -m pytest tests                               # data pipeline tests
-npm test                                                                             # scoring engine, alert, summary and benchmark tests
+npm test                                                                             # scoring engine, alert, summary, benchmark and history tests
+```
+
+To see the daily history snapshot for the current `data/market.json` without writing it:
+```bash
+node scripts/record_history.mjs --dry-run
 ```
 
 To preview alert emails without sending (needs `npm install` and the service account key):
