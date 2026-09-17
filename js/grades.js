@@ -47,6 +47,9 @@ export const HORIZONS = [
 
 const WORDS = [[75, "Bullish"], [58, "Firm"], [42, "Neutral"], [25, "Weak"], [-Infinity, "Bearish"]];
 
+/** The bear/bull word for a 0-100 position, so a stored average and a live reading always read the same way. */
+export const bullWord = (position) => WORDS.find(([min]) => position >= min)[1];
+
 /**
  * Backward-looking bear/bull reading for one period, from price action only:
  *   50% the period's return in units of the stock's own typical move for that period (30-day realized volatility),
@@ -83,5 +86,5 @@ export function horizonReading(item, spy, horizonKey) {
   const weight = components.reduce((sum, [w]) => sum + w, 0);
   const blended = components.reduce((sum, [w, v]) => sum + w * v, 0) / weight;
   const position = Math.round(50 + 50 * blended);
-  return { position, word: WORDS.find(([min]) => position >= min)[1], parts };
+  return { position, word: bullWord(position), parts };
 }

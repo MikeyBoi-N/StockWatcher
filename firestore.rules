@@ -15,6 +15,14 @@ service cloud.firestore {
         && (!('alerts' in request.resource.data) || request.resource.data.alerts is map);
     }
 
+    // One document per market day holding what the engine said about each tracked stock, written only by the
+    // scheduled data build through the Admin SDK (which bypasses these rules). Public read so the Historical
+    // view works signed out; nothing here is user data.
+    match /history/{day} {
+      allow read: if true;
+      allow write: if false;
+    }
+
     // Tickers users added, so the scheduled data build knows what to fetch. Public read (the build reads it
     // with the web API key); signed-in users may only record a well-formed ticker with a server timestamp.
     match /tickerRequests/{ticker} {

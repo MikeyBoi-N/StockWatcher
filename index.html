@@ -360,6 +360,15 @@
     .bb-scale span:first-child { transform: none; }
     .bb-scale span:last-child { transform: translateX(-100%); }
 
+    /* Historical view */
+    .bench .sticky-first { position: sticky; left: 0; background: var(--surface); z-index: 1; min-width: 170px; text-align: left; border-right: 1px solid var(--border); }
+    .bench thead .sticky-first { z-index: 3; }
+    .hist-cell { display: inline-flex; align-items: baseline; gap: 6px; white-space: nowrap; }
+    .hist-sub { font-size: 11px; color: var(--text-3); font-weight: 600; }
+    .toolbar:not(.history-view) .history-only { display: none; }
+    .toolbar.history-view .baseline-only { display: none; }
+    .history-empty { padding: 28px 24px; text-align: center; color: var(--text-3); font-size: 13px; }
+
     .table-note { font-size: 12px; color: var(--text-3); }
 
     @media (max-width: 640px) {
@@ -368,6 +377,7 @@
       .page { padding: 16px; }
       .toolbar-right, .search-input { width: 100%; }
       .bench .sticky-ticker { min-width: 120px; max-width: 140px; }
+      .bench .sticky-first { min-width: 120px; }
       .company { max-width: 110px; }
     }
 
@@ -638,16 +648,31 @@
         <button class="filter-btn" data-filter="all">All</button>
         <button class="filter-btn" data-filter="primary">Primary</button>
         <button class="filter-btn" data-filter="alerts">Alerts</button>
+        <button class="filter-btn" data-filter="historical">Historical</button>
       </div>
       <div class="toolbar-right">
         <input type="search" id="tableSearch" class="search-input" placeholder="Filter ticker or name" autocomplete="off" spellcheck="false">
-        <label for="scenarioSelector">Stress test</label>
-        <select id="scenarioSelector" class="select">
-          <option value="baseline">None (real data)</option>
-          <option value="pullback">Tech pullback −8%</option>
-          <option value="high_iv">Implied volatility ×1.6</option>
-          <option value="overbought">Broad rally +8%</option>
-        </select>
+        <span class="baseline-only">
+          <label for="scenarioSelector">Stress test</label>
+          <select id="scenarioSelector" class="select">
+            <option value="baseline">None (real data)</option>
+            <option value="pullback">Tech pullback −8%</option>
+            <option value="high_iv">Implied volatility ×1.6</option>
+            <option value="overbought">Broad rally +8%</option>
+          </select>
+        </span>
+        <span class="history-only">
+          <label for="historyMetric">Show</label>
+          <select id="historyMetric" class="select"></select>
+        </span>
+        <span class="history-only">
+          <label for="historyHorizon">Period</label>
+          <select id="historyHorizon" class="select"></select>
+        </span>
+        <span class="history-only">
+          <label for="historyDays">Days</label>
+          <select id="historyDays" class="select"></select>
+        </span>
       </div>
     </section>
 
@@ -657,7 +682,7 @@
         <tbody></tbody>
       </table>
     </div>
-    <p class="table-note">
+    <p class="table-note" id="tableNote">
       Four scores answer different questions: <strong>Quality</strong> (is it a strong business), <strong>Trend</strong> (is it in a healthy uptrend), <strong>Entry</strong> (is today's price a good buy point) and <strong>Trade</strong> (is the risk/reward worth it).
       Overall = 30% Quality + 25% Trend + 25% Entry + 20% Trade and is only used for sorting; verdicts come from the four scores. Headlines and 8-K events never change a score.
       Buy zone needs Entry 75+, Trend 60+, Quality 60+, Trade 60+, reward/risk of 1.5 : 1 or better, chase risk below high and no earnings inside 14 days; a strong asset that misses says what is missing.
@@ -975,7 +1000,7 @@
      */
     import { initializeApp } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js";
     import { getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, signOut, updateProfile, sendPasswordResetEmail, sendEmailVerification } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js";
-    import { getFirestore, doc, getDoc, setDoc, updateDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
+    import { getFirestore, doc, getDoc, setDoc, updateDoc, serverTimestamp, collection, documentId, getDocs, limit, orderBy, query as fsQuery } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
     import { firebaseConfig } from "./firebase-config.js";
     import {
       RULES, SCORE_KEYS, SCORE_LABELS, applyScenario as simulateScenario, buildMarketContext, classifyEvaluations, evaluateAsset, valuationLabel
@@ -984,10 +1009,19 @@
     import { capitalReturns, developmentsLine, filingActions, quarterSummary } from "./js/developments.js";
     import { leaderCutoff, rankPeers, relativeToSpy, strengths } from "./js/benchmarks.js";
     import { HORIZONS, grade, horizonReading } from "./js/grades.js";
+    import { FORWARD_WINDOWS, HISTORY_DAY_LIMITS, HISTORY_METRICS, INPUT_KEYS, historyRows, metricCell, metricValue } from "./js/history.js";
 
     const SYMBOLS_URL = "data/symbols.json";
     const MARKET_URL = "data/market.json";
     const REFRESH_NOTE = "refreshes every 4 hours on weekdays";
+    const HISTORY_NOTE = `
+      Every data build records what the engine said about each stock, and the builds inside one market day are averaged
+      into the day shown here — so a column is that day's reading, not a single moment.
+      Days run newest first; click a column to sort by it, and hover a cell for the verdict, the four scores, the price
+      and what happened afterwards.
+      <strong>Since first</strong> and <strong>5d / 30d after</strong> are the outcome: "5d after" is the average price
+      change over the five sessions following each recorded day, which is what tells you whether a reading was worth acting on.
+      Download CSV gives one row per stock per day, forward returns included, for tuning the scoring model offline.`;
     const DEFAULT_WATCHLIST = ["SPY", "QQQ", "MSFT", "NVDA", "GOOGL", "AMZN", "AAPL"];
 
     const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, ch => (
@@ -995,6 +1029,13 @@
     ));
 
     const isNum = (v) => typeof v === "number" && Number.isFinite(v);
+    /** One CSV field. A leading =, +, - or @ would run as a formula when the file is opened in a spreadsheet. */
+    const csvCell = (v) => {
+      if (v === null || v === undefined || (typeof v === "number" && !Number.isFinite(v))) return "";
+      if (typeof v === "number") return String(v);
+      const text = /^[=+\-@\t\r]/.test(String(v)) ? `'${v}` : String(v);
+      return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+    };
     const money = (v) => isNum(v) ? `$${v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "N/A";
     const percent = (v, digits = 1) => isNum(v) ? `${(v * 100).toFixed(digits)}%` : "N/A";
     const signedPercent = (v, digits = 1) => isNum(v) ? `${v >= 0 ? "+" : ""}${(v * 100).toFixed(digits)}%` : "N/A";
@@ -1232,6 +1273,38 @@
     }
 
     /**
+     * DAILY RECOMMENDATION HISTORY (Firestore history/{YYYY-MM-DD}, written by scripts/record_history.mjs)
+     *
+     * One document per market day holding what the engine said about every tracked stock, averaged across that
+     * day's builds. Public read, so the Historical view works signed out, and loaded only when that view is opened.
+     */
+    class HistoryStore {
+      constructor(db) {
+        this.db = db;
+        this.days = [];
+        this.requested = 0;
+        this.loading = null;
+      }
+
+      /** Resolves with the most recent `count` market days, newest first. Widening the range reloads. */
+      load(count) {
+        if (this.loading && this.requested >= count) return this.loading;
+        this.requested = count;
+        this.loading = getDocs(fsQuery(collection(this.db, "history"), orderBy(documentId(), "desc"), limit(count)))
+          .then(snap => {
+            this.days = snap.docs.map(d => ({ ...d.data(), day: d.id }));
+            return this.days;
+          })
+          .catch(err => {
+            this.loading = null;
+            this.requested = 0;
+            throw err;
+          });
+        return this.loading;
+      }
+    }
+
+    /**
      * MAIN APPLICATION CONTROLLER
      */
     class StockWatcherApp {
@@ -1239,11 +1312,13 @@
        * @param {AccountManager|null} accountManager null when Firebase isn't configured (guest-only mode)
        * @param {SymbolDirectory} symbolDirectory source of real tickers for the add-stock picker
        * @param {MarketDataStore} marketData real prices, fundamentals, analyst and options data
+       * @param {HistoryStore|null} history past daily snapshots; null when Firebase isn't configured
        */
-      constructor(accountManager, symbolDirectory, marketData) {
+      constructor(accountManager, symbolDirectory, marketData, history) {
         this.accountManager = accountManager;
         this.symbolDirectory = symbolDirectory;
         this.marketData = marketData;
+        this.history = history;
         this.currentUser = null;
         this.authResolved = !accountManager;
         this.selectedStock = null;
@@ -1251,6 +1326,7 @@
         this.currentEvaluations = [];
         this.currentFilter = "my_watchlist";
         this.marketRegime = "NEUTRAL";
+        this.historySort = { key: "ticker", dir: "asc" };
 
         this.initDOM();
         this.attachEvents();
@@ -1383,6 +1459,12 @@
         this.benchHead = document.querySelector("#benchTable thead");
         this.benchBody = document.querySelector("#benchTable tbody");
         this.tableSearch = document.getElementById("tableSearch");
+        this.toolbar = document.querySelector(".toolbar");
+        this.tableNote = document.getElementById("tableNote");
+        this.benchNote = this.tableNote.innerHTML;
+        this.historyMetric = document.getElementById("historyMetric");
+        this.historyHorizon = document.getElementById("historyHorizon");
+        this.historyDays = document.getElementById("historyDays");
       }
 
       attachEvents() {
@@ -1399,14 +1481,23 @@
           });
         });
 
+        this.historyMetric.innerHTML = HISTORY_METRICS.map(m => `<option value="${m.key}">${escapeHtml(m.label)}</option>`).join("");
+        this.historyHorizon.innerHTML = HORIZONS.map(h => `<option value="${h.key}"${h.key === "30d" ? " selected" : ""}>${escapeHtml(h.label)}</option>`).join("");
+        this.historyDays.innerHTML = HISTORY_DAY_LIMITS.map(n => `<option value="${n}">${n} days</option>`).join("");
+        for (const select of [this.historyMetric, this.historyHorizon, this.historyDays]) {
+          select.addEventListener("change", () => this.renderOutput());
+        }
+
         this.tableSearch.addEventListener("input", () => this.renderOutput());
         this.benchHead.addEventListener("click", (e) => {
           const th = e.target.closest("th[data-sort]");
           if (!th) return;
           const key = th.dataset.sort;
           const firstDir = th.dataset.defaultDir || "asc";
-          this.sort = this.sort.key === key
-            ? { key, dir: this.sort.dir === "asc" ? "desc" : "asc" }
+          // Each view keeps its own sort: the two share no columns, so carrying one over would reset the other.
+          const active = this.currentFilter === "historical" ? "historySort" : "sort";
+          this[active] = this[active].key === key
+            ? { key, dir: this[active].dir === "asc" ? "desc" : "asc" }
             : { key, dir: firstDir };
           this.renderOutput();
         });
@@ -2212,7 +2303,13 @@
         const { sorted, best, buy, strong, watch, avoid } = classifyEvaluations(this.getFilteredEvaluations());
         this.renderOverview(best, { buy, strong, watch, avoid });
         this.renderFilterCounts();
-        this.renderTable(sorted, best);
+
+        // The overview always describes today; only the table below it changes between the two views.
+        const historical = this.currentFilter === "historical";
+        this.toolbar.classList.toggle("history-view", historical);
+        this.tableNote.innerHTML = historical ? HISTORY_NOTE : this.benchNote;
+        if (historical) this.renderHistory();
+        else this.renderTable(sorted, best);
       }
 
       renderOverview(best, groups) {
@@ -2251,6 +2348,12 @@
         const labels = { my_watchlist: "Watchlist", all: "All", primary: "Primary", alerts: "Alerts" };
         document.querySelectorAll(".filter-btn").forEach(btn => {
           const filter = btn.dataset.filter;
+          if (filter === "historical") {
+            // Counted in recorded days, not stocks; blank until the first read comes back.
+            const days = this.history?.days.length ?? 0;
+            btn.textContent = days ? `Historical (${days}d)` : "Historical";
+            return;
+          }
           btn.textContent = `${labels[filter]} (${this.getFilteredEvaluations(filter).length})`;
         });
       }
@@ -2260,7 +2363,7 @@
         const ranked = [...sorted].sort((a, b) =>
           VERDICTS[a.bucket].order - VERDICTS[b.bucket].order || b.overall - a.overall || a.item.ticker.localeCompare(b.item.ticker));
         const rows = ranked.map((e, index) => ({
-          ticker: e.item.ticker, name: e.item.name, bucket: e.bucket, rank: index + 1, e, isBest: e === best, next: this.nextStep(e)
+          ticker: e.item.ticker, name: e.item.name, bucket: e.bucket, rank: index + 1, e, isBest: e === best, next: this.nextStep(e), clickable: true
         }));
 
         const showsPending = this.currentUser && (this.currentFilter === "my_watchlist" || this.currentFilter === "all");
@@ -2278,8 +2381,21 @@
         const query = this.tableSearch.value.trim().toLowerCase();
         const visible = rows.filter(r => !query || r.ticker.toLowerCase().includes(query) || (r.name || "").toLowerCase().includes(query));
 
-        const column = cols.find(c => c.key === this.sort.key) || cols[0];
-        const direction = this.sort.dir === "asc" ? 1 : -1;
+        this.drawTable(cols, visible, this.sort, "No stocks match this view.");
+      }
+
+      /**
+       * Sorts `rows` by the active column and writes the table. Shared by the benchmark and Historical views, so
+       * both get the same sticky headers, column groups and sort behaviour.
+       * @param {Array} cols column definitions (see benchmarkColumns)
+       * @param {Array} rows row models; `clickable` opens the detail view, `rank` breaks sort ties
+       * @param {{key: string, dir: string}} sort the active sort for this view
+       * @param {string} emptyText shown when nothing is left to draw
+       */
+      drawTable(cols, rows, sort, emptyText) {
+        const visible = rows;
+        const column = cols.find(c => c.key === sort.key) || cols[0];
+        const direction = sort.dir === "asc" ? 1 : -1;
         const missing = (v) => v === null || v === undefined || (typeof v === "number" && !Number.isFinite(v));
         visible.sort((a, b) => {
           const va = column.sort(a);
@@ -2301,7 +2417,7 @@
         this.benchHead.innerHTML = `
           <tr class="groups">${groupRow.map(g => `<th colspan="${g.span}" class="${[g.cls, g.name ? "group" : ""].filter(Boolean).join(" ")}">${escapeHtml(g.name)}</th>`).join("")}</tr>
           <tr class="cols">${cols.map((c, i) => {
-            const ariaSort = this.sort.key === c.key ? ` aria-sort="${this.sort.dir === "asc" ? "ascending" : "descending"}"` : "";
+            const ariaSort = sort.key === c.key ? ` aria-sort="${sort.dir === "asc" ? "ascending" : "descending"}"` : "";
             const title = c.title ? ` title="${escapeHtml(c.title)}"` : "";
             return `<th data-sort="${c.key}" data-default-dir="${c.dir || "asc"}" class="sortable ${classes(c, i)}"${title}${ariaSort}>${escapeHtml(c.label)}</th>`;
           }).join("")}</tr>
@@ -2309,12 +2425,128 @@
 
         this.tableExport = { cols, rows: visible };
         this.benchBody.innerHTML = visible.length
-          ? visible.map(r => `<tr${r.e ? ` data-ticker="${escapeHtml(r.ticker)}"` : ' class="pending-row"'}>${cols.map((c, i) => {
+          ? visible.map(r => `<tr${r.clickable ? ` data-ticker="${escapeHtml(r.ticker)}"` : ' class="pending-row"'}>${cols.map((c, i) => {
               const peer = c.peer && r.e ? this.peerRanks.get(r.ticker)?.get(c.peer) : null;
               const leader = peer?.leader ? ` leader" title="#${peer.rank} of ${peer.of} tracked stocks` : "";
               return `<td class="${classes(c, i)}${leader}">${c.cell(r)}</td>`;
             }).join("")}</tr>`).join("")
-          : `<tr class="pending-row"><td colspan="${cols.length}" class="tone-muted" style="padding:24px; text-align:center;">No stocks match this view.</td></tr>`;
+          : `<tr class="pending-row"><td colspan="${cols.length}" class="tone-muted history-empty">${escapeHtml(emptyText)}</td></tr>`;
+      }
+
+      /* ------------------------------------------------------------------ historical view */
+
+      /** The company name for a ticker that may no longer be in the current build. */
+      nameFor(ticker) {
+        return this.marketData.data?.stocks?.[ticker]?.name ?? this.currentUser?.addedStocks[ticker]?.name ?? ticker;
+      }
+
+      /**
+       * Draws the Historical view, reading the stored days on first use. HistoryStore caches them, so re-rendering
+       * on every keystroke or sort costs no further reads.
+       */
+      async renderHistory() {
+        if (!this.history) {
+          this.showHistoryMessage("Historical snapshots need Firebase, which is not configured for this site.");
+          return;
+        }
+        if (!this.history.days.length) this.showHistoryMessage("Loading history…");
+        try {
+          await this.history.load(Number(this.historyDays.value));
+        } catch (err) {
+          console.error("Failed to load history", err);
+          this.showHistoryMessage("History could not be loaded. Refresh the page to try again.");
+          return;
+        }
+        // The read is asynchronous; another view may have taken over while it was in flight.
+        if (this.currentFilter !== "historical") return;
+        this.renderFilterCounts();
+        this.renderHistoryTable();
+      }
+
+      showHistoryMessage(text) {
+        this.benchHead.innerHTML = "";
+        this.benchBody.innerHTML = `<tr class="pending-row"><td class="history-empty">${escapeHtml(text)}</td></tr>`;
+        this.tableExport = null;
+      }
+
+      renderHistoryTable() {
+        const metric = this.historyMetric.value;
+        const horizon = this.historyHorizon.value;
+        // Only the bear/bull reading is measured over a period; the scores and the verdict are not.
+        this.historyHorizon.disabled = !HISTORY_METRICS.find(m => m.key === metric)?.horizon;
+
+        const { days, rows } = historyRows(this.history.days.slice(0, Number(this.historyDays.value)));
+        if (!days.length) {
+          this.showHistoryMessage(`No history recorded yet. The first daily snapshot lands with the next data build (${REFRESH_NOTE}).`);
+          return;
+        }
+
+        const search = this.tableSearch.value.trim().toLowerCase();
+        const visible = rows
+          .map(r => ({ ...r, name: this.nameFor(r.ticker), clickable: this.currentEvaluations.some(e => e.item.ticker === r.ticker) }))
+          .filter(r => !search || r.ticker.toLowerCase().includes(search) || r.name.toLowerCase().includes(search));
+
+        this.drawTable(this.historyColumns(days, metric, horizon), visible, this.historySort, "No stocks match this search.");
+      }
+
+      /** One day cell: the selected metric, the Overall score beside it, and the whole reading in the tooltip. */
+      historyCell(entry, metric, horizon) {
+        if (!entry) return '<span class="tone-muted">—</span>';
+        const c = metricCell(entry, metric, horizon, scoreTone);
+        const scores = ["overall", ...SCORE_KEYS].filter(k => isNum(entry[k])).map(k => `${SCORE_LABELS[k]} ${Math.round(entry[k])}`);
+        const title = [
+          entry.verdict,
+          scores.join(" · "),
+          isNum(entry.price) ? `Price ${money(entry.price)}` : null,
+          ...FORWARD_WINDOWS.map(w => isNum(entry.forward[w]) ? `${w} sessions after: ${signedPercent(entry.forward[w])}` : null),
+          `Average of ${entry.n} build${entry.n === 1 ? "" : "s"} that day`
+        ].filter(Boolean).join("\n");
+        const sub = c.sub ? `<span class="hist-sub">${escapeHtml(c.sub)}</span>` : "";
+        return `<span class="hist-cell tone-${c.tone}" title="${escapeHtml(title)}">${escapeHtml(c.text)}${sub}</span>`;
+      }
+
+      /**
+       * Column definitions for the Historical view: the ticker, what actually happened since, then one column per
+       * recorded market day newest first. Same shape as benchmarkColumns so drawTable renders and sorts both.
+       */
+      historyColumns(days, metric, horizon) {
+        const dash = '<span class="tone-muted">—</span>';
+        const at = (day) => new Date(`${day}T12:00:00Z`);
+        const longDate = (day) => at(day).toLocaleDateString(undefined, { dateStyle: "medium" });
+        const change = (v) => isNum(v) ? `<span class="tone-${v >= 0 ? "pos" : "neg"}">${signedPercent(v)}</span>` : dash;
+        const metricLabel = HISTORY_METRICS.find(m => m.key === metric).label;
+
+        return [
+          {
+            key: "ticker", label: "Ticker", cls: "sticky-first", sort: r => r.ticker,
+            cell: r => `<span class="ticker">${escapeHtml(r.ticker)}</span><span class="company" title="${escapeHtml(r.name)}">${escapeHtml(r.name)}</span>`
+          },
+          {
+            key: "firstSeen", group: "Outcome", label: "First seen", title: "The first day this stock was recorded",
+            sort: r => r.firstSeen, csv: r => r.firstSeen,
+            cell: r => r.firstSeen
+              ? `<span title="${r.sessions} recorded session${r.sessions === 1 ? "" : "s"}">${escapeHtml(longDate(r.firstSeen))}</span>`
+              : dash
+          },
+          {
+            key: "sinceFirst", group: "Outcome", label: "Since first", pct: true, num: true, dir: "desc",
+            title: "Price change from the first recorded day to the most recent one",
+            sort: r => r.sinceFirst, cell: r => change(r.sinceFirst)
+          },
+          ...FORWARD_WINDOWS.map(w => ({
+            key: `fwd${w}`, group: "Outcome", label: `${w}d after`, pct: true, num: true, dir: "desc",
+            title: `Average price change over the ${w} sessions following each recorded day — what happened after the readings on this row`,
+            sort: r => r.forward[w], cell: r => change(r.forward[w])
+          })),
+          ...days.map((day, index) => ({
+            key: `day-${day}`, group: at(day).toLocaleDateString(undefined, { month: "short", year: "numeric" }),
+            // Built from two parts rather than one format, so the weekday always leads whatever the locale prefers.
+            label: `${at(day).toLocaleDateString(undefined, { weekday: "short" })} ${at(day).getUTCDate()}`,
+            title: `${metricLabel} on ${longDate(day)}`, num: true, dir: "desc",
+            sort: r => metricValue(r.cells[index], metric, horizon),
+            cell: r => this.historyCell(r.cells[index], metric, horizon)
+          }))
+        ];
       }
 
       showDetailModal(ticker) {
@@ -2569,6 +2801,7 @@
 
       /** Downloads the table as shown (view, search and sort); percentages are written as numbers like 12.5. */
       downloadCsv() {
+        if (this.currentFilter === "historical") return this.downloadHistoryCsv();
         if (!this.tableExport) return;
         const { cols, rows } = this.tableExport;
         const header = [];
@@ -2584,19 +2817,54 @@
             accessors.push(r => r.name);
           }
         }
-        const cellText = (v) => {
-          if (v === null || v === undefined || (typeof v === "number" && !Number.isFinite(v))) return "";
-          if (typeof v === "number") return String(v);
-          // A leading =, +, - or @ would run as a formula when the file is opened in a spreadsheet.
-          const text = /^[=+\-@\t\r]/.test(String(v)) ? `'${v}` : String(v);
-          return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
-        };
-        const lines = [header, ...rows.filter(r => r.e).map(r => accessors.map(get => get(r)))].map(row => row.map(cellText).join(","));
         const scenario = this.scenarioSelector.value === "baseline" ? "" : `-stress-${this.scenarioSelector.value}`;
-        const blob = new Blob(["\uFEFF" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
-        const url = URL.createObjectURL(blob);
+        this.saveCsv([header, ...rows.filter(r => r.e).map(r => accessors.map(get => get(r)))], `${this.currentFilter}${scenario}`);
+      }
+
+      /**
+       * The history as one row per stock per recorded day: the market backdrop, the raw inputs the engine read, the
+       * scores it produced and what the price did afterwards. The table on screen is wide because it is read across;
+       * this is long because it is analysed - it is the file to train or tune a model on. Honours the search box,
+       * and writes the forward returns as numbers like 12.5.
+       */
+      downloadHistoryCsv() {
+        if (!this.history?.days.length) return;
+        const { rows } = historyRows(this.history.days);
+        const scoreKeys = ["overall", ...SCORE_KEYS];
+        const asPercent = (v) => isNum(v) ? Math.round(v * 10000) / 100 : null;
+        const search = this.tableSearch.value.trim().toLowerCase();
+        const backdrop = new Map(this.history.days.map(d => [d.day, d]));
+
+        const lines = [[
+          "Ticker", "Company", "Day", "Builds", "Regime", "Breadth", "Verdict", "Bucket", "DataGaps", "Price",
+          ...scoreKeys.map(k => SCORE_LABELS[k]),
+          ...HORIZONS.map(h => `Bull ${h.key}`),
+          ...INPUT_KEYS,
+          ...FORWARD_WINDOWS.map(w => `Fwd ${w}d (%)`)
+        ]];
+        for (const row of rows) {
+          const name = this.nameFor(row.ticker);
+          if (search && !row.ticker.toLowerCase().includes(search) && !name.toLowerCase().includes(search)) continue;
+          for (const [day, entry] of row.byDay) {
+            lines.push([
+              row.ticker, name, day, entry.n, backdrop.get(day)?.regime ?? null, backdrop.get(day)?.breadth ?? null,
+              entry.verdict ?? null, entry.bucket ?? null, entry.gaps ?? 0, entry.price ?? null,
+              ...scoreKeys.map(k => isNum(entry[k]) ? entry[k] : null),
+              ...HORIZONS.map(h => entry.bull?.[h.key] ?? null),
+              ...INPUT_KEYS.map(k => entry.inputs?.[k] ?? null),
+              ...FORWARD_WINDOWS.map(w => asPercent(entry.forward[w]))
+            ]);
+          }
+        }
+        this.saveCsv(lines, "history");
+      }
+
+      /** Writes a 2D array out as a downloaded CSV file, BOM first so Excel reads it as UTF-8. */
+      saveCsv(rows, name) {
+        const body = rows.map(row => row.map(csvCell).join(",")).join("\r\n");
+        const url = URL.createObjectURL(new Blob(["\uFEFF" + body], { type: "text/csv;charset=utf-8" }));
         const link = Object.assign(document.createElement("a"), {
-          href: url, download: `stockwatcher-${this.currentFilter}${scenario}-${new Date().toISOString().slice(0, 10)}.csv`
+          href: url, download: `stockwatcher-${name}-${new Date().toISOString().slice(0, 10)}.csv`
         });
         document.body.append(link);
         link.click();
@@ -2636,14 +2904,17 @@
 
     const firebaseConfigured = !Object.values(firebaseConfig).some(v => String(v).includes("YOUR_"));
     let accountManager = null;
+    let historyStore = null;
     if (firebaseConfigured) {
       const firebaseApp = initializeApp(firebaseConfig);
-      accountManager = new AccountManager(getAuth(firebaseApp), getFirestore(firebaseApp));
+      const db = getFirestore(firebaseApp);
+      accountManager = new AccountManager(getAuth(firebaseApp), db);
+      historyStore = new HistoryStore(db);
     } else {
       console.warn("Firebase is not configured (firebase-config.js). Running in guest-only mode.");
     }
 
-    window.stockApp = new StockWatcherApp(accountManager, new SymbolDirectory(SYMBOLS_URL), new MarketDataStore(MARKET_URL));
+    window.stockApp = new StockWatcherApp(accountManager, new SymbolDirectory(SYMBOLS_URL), new MarketDataStore(MARKET_URL), historyStore);
   </script>
 </body>
 </html>
