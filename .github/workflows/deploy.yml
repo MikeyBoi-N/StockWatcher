@@ -89,8 +89,9 @@ jobs:
         run: node scripts/deploy_firestore_rules.mjs
 
       - name: Record Daily History
-        # Folds this build into today's history/{date} document, which the Historical view reads back. Runs after
-        # the rules deploy so the collection is readable as soon as the first day lands, and never fails the build.
+        # Stores this build as its own Firestore snapshot, which the Historical view reads back. Runs after the rules
+        # deploy so a new snapshot is readable as soon as it lands, and never fails the build. Snapshots live in
+        # Firestore, so deploys never touch them.
         continue-on-error: true
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}

@@ -1,23 +1,25 @@
 /**
- * Daily recommendation history.
+ * Recommendation history.
  *
- * Every data build records what the engine said about each stock that day. Builds run several times a weekday,
- * so the samples inside one session date are folded into a running mean (`n` counts them) and stored as a single
- * daily entry, keyed by the US market date. Numbers average; the bear/bull word is re-derived from the averaged
- * position so the label and the number can never disagree. A verdict is a rule-based label that cannot be
- * averaged, so the day keeps the last one it saw.
+ * Every data build (three a weekday, about four hours apart) is stored as its own snapshot. Nothing is averaged
+ * at write time: the Historical view shows each build, or folds a market day's builds into a daily average when it
+ * reads them. A snapshot is keyed by its build's own timestamp (snapshotId), so recording the same build twice is
+ * refused instead of being counted twice, and a deploy or a re-run can never blend into data already stored.
  *
- * One day document (Firestore `history/{YYYY-MM-DD}`):
- *   { day, regime, breadth, generatedAt, tickers: { [ticker]: entry } }
- * One entry:
- *   { n, price, overall, quality, trend, entry, trade, bull: { [horizon]: position }, verdict, bucket,
- *     inputs: { [field]: number }, gaps }
+ * Two Firestore documents per build, sharing that id:
+ *   snapshots/{id}       { at, generatedAt, day, regime, breadth, tickers: { [ticker]: reading } }
+ *   snapshotInputs/{id}  { at, day, tickers: { [ticker]: { [field]: number } } }
+ * One reading:
+ *   { n, price, overall, quality, trend, entry, trade, bull: { [horizon]: position }, verdict, bucket, gaps }
+ * `at` is the build time in epoch ms and is what every query filters and sorts on. `n` is how many builds a reading
+ * averages: 1 for every snapshot a build writes, more only for a day stored before snapshots were kept per build.
  *
- * `inputs` holds the raw measurements the engine read, not just the scores it produced, because the scoring rules
- * will be retuned and none of this can be backfilled: a day that was not recorded never existed.
+ * `snapshotInputs` holds the raw measurements the engine read, not only the scores it produced, because the scoring
+ * rules will be retuned and none of this can be backfilled. They sit in their own document because they are several
+ * times larger than the readings and only the model-training export needs them, so the table never downloads them.
  *
- * scripts/record_history.mjs writes it from the real engine; the Historical view reads it back. Both sides share
- * this module so a stored snapshot always means what the live table meant.
+ * scripts/record_history.mjs writes both from the real engine and the Historical view reads them back. Both sides
+ * share this module so a stored snapshot always means what the live table meant.
  */
 import { SCORE_KEYS } from "./engine.js";
 import { HORIZONS, bullWord, horizonReading } from "./grades.js";
@@ -25,14 +27,20 @@ import { HORIZONS, bullWord, horizonReading } from "./grades.js";
 const isNum = (v) => typeof v === "number" && Number.isFinite(v);
 const round = (v, digits) => isNum(v) ? Math.round(v * 10 ** digits) / 10 ** digits : null;
 
-/** How many days of columns the Historical view offers. */
+/** How many calendar days back the Historical view can load. */
 export const HISTORY_DAY_LIMITS = [30, 90, 180];
 
-/** How far ahead each stored day's price is measured, to show whether a reading worked out. */
+/** How the Historical view lays out its columns: one per build, or one per market day averaging that day's builds. */
+export const HISTORY_RESOLUTIONS = [
+  { key: "build", label: "Every build" },
+  { key: "daily", label: "Daily average" }
+];
+
+/** How many sessions ahead each snapshot's day is measured, to show whether a reading worked out. */
 export const FORWARD_WINDOWS = [5, 30];
 
 /**
- * What a day cell can show. `horizon` marks the one metric that needs a bear/bull period; `score` marks the ones
+ * What a cell can show. `horizon` marks the one metric that needs a bear/bull period; `score` marks the ones
  * coloured by the shared 0-100 score tones.
  */
 export const HISTORY_METRICS = [
@@ -47,25 +55,35 @@ export const HISTORY_METRICS = [
 ];
 
 const BUCKET_TONES = { buy: "pos", strong: "warn", watch: "muted", avoid: "neg" };
-// Day columns are narrow and there are a lot of them, so the verdict shows as its bucket; the full wording
+// Columns are narrow and there are a lot of them, so the verdict shows as its bucket; the full wording
 // ("Strong asset, poor entry") is still stored, and the table puts it in the cell's tooltip.
 const BUCKET_LABELS = { buy: "Buy zone", strong: "Strong asset", watch: "Watch", avoid: "Avoid" };
 const BULL_TONES = { Bullish: "pos", Firm: "pos", Neutral: "", Weak: "warn", Bearish: "neg" };
 
 /**
- * The US market date a build belongs to, so the three weekday builds (11am, 3pm and 7pm New York) all land on
- * the same day whatever the server clock or daylight saving is doing.
+ * The US market date a build belongs to, so the three weekday builds (11am, 3pm and 7pm New York, often an hour or
+ * more later when GitHub runs the schedule late) all land on the same day whatever the server clock is doing.
  */
 export function marketDay(iso) {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit" })
     .format(iso ? new Date(iso) : new Date());
 }
 
+/** Saturdays and Sundays are not sessions, even when a push runs a build on one. */
+const isWeekend = (day) => [0, 6].includes(new Date(`${day}T12:00:00Z`).getUTCDay());
+
 /**
- * The raw measurements the engine read that day, stored beside the scores it produced. The scores are one model's
+ * The document id for a build: its timestamp as 20260918T005447Z. Sorts chronologically, carries no characters that
+ * need escaping in a Firestore path, and is the same every time the same build is recorded.
+ */
+export function snapshotId(generatedAt) {
+  return new Date(generatedAt).toISOString().replace(/\.\d+Z$/, "Z").replace(/[-:]/g, "");
+}
+
+/**
+ * The raw measurements the engine read that build, stored beside the scores it produced. The scores are one model's
  * opinion and the rules behind them will be retuned; these are what actually happened, so a later model can be
- * trained on the features rather than only on this engine's verdicts. There is no way to backfill them, so a field
- * left out here is lost for good - which is why this list is wider than anything the table shows.
+ * trained on the features rather than only on this engine's verdicts. A field left out here is lost for good.
  */
 const INPUT_FIELDS = {
   prevClose: (i) => i.prevClose,
@@ -102,12 +120,12 @@ const INPUT_FIELDS = {
   atmCallOpenInterest: (i) => i.options?.atmCallOpenInterest
 };
 
-/** Levels the engine derived for the day, kept for the same reason as the inputs. */
+/** Levels the engine derived for the build, kept for the same reason as the inputs. */
 const LEVEL_FIELDS = ["entrySupport", "structural", "target", "rewardRisk", "downside", "upside"];
 
 export const INPUT_KEYS = [...Object.keys(INPUT_FIELDS), ...LEVEL_FIELDS];
 
-/** One build's reading for one evaluated stock. Scores are whole numbers here; averaging adds the decimals. */
+/** One build's reading for one evaluated stock, with its raw inputs attached (snapshotDocuments splits them off). */
 export function sampleFromEvaluation(e, spy) {
   const bull = {};
   for (const h of HORIZONS) {
@@ -138,45 +156,77 @@ export function snapshotFromEvaluations(evaluations, context) {
   return { regime: context.regime, breadth: round(context.breadthNow, 4), tickers };
 }
 
+/**
+ * The two Firestore documents for one build: the readings the table shows, and the raw inputs only the export needs.
+ * @param {{regime, breadth, tickers}} snapshot from snapshotFromEvaluations (readings may carry `inputs`)
+ * @param {string} generatedAt the build time from data/market.json
+ * @returns {{id: string, snapshot: Object, inputs: Object}}
+ */
+export function snapshotDocuments(snapshot, generatedAt) {
+  const at = Date.parse(generatedAt);
+  const day = marketDay(generatedAt);
+  const readings = {};
+  const inputs = {};
+  for (const [ticker, { inputs: fields, ...reading }] of Object.entries(snapshot.tickers ?? {})) {
+    readings[ticker] = reading;
+    inputs[ticker] = fields ?? {};
+  }
+  return {
+    id: snapshotId(generatedAt),
+    snapshot: { at, generatedAt, day, regime: snapshot.regime ?? null, breadth: snapshot.breadth ?? null, tickers: readings },
+    inputs: { at, day, tickers: inputs }
+  };
+}
+
 const MEAN_KEYS = ["price", "overall", ...SCORE_KEYS];
 
 /**
- * Folds one build's sample into the day's running mean. A field missing from either side keeps whatever the other
- * side has rather than averaging against a gap, so a build that lost its options feed cannot drag a score down.
+ * Folds one reading into a running mean, each side weighted by how many builds it already averages (`n`). A field
+ * missing from either side keeps whatever the other side has rather than averaging against a gap, so a build that
+ * lost its options feed cannot drag a score down. The verdict is a rule-based label and cannot be averaged, so the
+ * later reading's wins. Used to build daily averages from per-build snapshots.
  */
 export function foldSample(existing, sample) {
-  if (!existing || !isNum(existing.n)) return { ...sample, bull: { ...sample.bull } };
+  if (!existing || !isNum(existing.n)) return { ...sample, n: sample.n ?? 1, bull: { ...sample.bull } };
   const n = existing.n;
+  const m = isNum(sample.n) ? sample.n : 1;
   const mean = (a, b, digits) => {
     if (!isNum(b)) return isNum(a) ? a : null;
     if (!isNum(a)) return b;
-    return round((a * n + b) / (n + 1), digits);
+    return round((a * n + b * m) / (n + m), digits);
   };
-  const folded = { ...existing, n: n + 1, verdict: sample.verdict, bucket: sample.bucket };
+  const folded = { ...existing, n: n + m, verdict: sample.verdict, bucket: sample.bucket };
   for (const key of MEAN_KEYS) folded[key] = mean(existing[key], sample[key], key === "price" ? 2 : 1);
   folded.bull = { ...existing.bull };
   for (const h of HORIZONS) {
     const value = mean(existing.bull?.[h.key], sample.bull?.[h.key], 1);
     if (isNum(value)) folded.bull[h.key] = value;
   }
-  folded.inputs = { ...existing.inputs };
-  for (const key of new Set([...Object.keys(existing.inputs ?? {}), ...Object.keys(sample.inputs ?? {})])) {
-    const value = mean(existing.inputs?.[key], sample.inputs?.[key], 6);
-    if (isNum(value)) folded.inputs[key] = value;
+  if (existing.inputs || sample.inputs) {
+    folded.inputs = { ...existing.inputs };
+    for (const key of new Set([...Object.keys(existing.inputs ?? {}), ...Object.keys(sample.inputs ?? {})])) {
+      const value = mean(existing.inputs?.[key], sample.inputs?.[key], 6);
+      if (isNum(value)) folded.inputs[key] = value;
+    }
   }
   if (isNum(sample.gaps) || isNum(existing.gaps)) folded.gaps = Math.max(existing.gaps ?? 0, sample.gaps ?? 0);
   return folded;
 }
 
-/** Folds a whole build into the stored day document, creating it on the first build of the day. */
-export function foldDay(existingDay, snapshot, generatedAt, day = marketDay(generatedAt)) {
-  const tickers = { ...(existingDay?.tickers ?? {}) };
-  for (const [ticker, sample] of Object.entries(snapshot.tickers)) {
-    tickers[ticker] = foldSample(tickers[ticker], sample);
+/**
+ * Folds per-build snapshots into one pseudo-snapshot per market day. Readings average; the regime and breadth are
+ * market-wide labels, so a day keeps its last build's. The bear/bull word is re-derived from the averaged position
+ * when it is shown, so the label and the number can never disagree.
+ */
+export function dailyAverages(snapshots) {
+  const byDay = new Map();
+  for (const s of [...snapshots].sort((a, b) => a.at - b.at)) {
+    const day = byDay.get(s.day) ?? { id: s.day, day: s.day, tickers: {} };
+    Object.assign(day, { at: s.at, generatedAt: s.generatedAt, regime: s.regime, breadth: s.breadth });
+    for (const [ticker, reading] of Object.entries(s.tickers ?? {})) day.tickers[ticker] = foldSample(day.tickers[ticker], reading);
+    byDay.set(s.day, day);
   }
-  // The regime is a label and breadth is one market-wide reading, so the day keeps the last build's rather than
-  // averaging them the way the per-stock numbers are averaged.
-  return { day, regime: snapshot.regime, breadth: snapshot.breadth ?? null, generatedAt, tickers };
+  return [...byDay.values()];
 }
 
 /* ------------------------------------------------------------------ reading it back */
@@ -184,7 +234,7 @@ export function foldDay(existingDay, snapshot, generatedAt, day = marketDay(gene
 const metricOf = (key) => HISTORY_METRICS.find(m => m.key === key) ?? HISTORY_METRICS[0];
 
 /**
- * What one day cell shows for one stock.
+ * What one cell shows for one stock.
  * @param {(score: number|null) => string} scoreTone the shared 0-100 tone scale, injected so this module does not
  *   need the page's formatting rules
  * @returns {{text: string, sub: string|null, tone: string}} `sub` is the second line (the Overall score beside a
@@ -213,8 +263,8 @@ export function metricCell(entry, metricKey, horizon, scoreTone) {
 const BUCKET_ORDER = { avoid: 1, watch: 2, strong: 3, buy: 4 };
 
 /**
- * The number a day cell sorts by, so sorting a column always agrees with what that column shows. Higher is better
- * in every metric, including the verdict; null when the day has no reading.
+ * The number a cell sorts by, so sorting a column always agrees with what that column shows. Higher is better
+ * in every metric, including the verdict; null when there is no reading.
  */
 export function metricValue(entry, metricKey, horizon) {
   if (!entry) return null;
@@ -225,59 +275,86 @@ export function metricValue(entry, metricKey, horizon) {
   return entry.bull?.[horizon] ?? null;
 }
 
-/**
- * Return over the `window` sessions after a stored day, from that day's price to the price `window` days later in
- * the record. Recorded days are build days, so consecutive entries are consecutive trading sessions.
- */
-const forwardReturn = (entries, index, window) => {
-  const from = entries[index]?.price;
-  const to = entries[index + window]?.price;
-  return isNum(from) && from > 0 && isNum(to) ? to / from - 1 : null;
-};
-
 const average = (values) => values.length ? values.reduce((s, v) => s + v, 0) / values.length : null;
 
 /**
- * Turns stored days into one row per ticker.
- * @param {Array<{day: string, tickers: Object}>} days stored day documents, in any order
- * @param {{tickers?: string[]}} options restrict to these tickers (a watchlist); omit for every ticker seen
- * @returns {{days: string[], rows: Array}} `days` newest first (the column order); each row carries `cells` in that
- *   same order plus the outcome summary (`firstSeen`, `sinceFirst`, `forward` keyed by window)
+ * One ticker's price path through the recorded sessions. Each session's last snapshot stands in for its close (the
+ * evening build runs after the market closes), and weekend builds are skipped because they are not sessions.
+ * @returns {{sessions: string[], forwardFrom: (day: string, window: number) => number|null, sinceFirst: number|null}}
  */
-export function historyRows(days, { tickers } = {}) {
-  const ordered = [...days].sort((a, b) => a.day.localeCompare(b.day));
-  const wanted = tickers ? new Set(tickers) : null;
-  const names = new Set();
-  for (const d of ordered) {
-    for (const ticker of Object.keys(d.tickers ?? {})) {
-      if (!wanted || wanted.has(ticker)) names.add(ticker);
-    }
+function priceSeries(chronological, ticker) {
+  const closes = new Map();
+  const prices = [];
+  for (const s of chronological) {
+    const price = s.tickers?.[ticker]?.price;
+    if (!isNum(price) || price <= 0) continue;
+    prices.push(price);
+    if (!isWeekend(s.day)) closes.set(s.day, price);
   }
+  const sessions = [...closes.keys()];
+  const index = new Map(sessions.map((d, i) => [d, i]));
+  const forwardFrom = (day, window) => {
+    const i = index.get(day);
+    const to = i === undefined ? undefined : sessions[i + window];
+    return to ? closes.get(to) / closes.get(day) - 1 : null;
+  };
+  // One snapshot has nothing to compare against, so it reads as no change measured rather than 0%.
+  const sinceFirst = prices.length > 1 ? prices[prices.length - 1] / prices[0] - 1 : null;
+  return { sessions, forwardFrom, sinceFirst };
+}
 
-  const rows = [...names].sort().map(ticker => {
-    // Sessions this ticker was actually recorded in; a ticker added later has no entry on the earlier days.
-    const series = ordered.map(d => ({ day: d.day, entry: d.tickers?.[ticker] ?? null })).filter(x => x.entry);
-    const entries = series.map(x => x.entry);
-    const prices = entries.map(e => e.price).filter(v => isNum(v) && v > 0);
+const tickersIn = (snapshots) => [...new Set(snapshots.flatMap(s => Object.keys(s.tickers ?? {})))].sort();
+
+/**
+ * Turns snapshots into the Historical table: one row per ticker, one column per build or per market day.
+ * @param {Array} snapshots stored snapshot documents (with their `id`), in any order
+ * @param {{resolution?: "build"|"daily"}} options
+ * @returns {{columns: Array, rows: Array}} `columns` newest first, each `{id, day, at, generatedAt, regime}`; each row
+ *   carries `cells` in that same order plus the outcome summary (`firstSeen`, `sessions`, `sinceFirst`, `forward`)
+ */
+export function historyRows(snapshots, { resolution = "build" } = {}) {
+  const chronological = [...snapshots].sort((a, b) => a.at - b.at);
+  const columns = [...(resolution === "daily" ? dailyAverages(chronological) : chronological)].reverse();
+
+  const rows = tickersIn(chronological).map(ticker => {
+    const { sessions, forwardFrom, sinceFirst } = priceSeries(chronological, ticker);
     const forward = {};
-    for (const window of FORWARD_WINDOWS) {
-      forward[window] = average(entries.map((_, i) => forwardReturn(entries, i, window)).filter(isNum));
-    }
-    const byDay = new Map(series.map((x, i) => [x.day, {
-      ...x.entry,
-      forward: Object.fromEntries(FORWARD_WINDOWS.map(w => [w, forwardReturn(entries, i, w)]))
-    }]));
+    for (const w of FORWARD_WINDOWS) forward[w] = average(sessions.map(d => forwardFrom(d, w)).filter(isNum));
     return {
       ticker,
-      firstSeen: series[0]?.day ?? null,
-      sessions: series.length,
-      sinceFirst: prices.length > 1 ? prices[prices.length - 1] / prices[0] - 1 : null,
+      firstSeen: chronological.find(s => s.tickers?.[ticker])?.day ?? null,
+      sessions: sessions.length,
+      sinceFirst,
       forward,
-      byDay
+      cells: columns.map(c => {
+        const reading = c.tickers?.[ticker];
+        return reading ? { ...reading, forward: Object.fromEntries(FORWARD_WINDOWS.map(w => [w, forwardFrom(c.day, w)])) } : null;
+      })
     };
   });
+  return { columns: columns.map(({ tickers, ...column }) => column), rows };
+}
 
-  const columns = ordered.map(d => d.day).reverse();
-  for (const row of rows) row.cells = columns.map(day => row.byDay.get(day) ?? null);
-  return { days: columns, rows };
+/**
+ * One record per stock per build, oldest first: the market backdrop, the reading, the raw inputs and what the price
+ * did over the sessions that followed. This is the export to train or tune a model on.
+ * @param {Array} snapshots stored snapshot documents (with their `id`)
+ * @param {Map<string, Object>} inputsById snapshotInputs documents by the same id; a missing one leaves inputs empty
+ */
+export function historyRecords(snapshots, inputsById = new Map()) {
+  const chronological = [...snapshots].sort((a, b) => a.at - b.at);
+  const series = new Map(tickersIn(chronological).map(t => [t, priceSeries(chronological, t)]));
+  const records = [];
+  for (const s of chronological) {
+    const inputs = inputsById.get(s.id)?.tickers ?? {};
+    for (const [ticker, reading] of Object.entries(s.tickers ?? {})) {
+      const { forwardFrom } = series.get(ticker);
+      records.push({
+        ticker, id: s.id, at: s.at, generatedAt: s.generatedAt, day: s.day, regime: s.regime ?? null, breadth: s.breadth ?? null,
+        reading, inputs: inputs[ticker] ?? {},
+        forward: Object.fromEntries(FORWARD_WINDOWS.map(w => [w, forwardFrom(s.day, w)]))
+      });
+    }
+  }
+  return records;
 }
