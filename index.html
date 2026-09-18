@@ -662,6 +662,10 @@
           </select>
         </span>
         <span class="history-only">
+          <label for="historyResolution">Columns</label>
+          <select id="historyResolution" class="select"></select>
+        </span>
+        <span class="history-only">
           <label for="historyMetric">Show</label>
           <select id="historyMetric" class="select"></select>
         </span>
@@ -1000,7 +1004,7 @@
      */
     import { initializeApp } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js";
     import { getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, signOut, updateProfile, sendPasswordResetEmail, sendEmailVerification } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js";
-    import { getFirestore, doc, getDoc, setDoc, updateDoc, serverTimestamp, collection, documentId, getDocs, limit, orderBy, query as fsQuery } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
+    import { getFirestore, doc, getDoc, setDoc, updateDoc, serverTimestamp, collection, getDocs, limit, orderBy, query as fsQuery, where } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
     import { firebaseConfig } from "./firebase-config.js";
     import {
       RULES, SCORE_KEYS, SCORE_LABELS, applyScenario as simulateScenario, buildMarketContext, classifyEvaluations, evaluateAsset, valuationLabel
@@ -1009,19 +1013,23 @@
     import { capitalReturns, developmentsLine, filingActions, quarterSummary } from "./js/developments.js";
     import { leaderCutoff, rankPeers, relativeToSpy, strengths } from "./js/benchmarks.js";
     import { HORIZONS, grade, horizonReading } from "./js/grades.js";
-    import { FORWARD_WINDOWS, HISTORY_DAY_LIMITS, HISTORY_METRICS, INPUT_KEYS, historyRows, metricCell, metricValue } from "./js/history.js";
+    import { FORWARD_WINDOWS, HISTORY_DAY_LIMITS, HISTORY_METRICS, HISTORY_RESOLUTIONS, INPUT_KEYS, historyRecords, historyRows, metricCell, metricValue } from "./js/history.js";
 
     const SYMBOLS_URL = "data/symbols.json";
     const MARKET_URL = "data/market.json";
     const REFRESH_NOTE = "refreshes every 4 hours on weekdays";
     const HISTORY_NOTE = `
-      Every data build records what the engine said about each stock, and the builds inside one market day are averaged
-      into the day shown here — so a column is that day's reading, not a single moment.
-      Days run newest first; click a column to sort by it, and hover a cell for the verdict, the four scores, the price
-      and what happened afterwards.
+      Every data build (about every 4 hours on weekdays) is stored as its own snapshot of what the engine said about each
+      stock. <strong>Every build</strong> shows one column per snapshot, timed in New York time; <strong>Daily average</strong>
+      folds each market day's builds into one column. Columns run newest first; click one to sort by it, and hover a cell
+      for the verdict, the four scores, the price and what happened afterwards.
       <strong>Since first</strong> and <strong>5d / 30d after</strong> are the outcome: "5d after" is the average price
-      change over the five sessions following each recorded day, which is what tells you whether a reading was worth acting on.
-      Download CSV gives one row per stock per day, forward returns included, for tuning the scoring model offline.`;
+      change over the five sessions after each recorded day, measured from that day's last snapshot, which is what tells
+      you whether a reading was worth acting on.
+      Download CSV gives one row per stock per snapshot, with every raw input the engine read and the forward returns,
+      for tuning or training the scoring model offline.`;
+    // Enough for the widest range at the current schedule (180 days of three builds a weekday is about 400).
+    const MAX_SNAPSHOTS = 1000;
     const DEFAULT_WATCHLIST = ["SPY", "QQQ", "MSFT", "NVDA", "GOOGL", "AMZN", "AAPL"];
 
     const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, ch => (
@@ -1273,34 +1281,52 @@
     }
 
     /**
-     * DAILY RECOMMENDATION HISTORY (Firestore history/{YYYY-MM-DD}, written by scripts/record_history.mjs)
+     * RECOMMENDATION HISTORY (Firestore snapshots/{id} and snapshotInputs/{id}, written by scripts/record_history.mjs)
      *
-     * One document per market day holding what the engine said about every tracked stock, averaged across that
-     * day's builds. Public read, so the Historical view works signed out, and loaded only when that view is opened.
+     * One snapshot per data build (see js/history.js). Public read, so the Historical view works signed out. The
+     * readings load when that view opens; the raw inputs are several times larger and load only for the export.
      */
     class HistoryStore {
       constructor(db) {
         this.db = db;
-        this.days = [];
-        this.requested = 0;
+        this.snapshots = [];
+        this.loadedDays = 0;
         this.loading = null;
       }
 
-      /** Resolves with the most recent `count` market days, newest first. Widening the range reloads. */
-      load(count) {
-        if (this.loading && this.requested >= count) return this.loading;
-        this.requested = count;
-        this.loading = getDocs(fsQuery(collection(this.db, "history"), orderBy(documentId(), "desc"), limit(count)))
-          .then(snap => {
-            this.days = snap.docs.map(d => ({ ...d.data(), day: d.id }));
-            return this.days;
-          })
+      /** Loads the snapshots from the last `days` calendar days. A narrower range reuses what is loaded. */
+      load(days) {
+        if (this.loading && this.loadedDays >= days) return this.loading;
+        this.loadedDays = days;
+        this.loading = this.read("snapshots", days)
+          .then(snapshots => (this.snapshots = snapshots))
           .catch(err => {
             this.loading = null;
-            this.requested = 0;
+            this.loadedDays = 0;
             throw err;
           });
         return this.loading;
+      }
+
+      /** The raw inputs for the same range, keyed by snapshot id. */
+      async loadInputs(days) {
+        return new Map((await this.read("snapshotInputs", days)).map(d => [d.id, d]));
+      }
+
+      /**
+       * Filters and sorts on the stored `at` field. Keep it that way: Firestore's automatic single-field indexes
+       * cover it, whereas sorting by document id descending needs a composite index the project does not have.
+       */
+      async read(collectionName, days) {
+        const since = Date.now() - days * 864e5;
+        const snap = await getDocs(fsQuery(collection(this.db, collectionName), where("at", ">=", since), orderBy("at", "desc"), limit(MAX_SNAPSHOTS)));
+        return snap.docs.map(d => ({ ...d.data(), id: d.id }));
+      }
+
+      /** The loaded snapshots from the last `days` calendar days. */
+      within(days) {
+        const since = Date.now() - days * 864e5;
+        return this.snapshots.filter(snapshot => snapshot.at >= since);
       }
     }
 
@@ -1465,6 +1491,7 @@
         this.historyMetric = document.getElementById("historyMetric");
         this.historyHorizon = document.getElementById("historyHorizon");
         this.historyDays = document.getElementById("historyDays");
+        this.historyResolution = document.getElementById("historyResolution");
       }
 
       attachEvents() {
@@ -1484,7 +1511,8 @@
         this.historyMetric.innerHTML = HISTORY_METRICS.map(m => `<option value="${m.key}">${escapeHtml(m.label)}</option>`).join("");
         this.historyHorizon.innerHTML = HORIZONS.map(h => `<option value="${h.key}"${h.key === "30d" ? " selected" : ""}>${escapeHtml(h.label)}</option>`).join("");
         this.historyDays.innerHTML = HISTORY_DAY_LIMITS.map(n => `<option value="${n}">${n} days</option>`).join("");
-        for (const select of [this.historyMetric, this.historyHorizon, this.historyDays]) {
+        this.historyResolution.innerHTML = HISTORY_RESOLUTIONS.map(r => `<option value="${r.key}">${escapeHtml(r.label)}</option>`).join("");
+        for (const select of [this.historyResolution, this.historyMetric, this.historyHorizon, this.historyDays]) {
           select.addEventListener("change", () => this.renderOutput());
         }
 
@@ -2350,7 +2378,7 @@
           const filter = btn.dataset.filter;
           if (filter === "historical") {
             // Counted in recorded days, not stocks; blank until the first read comes back.
-            const days = this.history?.days.length ?? 0;
+            const days = new Set(this.history?.snapshots.map(snapshot => snapshot.day)).size;
             btn.textContent = days ? `Historical (${days}d)` : "Historical";
             return;
           }
@@ -2441,15 +2469,15 @@
       }
 
       /**
-       * Draws the Historical view, reading the stored days on first use. HistoryStore caches them, so re-rendering
-       * on every keystroke or sort costs no further reads.
+       * Draws the Historical view, reading the snapshots on first use. HistoryStore caches them, so re-rendering on
+       * every keystroke or sort costs no further reads.
        */
       async renderHistory() {
         if (!this.history) {
           this.showHistoryMessage("Historical snapshots need Firebase, which is not configured for this site.");
           return;
         }
-        if (!this.history.days.length) this.showHistoryMessage("Loading history…");
+        if (!this.history.snapshots.length) this.showHistoryMessage("Loading history…");
         try {
           await this.history.load(Number(this.historyDays.value));
         } catch (err) {
@@ -2475,9 +2503,10 @@
         // Only the bear/bull reading is measured over a period; the scores and the verdict are not.
         this.historyHorizon.disabled = !HISTORY_METRICS.find(m => m.key === metric)?.horizon;
 
-        const { days, rows } = historyRows(this.history.days.slice(0, Number(this.historyDays.value)));
-        if (!days.length) {
-          this.showHistoryMessage(`No history recorded yet. The first daily snapshot lands with the next data build (${REFRESH_NOTE}).`);
+        const resolution = this.historyResolution.value;
+        const { columns, rows } = historyRows(this.history.within(Number(this.historyDays.value)), { resolution });
+        if (!columns.length) {
+          this.showHistoryMessage(`No snapshots recorded in this range yet. The next one lands with the next data build (${REFRESH_NOTE}).`);
           return;
         }
 
@@ -2486,10 +2515,10 @@
           .map(r => ({ ...r, name: this.nameFor(r.ticker), clickable: this.currentEvaluations.some(e => e.item.ticker === r.ticker) }))
           .filter(r => !search || r.ticker.toLowerCase().includes(search) || r.name.toLowerCase().includes(search));
 
-        this.drawTable(this.historyColumns(days, metric, horizon), visible, this.historySort, "No stocks match this search.");
+        this.drawTable(this.historyColumns(columns, metric, horizon, resolution), visible, this.historySort, "No stocks match this search.");
       }
 
-      /** One day cell: the selected metric, the Overall score beside it, and the whole reading in the tooltip. */
+      /** One cell: the selected metric, the Overall score beside it, and the whole reading in the tooltip. */
       historyCell(entry, metric, horizon) {
         if (!entry) return '<span class="tone-muted">—</span>';
         const c = metricCell(entry, metric, horizon, scoreTone);
@@ -2498,8 +2527,8 @@
           entry.verdict,
           scores.join(" · "),
           isNum(entry.price) ? `Price ${money(entry.price)}` : null,
-          ...FORWARD_WINDOWS.map(w => isNum(entry.forward[w]) ? `${w} sessions after: ${signedPercent(entry.forward[w])}` : null),
-          `Average of ${entry.n} build${entry.n === 1 ? "" : "s"} that day`
+          ...FORWARD_WINDOWS.map(w => isNum(entry.forward[w]) ? `${w} sessions after that day's close: ${signedPercent(entry.forward[w])}` : null),
+          entry.n > 1 ? `Average of ${entry.n} builds` : null
         ].filter(Boolean).join("\n");
         const sub = c.sub ? `<span class="hist-sub">${escapeHtml(c.sub)}</span>` : "";
         return `<span class="hist-cell tone-${c.tone}" title="${escapeHtml(title)}">${escapeHtml(c.text)}${sub}</span>`;
@@ -2507,12 +2536,17 @@
 
       /**
        * Column definitions for the Historical view: the ticker, what actually happened since, then one column per
-       * recorded market day newest first. Same shape as benchmarkColumns so drawTable renders and sorts both.
+       * snapshot or per market day, newest first. Same shape as benchmarkColumns so drawTable renders and sorts both.
+       * Snapshot times are shown in New York time, the clock the market day is counted on.
        */
-      historyColumns(days, metric, horizon) {
+      historyColumns(columns, metric, horizon, resolution) {
         const dash = '<span class="tone-muted">—</span>';
         const at = (day) => new Date(`${day}T12:00:00Z`);
         const longDate = (day) => at(day).toLocaleDateString(undefined, { dateStyle: "medium" });
+        // Built from two parts rather than one format, so the weekday always leads whatever the locale prefers.
+        const weekdayDate = (day) => `${at(day).toLocaleDateString(undefined, { weekday: "short" })} ${at(day).getUTCDate()}`;
+        const nyTime = (ms) => new Date(ms).toLocaleTimeString(undefined, { timeZone: "America/New_York", hour: "numeric", minute: "2-digit" });
+        const daily = resolution === "daily";
         const change = (v) => isNum(v) ? `<span class="tone-${v >= 0 ? "pos" : "neg"}">${signedPercent(v)}</span>` : dash;
         const metricLabel = HISTORY_METRICS.find(m => m.key === metric).label;
 
@@ -2538,11 +2572,14 @@
             title: `Average price change over the ${w} sessions following each recorded day — what happened after the readings on this row`,
             sort: r => r.forward[w], cell: r => change(r.forward[w])
           })),
-          ...days.map((day, index) => ({
-            key: `day-${day}`, group: at(day).toLocaleDateString(undefined, { month: "short", year: "numeric" }),
-            // Built from two parts rather than one format, so the weekday always leads whatever the locale prefers.
-            label: `${at(day).toLocaleDateString(undefined, { weekday: "short" })} ${at(day).getUTCDate()}`,
-            title: `${metricLabel} on ${longDate(day)}`, num: true, dir: "desc",
+          ...columns.map((column, index) => ({
+            key: `snap-${column.id}`,
+            group: daily ? at(column.day).toLocaleDateString(undefined, { month: "short", year: "numeric" }) : `${weekdayDate(column.day)} ${at(column.day).toLocaleDateString(undefined, { month: "short" })}`,
+            label: daily ? weekdayDate(column.day) : nyTime(column.at),
+            title: daily
+              ? `${metricLabel}, average of ${longDate(column.day)}`
+              : `${metricLabel} at ${nyTime(column.at)} New York time on ${longDate(column.day)}`,
+            num: true, dir: "desc",
             sort: r => metricValue(r.cells[index], metric, horizon),
             cell: r => this.historyCell(r.cells[index], metric, horizon)
           }))
@@ -2822,39 +2859,47 @@
       }
 
       /**
-       * The history as one row per stock per recorded day: the market backdrop, the raw inputs the engine read, the
-       * scores it produced and what the price did afterwards. The table on screen is wide because it is read across;
-       * this is long because it is analysed - it is the file to train or tune a model on. Honours the search box,
-       * and writes the forward returns as numbers like 12.5.
+       * The history as one row per stock per snapshot: the market backdrop, the raw inputs the engine read, the scores
+       * it produced and what the price did afterwards. The table on screen is wide because it is read across; this is
+       * long because it is analysed - it is the file to train or tune a model on. Covers the selected Days range and
+       * honours the search box; the forward returns are written as numbers like 12.5. The raw inputs are fetched here
+       * rather than with the table, because they are several times larger than everything the table needs.
        */
-      downloadHistoryCsv() {
-        if (!this.history?.days.length) return;
-        const { rows } = historyRows(this.history.days);
+      async downloadHistoryCsv() {
+        if (!this.history?.snapshots.length) return;
+        const days = Number(this.historyDays.value);
+        let inputsById;
+        try {
+          this.showToast("Preparing the history export…");
+          inputsById = await this.history.loadInputs(days);
+        } catch (err) {
+          console.error("Failed to load history inputs", err);
+          this.showToast("The history export could not be loaded. Try again.");
+          return;
+        }
+
         const scoreKeys = ["overall", ...SCORE_KEYS];
         const asPercent = (v) => isNum(v) ? Math.round(v * 10000) / 100 : null;
         const search = this.tableSearch.value.trim().toLowerCase();
-        const backdrop = new Map(this.history.days.map(d => [d.day, d]));
-
         const lines = [[
-          "Ticker", "Company", "Day", "Builds", "Regime", "Breadth", "Verdict", "Bucket", "DataGaps", "Price",
+          "Ticker", "Company", "Snapshot", "BuiltAt", "Day", "Builds", "Regime", "Breadth", "Verdict", "Bucket", "DataGaps", "Price",
           ...scoreKeys.map(k => SCORE_LABELS[k]),
           ...HORIZONS.map(h => `Bull ${h.key}`),
           ...INPUT_KEYS,
           ...FORWARD_WINDOWS.map(w => `Fwd ${w}d (%)`)
         ]];
-        for (const row of rows) {
-          const name = this.nameFor(row.ticker);
-          if (search && !row.ticker.toLowerCase().includes(search) && !name.toLowerCase().includes(search)) continue;
-          for (const [day, entry] of row.byDay) {
-            lines.push([
-              row.ticker, name, day, entry.n, backdrop.get(day)?.regime ?? null, backdrop.get(day)?.breadth ?? null,
-              entry.verdict ?? null, entry.bucket ?? null, entry.gaps ?? 0, entry.price ?? null,
-              ...scoreKeys.map(k => isNum(entry[k]) ? entry[k] : null),
-              ...HORIZONS.map(h => entry.bull?.[h.key] ?? null),
-              ...INPUT_KEYS.map(k => entry.inputs?.[k] ?? null),
-              ...FORWARD_WINDOWS.map(w => asPercent(entry.forward[w]))
-            ]);
-          }
+        for (const r of historyRecords(this.history.within(days), inputsById)) {
+          const name = this.nameFor(r.ticker);
+          if (search && !r.ticker.toLowerCase().includes(search) && !name.toLowerCase().includes(search)) continue;
+          const e = r.reading;
+          lines.push([
+            r.ticker, name, r.id, new Date(r.at).toISOString(), r.day, e.n ?? 1, r.regime, r.breadth,
+            e.verdict ?? null, e.bucket ?? null, e.gaps ?? 0, e.price ?? null,
+            ...scoreKeys.map(k => isNum(e[k]) ? e[k] : null),
+            ...HORIZONS.map(h => e.bull?.[h.key] ?? null),
+            ...INPUT_KEYS.map(k => r.inputs[k] ?? null),
+            ...FORWARD_WINDOWS.map(w => asPercent(r.forward[w]))
+          ]);
         }
         this.saveCsv(lines, "history");
       }

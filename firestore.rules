@@ -15,10 +15,14 @@ service cloud.firestore {
         && (!('alerts' in request.resource.data) || request.resource.data.alerts is map);
     }
 
-    // One document per market day holding what the engine said about each tracked stock, written only by the
-    // scheduled data build through the Admin SDK (which bypasses these rules). Public read so the Historical
-    // view works signed out; nothing here is user data.
-    match /history/{day} {
+    // One snapshot per data build of what the engine said about each tracked stock, and the raw inputs it read,
+    // written only by scripts/record_history.mjs through the Admin SDK (which bypasses these rules). Public read
+    // so the Historical view works signed out; nothing here is user data.
+    match /snapshots/{id} {
+      allow read: if true;
+      allow write: if false;
+    }
+    match /snapshotInputs/{id} {
       allow read: if true;
       allow write: if false;
     }
