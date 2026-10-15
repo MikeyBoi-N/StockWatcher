@@ -4,6 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>StockWatcher</title>
+  <meta name="description" content="Rule-based readings for US stocks and ETFs: Quality, Trend, Entry and Trade scores, a verdict for each stock and the market regime, rebuilt three times each weekday. Also published as free JSON at api/v1/stocks.json." />
+  <link rel="alternate" type="application/json" href="api/v1/stocks.json" title="StockWatcher readings as JSON" />
+  <script>document.documentElement.classList.add("js");</script>
   <style>
     :root {
       --bg: #0e0e0f;
@@ -166,6 +169,11 @@
     .page-head h1 { font-size: 18px; font-weight: 600; letter-spacing: -0.01em; }
     .data-freshness { font-size: 12px; color: var(--text-3); }
     .data-freshness strong { color: var(--text-2); font-weight: 500; }
+
+    /* Static readings written in at deploy for clients that don't run JavaScript; the live page replaces them */
+    .snapshot { display: grid; gap: 12px; margin-bottom: 24px; font-size: 13px; color: var(--text-2); }
+    .snapshot h2 { font-size: 15px; font-weight: 600; color: var(--text); }
+    .js .snapshot { display: none; }
 
     /* Overview stats */
     .overview {
@@ -734,6 +742,8 @@
       <h1>Overview</h1>
       <div id="dataFreshness" class="data-freshness">Loading market data…</div>
     </div>
+
+    <!-- snapshot:start --><!-- snapshot:end -->
 
     <section class="overview">
       <div class="stat">

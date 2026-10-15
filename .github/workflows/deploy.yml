@@ -72,9 +72,10 @@ jobs:
       - name: Validate Market Data With Scoring Engine
         run: npm test
 
-      - name: Build Developer API
+      - name: Build Developer API And Page Snapshot
         # Writes api/v1/ from the same data/market.json and engine as the page, before the Pages upload publishes it.
-        run: node scripts/build_api.mjs
+        # --page also writes a static copy of the readings into index.html for clients that don't run JavaScript.
+        run: node scripts/build_api.mjs --page
 
       - name: Setup Pages
         uses: actions/configure-pages@v5

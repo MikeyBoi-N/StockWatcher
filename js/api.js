@@ -156,3 +156,39 @@ export function apiDocuments(market) {
   };
   return { index, stocks };
 }
+
+const escapeHtml = (value) => String(value ?? "n/a").replace(/[&<>"']/g, ch => (
+  { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]
+));
+const percent = (v) => isNum(v) ? `${Math.round(v * 100)}%` : "n/a";
+
+/**
+ * A static HTML summary of stocks.json, which scripts/build_api.mjs writes into the published index.html so clients
+ * that don't run JavaScript (AI agents' page fetchers, crawlers) see the readings instead of "Loading market data…".
+ * Built only from the stocks.json body, so it carries nothing the API doesn't. The page hides it when its script runs.
+ * @param {object} index the stocks.json body from apiDocuments
+ * @returns {string} a <section> element
+ */
+export function snapshotHtml(index) {
+  const { meta, market } = index;
+  const best = index.stocks.find(s => s.ticker === index.best);
+  const example = index.stocks[0];
+  const rows = index.stocks.map(s => `<tr><td>${escapeHtml(s.ticker)}</td><td>${escapeHtml(s.name)}</td><td>${escapeHtml(s.verdict.label)}</td>`
+    + `<td>${escapeHtml(s.overall)}</td>${SCORE_KEYS.map(k => `<td>${escapeHtml(s.scores[k])}</td>`).join("")}<td>${escapeHtml(s.chaseRisk)}</td></tr>`);
+  return `<section class="snapshot">
+      <h2>Readings from the build at ${escapeHtml(meta.generatedAt)}</h2>
+      <p>Market regime: <strong>${escapeHtml(market.regime)}</strong>. ${escapeHtml(market.description)}
+        Breadth: ${percent(market.breadth)} of ${escapeHtml(market.trackedStocks)} tracked stocks are above their 50-day average (${percent(market.breadthMonthAgo)} a month ago).</p>
+      <p>Best idea: ${best ? `<strong>${escapeHtml(best.ticker)}</strong> (${escapeHtml(best.name)})` : "none; no stock is in the buy zone"}.${index.unavailable.length ? ` Data failed this build for ${escapeHtml(index.unavailable.join(", "))}.` : ""}</p>
+      <p>The same readings as JSON: <a href="api/v1/stocks.json">api/v1/stocks.json</a>, and one stock's full reading at api/v1/stocks/{TICKER}.json${example ? `, for example <a href="api/v1/${escapeHtml(example.href)}">api/v1/${escapeHtml(example.href)}</a>` : ""}. <a href="${escapeHtml(meta.docs)}">API documentation</a>.</p>
+      <div class="table-wrap">
+        <table class="bench">
+          <thead><tr><th>Ticker</th><th>Name</th><th>Verdict</th><th>Overall</th><th>Quality</th><th>Trend</th><th>Entry</th><th>Trade</th><th>Chase risk</th></tr></thead>
+          <tbody>
+            ${rows.join("\n            ")}
+          </tbody>
+        </table>
+      </div>
+      <p>Scores are 0-100. ${escapeHtml(meta.disclaimer)}</p>
+    </section>`;
+}

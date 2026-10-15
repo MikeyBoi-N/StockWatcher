@@ -1,0 +1,14 @@
+# StockWatcher
+
+> Rule-based research readings for US stocks and ETFs. Each tracked stock gets four 0-100 scores (Quality, Trend, Entry, Trade), an Overall score and a verdict (buy zone, strong, watch or avoid), alongside the market regime. Data is rebuilt about three times each weekday. Not investment advice.
+
+The dashboard at https://mikeyboi-n.github.io/StockWatcher/ renders its table with JavaScript. Its HTML carries a static snapshot of the latest readings, but the JSON files below are the complete, machine-readable source and need no key.
+
+## Data
+
+- [stocks.json](https://mikeyboi-n.github.io/StockWatcher/api/v1/stocks.json): build time, market regime and one summary row per tracked stock (verdict, Overall and the four scores), in ranking order
+- [stocks/{TICKER}.json](https://mikeyboi-n.github.io/StockWatcher/api/v1/stocks/MSFT.json): one stock's full reading, with every score factor's points, trading levels, entry diagnostics, peer ranks, SEC fundamentals and recent 8-K filings. Use any ticker listed in stocks.json, uppercase, e.g. stocks/BRK.B.json
+
+## Docs
+
+- [Developer API](https://github.com/MikeyBoi-N/StockWatcher#developer-api): every field, freshness, coverage and versioning

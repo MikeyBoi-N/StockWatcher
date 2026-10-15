@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { API_VERSION, apiDocuments } from "../js/api.js";
+import { API_VERSION, apiDocuments, snapshotHtml } from "../js/api.js";
 
 // Distinctive values so a leak shows up as an exact string in the serialized output.
 const stock = (ticker, overrides = {}) => ({
@@ -137,4 +137,19 @@ test("the committed data build produces a document for every stock it holds", ()
   const peers = stocks.get("AAPL").peers;
   assert.equal(peers.trend.of, stocks.size);
   assert.deepEqual(Object.keys(peers.quality), ["label", "rank", "of", "leader"]);
+});
+
+test("the page snapshot lists every stock's reading, escaped, and nothing the API leaves out", () => {
+  const m = market();
+  m.stocks.AAA.name = "<b>AAA</b> & Sons";
+  const { index } = apiDocuments(m);
+  const html = snapshotHtml(index);
+  for (const row of index.stocks) assert.ok(html.includes(`<td>${row.ticker}</td>`), `missing ${row.ticker}`);
+  assert.ok(html.includes("&lt;b&gt;AAA&lt;/b&gt; &amp; Sons"));
+  assert.ok(!html.includes("<b>AAA"));
+  assert.ok(html.includes(index.market.regime));
+  assert.ok(html.includes('href="api/v1/stocks.json"'));
+  for (const r of Object.values(m.stocks)) {
+    for (const value of [r.price, r.prevClose, r.high52, r.low52, r.rsi14, r.marketCap]) assert.ok(!html.includes(String(value)), `published ${value} from ${r.ticker}`);
+  }
 });

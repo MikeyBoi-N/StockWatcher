@@ -319,6 +319,8 @@ Arrays and objects are trimmed in this example; the real files carry every facto
 
 The files are built by [`scripts/build_api.mjs`](scripts/build_api.mjs) from [`js/api.js`](js/api.js), using the same engine as the dashboard. [`tests/api.test.mjs`](tests/api.test.mjs) checks that no quoted third-party value ends up in them.
 
+AI agents and other clients that don't run JavaScript can't see the dashboard's table, so the deploy runs `build_api.mjs --page`. That writes a static copy of `stocks.json` (regime, best idea, and each stock's verdict and four scores) between the `snapshot` markers in the published `index.html`. The page hides it as soon as its script runs. The committed `index.html` keeps the markers empty. The page's `<head>` links to `api/v1/stocks.json`, and [`llms.txt`](llms.txt) at the site root lists the endpoints for agents.
+
 ---
 
 ## Local Development / Testing
@@ -341,6 +343,7 @@ python scripts/build_market_data.py --only AAPL,SPY                             
 python -m pip install pytest && python -m pytest tests                               # data pipeline tests
 npm test                                                                             # scoring engine, alert, summary, benchmark, history and API tests
 node scripts/build_api.mjs                                                           # write the developer API to api/v1/ (gitignored)
+node scripts/build_api.mjs --page                                                    # also write the no-JS snapshot into index.html (don't commit it)
 ```
 
 To see the history snapshot for the current `data/market.json` without writing it:
