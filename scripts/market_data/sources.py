@@ -121,6 +121,7 @@ class SecEdgar:
         self.http = http
         self.headers = {"User-Agent": user_agent}
         self._ciks = None
+        self._submissions = {}
 
     def cik(self, symbol):
         if self._ciks is None:
@@ -135,11 +136,20 @@ class SecEdgar:
         return self.http.get_json(f"https://data.sec.gov/api/xbrl/companyfacts/CIK{cik:010d}.json", self.headers)
 
     def submissions(self, symbol):
-        """Filing index (form types, dates, 8-K item numbers); None for symbols without an SEC registrant."""
+        """
+        Filing index (form types, dates, 8-K item numbers); None for symbols without an SEC registrant. Kept per symbol,
+        since filing events and earnings history both read it in the same build.
+        """
         cik = self.cik(symbol)
         if cik is None:
             return None
-        return self.http.get_json(f"https://data.sec.gov/submissions/CIK{cik:010d}.json", self.headers)
+        if cik not in self._submissions:
+            self._submissions[cik] = self.http.get_json(f"https://data.sec.gov/submissions/CIK{cik:010d}.json", self.headers)
+        return self._submissions[cik]
+
+    def submissions_page(self, name):
+        """One of the older filing pages a submissions file lists under `filings.files` (same columns as `recent`)."""
+        return self.http.get_json(f"https://data.sec.gov/submissions/{quote(name)}", self.headers)
 
 
 class YahooNews:

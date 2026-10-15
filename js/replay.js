@@ -130,7 +130,7 @@ const REGIME_LEVEL = { BULLISH: 1, NEUTRAL: 0.66, CAUTIOUS: 0.33, BEARISH: 0 };
 const dateMs = (yyyymmdd) => Date.UTC(Math.floor(yyyymmdd / 10000), Math.floor(yyyymmdd / 100) % 100 - 1, yyyymmdd % 100);
 
 /**
- * data/replay.json as { generatedAt, tickers: { [ticker]: { etf, sector, research, candles, rows } } } with candles
+ * data/replay.json as { generatedAt, tickers: { [ticker]: { etf, sector, research, candles, rows, earnings } } } with candles
  * as [{ t, o, h, l, c, a, v }] (t in UTC ms; `a` the dividend-adjusted close or null) and rows as [{ i, record }],
  * where record is the engine input for bar i.
  */
@@ -145,7 +145,7 @@ export function decodeReplay(json) {
       json.fields.forEach((f, k) => { record[f] = values[k]; });
       return { i, record };
     });
-    tickers[ticker] = { etf: raw.etf, sector, research: !!raw.research, candles, rows };
+    tickers[ticker] = { etf: raw.etf, sector, research: !!raw.research, candles, rows, earnings: raw.earnings ?? null };
   }
   return { generatedAt: json.generatedAt, tickers };
 }

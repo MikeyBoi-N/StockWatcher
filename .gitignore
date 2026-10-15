@@ -8,3 +8,4 @@ firebase-debug.log
 /api/
 /notes/*
 /data/replay.json
+/data/earnings.json

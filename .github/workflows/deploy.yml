@@ -53,8 +53,11 @@ jobs:
       - name: Fetch Previously Deployed Market Data
         # Alerts compare the new build against what the site currently shows. The copy lives outside the
         # repository so it isn't deployed.
+        # The earnings history saves paging back through years of EDGAR filings every build (see build_market_data.py).
         continue-on-error: true
-        run: curl -fsSL "${SITE_URL}data/market.json" -o "$RUNNER_TEMP/previous-market.json"
+        run: |
+          curl -fsSL "${SITE_URL}data/market.json" -o "$RUNNER_TEMP/previous-market.json" || echo "no previous market.json"
+          curl -fsSL "${SITE_URL}data/earnings.json" -o "$RUNNER_TEMP/previous-earnings.json" || echo "no previous earnings.json"
 
       - name: Refresh US-Listed Symbol Directory
         # Falls back to the committed data/symbols.json if Nasdaq Trader is unreachable.
@@ -67,7 +70,7 @@ jobs:
         continue-on-error: true
         env:
           SEC_USER_AGENT: ${{ vars.SEC_USER_AGENT }}
-        run: python scripts/build_market_data.py
+        run: python scripts/build_market_data.py --previous-earnings "$RUNNER_TEMP/previous-earnings.json"
 
       - name: Validate Market Data With Scoring Engine
         run: npm test

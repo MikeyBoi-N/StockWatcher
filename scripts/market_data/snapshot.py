@@ -84,7 +84,7 @@ def build_stock_record(symbol, meta, providers, as_of, on_bars=None):
         earnings = analyst.parse_earnings_date(_attempt(errors, "earnings date", lambda: providers.analyst.earnings_date(symbol)))
 
     chain = _attempt(errors, "options chain", lambda: providers.options.chain(symbol))
-    options = summarize_chain(chain, price, as_of, tech["hv30"]) if chain else None
+    options = summarize_chain(chain, price, as_of, tech["hv30"], earnings[0]) if chain else None
 
     market_cap = summary["marketCap"]
     if not market_cap and fundamentals and not fundamentals["foreignFiler"] and fundamentals["sharesOutstanding"]:

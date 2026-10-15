@@ -8,6 +8,8 @@
  *   bootstrap  Replays real past candles (wicks, gaps and crash-sized moves included) in short blocks, rescaled from
  *              the volatility they happened at to today's. Volatility updates along each path, so calm and wild
  *              stretches cluster the way they do in real markets. Knows the market's texture, not its direction.
+ *   garch      The bootstrap with GJR-GARCH volatility (fitGjr) instead of the EWMA: drops raise volatility more than
+ *              rises, and volatility drifts back toward its long-run level instead of staying wherever it last was.
  *   analog     Pattern matching. Finds the past moments whose last few candles looked most like the last few now,
  *              and replays what happened after each one. This is the "patterns are real" hypothesis: if chart
  *              shapes carry information, these futures lean the right way more often than the bootstrap's.
@@ -26,8 +28,12 @@ const isNum = (v) => typeof v === "number" && Number.isFinite(v);
 export const MODELS = [
   { key: "analog", label: "Pattern analogs" },
   { key: "bootstrap", label: "Historical bootstrap" },
+  { key: "garch", label: "Bootstrap, GJR-GARCH vol" },
   { key: "gaussian", label: "Random walk" }
 ];
+
+/** GARCH with scheduled earnings gaps. Needs a stock's earnings history from outside the candles, so callers offer it. */
+export const EARNINGS_MODEL = { key: "earnings", label: "GARCH + earnings gaps" };
 
 /** RiskMetrics decay: today's volatility estimate keeps 94% of yesterday's and takes 6% from the latest move. */
 const EWMA_LAMBDA = 0.94;
@@ -111,6 +117,120 @@ export function prepare(raw) {
   return { candles, n, rel, sigma, nextSigma: Math.max(Math.sqrt(variance), MIN_SIGMA), hasVolume, volume };
 }
 
+/**
+ * Minimizes f over R^d from `start` (Nelder-Mead). f may return Infinity to reject a point. Deterministic.
+ * Returns the best point found.
+ */
+function nelderMead(f, start, { step = 0.02, iterations = 300, tolerance = 1e-9 } = {}) {
+  let simplex = [start, ...start.map((_, i) => start.map((v, j) => j === i ? v + step : v))].map(x => ({ x, y: f(x) }));
+  const blend = (a, b, t) => a.map((v, i) => v + t * (b[i] - v));
+  for (let it = 0; it < iterations; it++) {
+    simplex.sort((a, b) => a.y - b.y);
+    const best = simplex[0], worst = simplex.at(-1), second = simplex.at(-2);
+    if (Math.abs(worst.y - best.y) <= tolerance * (Math.abs(best.y) + tolerance)) break;
+    const centroid = start.map((_, i) => simplex.slice(0, -1).reduce((s, p) => s + p.x[i], 0) / (simplex.length - 1));
+    const point = (t) => { const x = blend(centroid, worst.x, t); return { x, y: f(x) }; };
+    const reflected = point(-1);
+    if (reflected.y < best.y) {
+      const expanded = point(-2);
+      simplex[simplex.length - 1] = expanded.y < reflected.y ? expanded : reflected;
+    } else if (reflected.y < second.y) {
+      simplex[simplex.length - 1] = reflected;
+    } else {
+      const contracted = point(0.5);
+      if (contracted.y < worst.y) simplex[simplex.length - 1] = contracted;
+      else simplex = simplex.map((p, i) => i === 0 ? p : { x: blend(best.x, p.x, 0.5), y: f(blend(best.x, p.x, 0.5)) });
+    }
+  }
+  return simplex.reduce((a, b) => b.y < a.y ? b : a).x;
+}
+
+/** Fewest closes a GJR-GARCH fit is trusted on; with less, the "garch" model falls back to the bootstrap. */
+const GARCH_MIN_HISTORY = 120;
+
+/**
+ * GJR-GARCH(1,1) fitted to the closes of candles 1..origin (Gaussian quasi-likelihood, demeaned log returns):
+ *   σ²[i+1] = ω + (α + γ·[r_i < 0]) r_i² + β σ²[i]
+ * γ is the leverage effect: a drop raises tomorrow's volatility more than a rise of the same size. Unlike the EWMA
+ * (ω = 0, no γ), the variance is pulled back toward its long-run level ω / (1 − α − γ/2 − β), so a spike fades and a
+ * calm spell doesn't last forever. The long-run level is pinned to the sample variance (variance targeting), which
+ * keeps the fit stable on a few hundred candles.
+ * `jumps` (a Set of candle indices, e.g. earnings reactions) are left out of the fit and do not move the variance:
+ * a scheduled gap says nothing about the days around it, so letting it in would inflate α, γ and the long-run level.
+ * Returns { omega, alpha, gamma, beta, mean, sigma } where sigma[i] is the forecast for candle i made at the close of
+ * candle i-1 (i = 1..origin+1), or null with fewer than GARCH_MIN_HISTORY closes.
+ */
+export function fitGjr(prep, origin = prep.n - 1, jumps = null) {
+  if (origin < GARCH_MIN_HISTORY) return null;
+  const { rel } = prep;
+  const skip = (i) => jumps !== null && jumps.has(i);
+  let mean = 0, count = 0;
+  for (let i = 1; i <= origin; i++) if (!skip(i)) { mean += rel[4 * i + 3]; count++; }
+  mean /= count;
+  const r = new Float64Array(origin + 1);
+  let longRun = 0;
+  for (let i = 1; i <= origin; i++) {
+    r[i] = rel[4 * i + 3] - mean;
+    if (!skip(i)) longRun += r[i] ** 2 / count;
+  }
+  longRun = Math.max(longRun, MIN_SIGMA ** 2);
+
+  const filter = ([alpha, gamma, beta], out) => {
+    const omega = longRun * (1 - alpha - gamma / 2 - beta);
+    let v = longRun, nll = 0;
+    for (let i = 1; i <= origin; i++) {
+      if (out) out[i] = Math.sqrt(v);
+      if (skip(i)) continue;
+      nll += Math.log(v) + r[i] * r[i] / v;
+      v = Math.max(omega + (alpha + (r[i] < 0 ? gamma : 0)) * r[i] * r[i] + beta * v, MIN_SIGMA ** 2);
+    }
+    if (out) out[origin + 1] = Math.sqrt(v);
+    return nll;
+  };
+  const objective = ([alpha, gamma, beta]) => alpha < 0 || gamma < 0 || beta < 0 || alpha + gamma / 2 + beta >= 0.999 ? Infinity : filter([alpha, gamma, beta]);
+  const [alpha, gamma, beta] = nelderMead(objective, [0.05, 0.05, 0.85]);
+  const sigma = new Float64Array(origin + 2);
+  if (!Number.isFinite(filter([alpha, gamma, beta], sigma))) throw new Error("GJR-GARCH fit produced a non-finite likelihood");
+  sigma[0] = sigma[1];
+  return { omega: longRun * (1 - alpha - gamma / 2 - beta), alpha, gamma, beta, mean, sigma };
+}
+
+/** Fewest past earnings reactions the earnings model draws from; with fewer it has no sense of the stock's gap size. */
+const MIN_EARNINGS = 4;
+
+/**
+ * Earnings reactions around `origin`, for simulate()'s `earnings` option. Daily candles only.
+ * history: { from, dates } with ISO dates of each release's first reacting session, complete from `from` (see
+ *   scripts/market_data/earnings.py); a date after the last candle (e.g. the next scheduled release) is placed by
+ *   counting weekdays.
+ * Returns { past: [candle indices ≤ origin], ahead: [steps 0..horizon-1] } or null when fewer than MIN_EARNINGS
+ * reactions are known before the origin.
+ * In a backtest `ahead` comes from the actual release dates. Companies announce them weeks ahead, so that is mostly
+ * information the forecast could have had; the rare unscheduled pre-announcement is the exception.
+ */
+export function earningsEvents(prep, history, origin, horizon) {
+  const { candles, n } = prep;
+  const dayMs = (iso) => Date.UTC(+iso.slice(0, 4), +iso.slice(5, 7) - 1, +iso.slice(8, 10));
+  const coveredFrom = dayMs(history.from);
+  const past = new Set(), ahead = new Set();
+  let j = 0;
+  for (const t of history.dates.map(dayMs).sort((a, b) => a - b)) {
+    while (j < n && candles[j].t < t) j++;
+    if (j < n) {
+      if (j >= 1 && j <= origin && candles[j].t >= coveredFrom) past.add(j);
+      else if (j > origin && j - origin <= horizon) ahead.add(j - origin - 1);
+      continue;
+    }
+    let steps = n - 1 - origin;
+    for (let d = candles[n - 1].t + 86400000; d <= t && steps <= horizon; d += 86400000) {
+      const weekday = new Date(d).getUTCDay();
+      if (weekday !== 0 && weekday !== 6) steps++;
+    }
+    if (steps >= 1 && steps <= horizon) ahead.add(steps - 1);
+  }
+  return past.size < MIN_EARNINGS ? null : { past: [...past], ahead: [...ahead] };
+}
+
 /** Volatility forecast for the candle after `origin`. */
 const sigmaAfter = (prep, origin) => origin + 1 < prep.n ? prep.sigma[origin + 1] : prep.nextSigma;
 
@@ -166,10 +286,14 @@ export function findAnalogs(prep, { origin, window, horizon, count }) {
  * `matches` replaces the analog model's own pattern search with matches found elsewhere, possibly in other series:
  * [{ end, weight, prep? }], where `prep` (default: this series) is the prepared series the match's future is read from.
  * `drift` (bootstrap only) tilts every simulated candle by that log return, e.g. a fitted signal's expected edge.
+ * `earnings` (bootstrap and garch) schedules earnings gaps, from earningsEvents(): { past, ahead }. Past reactions leave
+ * the replay library and the volatility fit; at each step in `ahead`, every path takes one of them instead, drawn at
+ * random and resized to the path's volatility, and the volatility update skips it, so the event doesn't leave the
+ * days after it looking wild (the realized-price side of the options market's post-earnings "volatility crush").
  * Returns { start, horizon, paths, candles: Float64Array(paths * horizon * 4) as o,h,l,c per step, analogs }
  * `analogs` is the match list the paths were drawn from (empty for the other models).
  */
-export function simulate(prep, { model = "bootstrap", origin = prep.n - 1, horizon = 30, paths = 500, window = 12, neighbors = 150, seed = 1, matches = null, drift = 0 } = {}) {
+export function simulate(prep, { model = "bootstrap", origin = prep.n - 1, horizon = 30, paths = 500, window = 12, neighbors = 150, seed = 1, matches = null, drift = 0, earnings = null } = {}) {
   if (origin < 1 || origin >= prep.n) throw new Error(`Origin ${origin} is outside the ${prep.n} candles`);
   const rand = rng(seed);
   const { rel, sigma } = prep;
@@ -212,19 +336,37 @@ export function simulate(prep, { model = "bootstrap", origin = prep.n - 1, horiz
   }
 
   // Bootstrap: library of past candles in volatility units, recentred so the past's drift is not replayed as a forecast.
+  // The garch model is the same replay (filtered historical simulation) with GJR-GARCH volatility in place of the EWMA,
+  // both for putting the library in volatility units and for updating volatility along each path.
+  const jumps = earnings ? new Set(earnings.past) : null;
+  const garch = model === "garch" ? fitGjr(prep, origin, jumps) : null;
+  if (model === "garch" && !garch) return simulate(prep, { model: "bootstrap", origin, horizon, paths, seed, drift, earnings });
+  const ahead = new Set(earnings?.ahead ?? []);
+  const vol = garch ? garch.sigma : sigma;
+  const nextSigma = garch
+    ? (s, lc) => Math.sqrt(garch.omega + (garch.alpha + (lc < 0 ? garch.gamma : 0)) * lc * lc + garch.beta * s * s)
+    : (s, lc) => Math.sqrt(EWMA_LAMBDA * s * s + (1 - EWMA_LAMBDA) * lc * lc);
   const count = origin;
-  let meanClose = 0;
-  for (let i = 1; i <= origin; i++) meanClose += rel[4 * i + 3] / sigma[i];
-  meanClose /= count;
+  let meanClose = 0, ordinary = 0;
+  for (let i = 1; i <= origin; i++) if (!jumps?.has(i)) { meanClose += rel[4 * i + 3] / vol[i]; ordinary++; }
+  meanClose /= ordinary;
+  // A uniform draw from the library; with earnings scheduled, past reactions are only replayed on their own dates.
+  const draw = () => {
+    let i;
+    do i = 1 + Math.floor(rand() * count); while (jumps?.has(i));
+    return i;
+  };
   for (let p = 0; p < paths; p++) {
-    let pc = start, s = sigmaNow, i = 1 + Math.floor(rand() * count);
+    let pc = start, s = garch ? vol[origin + 1] : sigmaNow, i = draw();
     for (let k = 0; k < horizon; k++) {
-      if (k > 0) i = rand() < 1 / BLOCK_LENGTH || i >= origin ? 1 + Math.floor(rand() * count) : i + 1;
-      const r = 4 * i, z = s / sigma[i], shift = meanClose * s;
+      const event = ahead.has(k);
+      if (event) i = earnings.past[Math.floor(rand() * earnings.past.length)];
+      else if (k > 0) i = rand() < 1 / BLOCK_LENGTH || i >= origin || jumps?.has(i + 1) ? draw() : i + 1;
+      const r = 4 * i, z = s / vol[i], shift = meanClose * s;
       const lc = rel[r + 3] * z - shift;
       // The drift moves the candle, not the volatility: the update below sees the untilted move.
       pc = writeCandle(out, (p * horizon + k) * 4, pc, rel[r] * z - shift + drift, rel[r + 1] * z - shift + drift, rel[r + 2] * z - shift + drift, lc + drift);
-      s = Math.max(Math.sqrt(EWMA_LAMBDA * s * s + (1 - EWMA_LAMBDA) * lc * lc), MIN_SIGMA);
+      if (!event) s = Math.max(nextSigma(s, lc), MIN_SIGMA);
     }
   }
   return { start, horizon, paths, candles: out, analogs };
@@ -320,7 +462,8 @@ export function crps(sorted, y) {
  * e.g. { matches } from other stocks or { model: "bootstrap", drift } from a fitted signal.
  * Returns { origins, horizon, results: { [model]: metrics } } where metrics are
  *   n, crps (in % log return), skill (vs the random walk, 0 = no better, >0 = better) and skillSE (its standard
- *   error), coverage50, coverage90, brier, trades, hitRate, netPerTrade (% after fees).
+ *   error), coverage50, coverage90, below5 and above95 (share of outcomes past each end of the 90% band: a band can
+ *   hold 90% overall while missing far more crashes than rallies), brier, trades, hitRate, netPerTrade (% after fees).
  * NaN in a score means the simulation produced a non-finite price, which is a bug, so it throws.
  */
 export function backtest(prep, { models = MODELS.map(m => m.key), horizon = 30, paths = 200, window = 12, neighbors = 150, step = horizon, maxOrigins = 120, costBps = 20, seed = 7, external = {} } = {}) {
@@ -330,7 +473,7 @@ export function backtest(prep, { models = MODELS.map(m => m.key), horizon = 30, 
   origins.reverse();
 
   const fee = costBps / 10000;
-  const scores = Object.fromEntries(models.map(m => [m, { crps: [], in50: 0, in90: 0, brier: 0, trades: 0, hits: 0, net: 0 }]));
+  const scores = Object.fromEntries(models.map(m => [m, { crps: [], in50: 0, in90: 0, below5: 0, above95: 0, brier: 0, trades: 0, hits: 0, net: 0 }]));
   for (const origin of origins) {
     const realized = Math.log(prep.candles[origin + horizon].c / prep.candles[origin].c);
     // A call is made at the origin's close, so the earliest fill is the next candle's close.
@@ -345,6 +488,8 @@ export function backtest(prep, { models = MODELS.map(m => m.key), horizon = 30, 
       s.crps.push(score);
       if (realized >= quantile(sorted, 0.25) && realized <= quantile(sorted, 0.75)) s.in50++;
       if (realized >= quantile(sorted, 0.05) && realized <= quantile(sorted, 0.95)) s.in90++;
+      if (realized < quantile(sorted, 0.05)) s.below5++;
+      if (realized > quantile(sorted, 0.95)) s.above95++;
       const pUp = sorted.filter(v => v > 0).length / sorted.length;
       s.brier += (pUp - (realized > 0 ? 1 : 0)) ** 2;
       if (pUp >= CALL_SHARE || pUp <= 1 - CALL_SHARE) {
@@ -376,6 +521,8 @@ export function backtest(prep, { models = MODELS.map(m => m.key), horizon = 30, 
       skill, skillSE,
       coverage50: n ? s.in50 / n : null,
       coverage90: n ? s.in90 / n : null,
+      below5: n ? s.below5 / n : null,
+      above95: n ? s.above95 / n : null,
       brier: n ? s.brier / n : null,
       trades: s.trades,
       hitRate: s.trades ? s.hits / s.trades : null,

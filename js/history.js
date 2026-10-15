@@ -117,7 +117,16 @@ const INPUT_FIELDS = {
   impliedVolatility: (i) => i.options?.impliedVolatility,
   ivHvRatio: (i) => i.options?.ivHvRatio,
   atmCallDelta: (i) => i.options?.atmCallDelta,
-  atmCallOpenInterest: (i) => i.options?.atmCallOpenInterest
+  atmCallOpenInterest: (i) => i.options?.atmCallOpenInterest,
+  iv30: (i) => i.options?.iv30,
+  iv60: (i) => i.options?.iv60,
+  smileDte: (i) => i.options?.smileDte,
+  put10Iv: (i) => i.options?.put10Iv,
+  put25Iv: (i) => i.options?.put25Iv,
+  call25Iv: (i) => i.options?.call25Iv,
+  call10Iv: (i) => i.options?.call10Iv,
+  earningsMove: (i) => i.options?.earningsMove,
+  earningsStraddle: (i) => i.options?.earningsStraddle
 };
 
 /** Levels the engine derived for the build, kept for the same reason as the inputs. */

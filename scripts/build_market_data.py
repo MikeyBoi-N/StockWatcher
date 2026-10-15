@@ -3,6 +3,7 @@ Build data/market.json: real market data for the core universe plus tickers user
 
 Usage:
   SEC_USER_AGENT="Your Name you@example.com" python scripts/build_market_data.py [--only AAPL,SPY] [--skip-requests]
+      [--previous-earnings PATH]
 
 Without SEC_USER_AGENT, SEC fundamentals are skipped (SEC requires a contact email in the User-Agent).
 The output file is only written when SPY, QQQ and at least 80% of the core universe succeed, so a bad run
@@ -14,10 +15,11 @@ import os
 import re
 import sys
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 from market_data import analyst
+from market_data.earnings import earnings_history
 from market_data.http_client import FetchError, HttpClient
 from market_data.indicators import technicals
 from market_data.replay import FIELDS as REPLAY_FIELDS, replay
@@ -31,6 +33,9 @@ OUTPUT_FILE = ROOT / "data" / "market.json"
 # Weekly point-in-time technicals and five years of daily candles for the simulator page's backtests. A separate file
 # because it is several times the size of market.json and only that page reads it.
 REPLAY_FILE = ROOT / "data" / "replay.json"
+# Past earnings release sessions per replayed stock (also embedded in replay.json). Deployed with the site so the next
+# build can start from it instead of paging back through years of EDGAR filings.
+EARNINGS_FILE = ROOT / "data" / "earnings.json"
 FIREBASE_CONFIG_FILE = ROOT / "firebase-config.js"
 
 REGIME_TICKERS = ("SPY", "QQQ")
@@ -83,10 +88,40 @@ def build_sector_benchmarks(sector_etfs, providers):
     return sectors
 
 
+def build_earnings(replays, edgar, previous_file):
+    """
+    {ticker: earnings_history()} for every replayed stock, from the start of its candles; None without SEC access.
+    A stock whose lookup fails is left out rather than given a list that might be missing its latest release.
+    """
+    if edgar is None:
+        return None
+    previous = {}
+    if previous_file and previous_file.exists():
+        try:
+            previous = json.loads(previous_file.read_text(encoding="utf-8"))["tickers"]
+        except (ValueError, KeyError) as err:
+            print(f"WARNING: ignoring unreadable {previous_file} ({err})")
+    result = {}
+    for ticker, entry in replays.items():
+        if entry["etf"]:
+            continue
+        first = str(entry["bars"]["d"][0])
+        since = date(int(first[:4]), int(first[4:6]), int(first[6:]))
+        try:
+            history = earnings_history(edgar, ticker, since, previous.get(ticker))
+        except (FetchError, KeyError, TypeError, ValueError) as err:
+            print(f"  earnings {ticker}: {err}")
+            continue
+        if history is not None:
+            result[ticker] = history
+    return result
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--only", help="comma-separated tickers to build (for local testing; output still validated)")
     parser.add_argument("--skip-requests", action="store_true", help="don't read user-requested tickers from Firestore")
+    parser.add_argument("--previous-earnings", type=Path, help="the last build's earnings.json, to avoid refetching old filings")
     args = parser.parse_args()
 
     universe = json.loads(UNIVERSE_FILE.read_text(encoding="utf-8"))
@@ -193,6 +228,14 @@ def main():
             if errors:
                 print(f"  research {ticker}: {'; '.join(errors)}")
             replays[ticker] = {"etf": directory[ticker]["etf"], "sector": sector, "research": True, **entry}
+
+    earnings = build_earnings(replays, providers.filings, args.previous_earnings)
+    if earnings is not None:
+        for ticker, entry in earnings.items():
+            replays[ticker]["earnings"] = entry
+        EARNINGS_FILE.write_text(json.dumps({"generatedAt": payload["generatedAt"], "tickers": earnings}, separators=(",", ":")),
+                                 encoding="utf-8")
+        print(f"Wrote earnings history for {len(earnings)} stocks to {EARNINGS_FILE}")
     REPLAY_FILE.write_text(json.dumps({"generatedAt": payload["generatedAt"], "fields": REPLAY_FIELDS, "tickers": replays},
                                       separators=(",", ":")), encoding="utf-8")
     print(f"Wrote replay history for {len(replays)} stocks ({sum(r['research'] for r in replays.values())} research-only) "

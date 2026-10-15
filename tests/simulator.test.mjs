@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { prepare, simulate, fan, crps, quantile, backtest, findAnalogs, likelyPath, rng, MODELS } from "../js/simulator.js";
+import { prepare, simulate, fan, crps, quantile, backtest, earningsEvents, findAnalogs, fitGjr, likelyPath, rng, MODELS } from "../js/simulator.js";
 import { marketJsonCandles } from "../js/sim-sources.js";
 
 /** A random walk with wicks and volume, from a fixed seed. */
@@ -99,7 +99,8 @@ test("on a pure random walk the random walk's bands are honest and nothing has r
   assert.ok(origins.length >= 200);
   assert.ok(Math.abs(results.gaussian.coverage90 - 0.9) < 0.07, `coverage90 ${results.gaussian.coverage90}`);
   assert.ok(Math.abs(results.gaussian.coverage50 - 0.5) < 0.1, `coverage50 ${results.gaussian.coverage50}`);
-  for (const key of ["bootstrap", "analog"]) {
+  assert.ok(Math.abs(results.gaussian.below5 + results.gaussian.above95 + results.gaussian.coverage90 - 1) < 1e-9);
+  for (const key of ["bootstrap", "garch", "analog"]) {
     const r = results[key];
     assert.ok(r.skill - 3 * r.skillSE < 0, `${key} claims skill ${r.skill} ± ${r.skillSE} on noise`);
   }
@@ -156,4 +157,118 @@ test("a bootstrap drift tilts every path by that much per candle", () => {
     const at = (p * 10 + 9) * 4 + 3;
     assert.ok(Math.abs(Math.log(tilted.candles[at] / flat.candles[at]) - 0.01) < 1e-9, "ten candles of 0.1% each");
   }
+});
+
+/** Closes from a GJR-GARCH(1,1) process with the given parameters and a fixed seed. */
+function gjrWalk(n, { omega, alpha, gamma, beta }, seed = 5) {
+  const rand = rng(seed);
+  const gauss = () => Math.sqrt(-2 * Math.log(1 - rand())) * Math.cos(2 * Math.PI * rand());
+  let v = omega / (1 - alpha - gamma / 2 - beta), c = 100;
+  const candles = [];
+  for (let i = 0; i < n; i++) {
+    const r = Math.sqrt(v) * gauss();
+    candles.push({ t: i * 86400000, c: c *= Math.exp(r) });
+    v = omega + (alpha + (r < 0 ? gamma : 0)) * r * r + beta * v;
+  }
+  return candles;
+}
+
+test("the GJR-GARCH fit finds a planted leverage effect, and none in a symmetric walk", () => {
+  const fit = fitGjr(prepare(gjrWalk(4000, { omega: 2e-6, alpha: 0.02, gamma: 0.15, beta: 0.88 })));
+  assert.ok(fit.gamma > 0.07 && fit.gamma > 3 * fit.alpha, `gamma ${fit.gamma}, alpha ${fit.alpha}`);
+  assert.ok(Math.abs(fit.alpha + fit.gamma / 2 + fit.beta - 0.975) < 0.03, "persistence");
+  const flat = fitGjr(prepare(walk(4000, 8)));
+  assert.ok(flat.gamma < 0.05, `gamma ${flat.gamma} on a symmetric walk`);
+  assert.equal(fitGjr(prepare(walk(100))), null, "too little history to fit");
+});
+
+test("the GJR-GARCH fit at an origin reads no later candles", () => {
+  const candles = gjrWalk(800, { omega: 2e-6, alpha: 0.02, gamma: 0.15, beta: 0.88 });
+  const a = fitGjr(prepare(candles), 500);
+  const b = fitGjr(prepare(candles.slice(0, 501)), 500);
+  assert.deepEqual(a, b);
+});
+
+test("garch paths fade a volatility spike back toward the long-run level; the EWMA's do not", () => {
+  // A calm series that ends in a burst of large moves.
+  const candles = walk(1500, 2, 0.01);
+  let c = candles.at(-1).c;
+  for (let i = 0; i < 10; i++) candles.push({ t: (1500 + i) * 60000, c: c *= Math.exp(i % 2 ? 0.05 : -0.05) });
+  const prep = prepare(candles);
+  const spread = (sim, k) => {
+    const logs = Array.from({ length: sim.paths }, (_, p) => Math.log(sim.candles[(p * sim.horizon + k) * 4 + 3] / sim.candles[(p * sim.horizon + k - 1) * 4 + 3]));
+    return Math.sqrt(logs.reduce((s, x) => s + x * x, 0) / logs.length);
+  };
+  const garch = simulate(prep, { model: "garch", horizon: 120, paths: 400, seed: 3 });
+  const ewma = simulate(prep, { model: "bootstrap", horizon: 120, paths: 400, seed: 3 });
+  assert.ok(spread(garch, 119) < 0.7 * spread(garch, 1), "garch volatility decays over the horizon");
+  assert.ok(spread(ewma, 119) > 0.7 * spread(ewma, 1), "the EWMA has no pull back to normal");
+});
+
+/** Weekday daily candles from 2024-01-01 (a Monday) with a ±12% gap on every `every`th session, the rest calm. */
+function withGaps(n, every = 63, seed = 6) {
+  const rand = rng(seed);
+  const gauss = () => Math.sqrt(-2 * Math.log(1 - rand())) * Math.cos(2 * Math.PI * rand());
+  const candles = [], gaps = [];
+  let c = 100, t = Date.UTC(2024, 0, 1);
+  for (let i = 0; i < n; i++) {
+    while ([0, 6].includes(new Date(t).getUTCDay())) t += 86400000;
+    const jump = i > 0 && i % every === 0;
+    if (jump) gaps.push(new Date(t).toISOString().slice(0, 10));
+    c *= Math.exp(jump ? (gaps.length % 2 ? 0.12 : -0.12) : 0.01 * gauss());
+    candles.push({ t, c });
+    t += 86400000;
+  }
+  return { candles, gaps };
+}
+
+test("earnings dates map onto the session that reacted, split around the origin", () => {
+  const { candles, gaps } = withGaps(700);
+  const prep = prepare(candles);
+  const origin = 600;
+  const events = earningsEvents(prep, { from: "2024-01-01", dates: gaps }, origin, 30);
+  assert.deepEqual(events.past, [63, 126, 189, 252, 315, 378, 441, 504, 567]);
+  assert.deepEqual(events.ahead, [630 - origin - 1]);
+  // A Saturday release reacts on Monday; a date after the last candle counts weekdays from it.
+  const last = new Date(candles.at(-1).t);
+  assert.equal(last.getUTCDay(), 5, "the series ends on a Friday");
+  const iso = (t) => new Date(t).toISOString().slice(0, 10);
+  const monday = events.past.find(i => new Date(candles[i].t).getUTCDay() === 1);
+  const dates = gaps.map(d => d === iso(candles[monday].t) ? iso(candles[monday].t - 2 * 86400000) : d);
+  const nextTuesday = iso(last.getTime() + 4 * 86400000);
+  const shifted = earningsEvents(prep, { from: "2024-01-01", dates: [...dates, nextTuesday] }, prep.n - 1, 10);
+  assert.ok(shifted.past.includes(monday), "a Saturday release reacts on Monday");
+  assert.deepEqual(shifted.ahead, [1], "the weekend is skipped: Monday, then Tuesday is the second step");
+  assert.equal(earningsEvents(prep, { from: "2025-10-01", dates: gaps }, origin, 30), null, "too few releases inside the covered span");
+});
+
+test("earnings gaps land on their scheduled step and nowhere else", () => {
+  const { candles, gaps } = withGaps(700);
+  const prep = prepare(candles);
+  const origin = 600, horizon = 40;
+  const events = earningsEvents(prep, { from: "2024-01-01", dates: gaps }, origin, horizon);
+  const step = events.ahead[0];
+  const spread = (sim, k) => {
+    const prev = (p) => k ? sim.candles[(p * horizon + k - 1) * 4 + 3] : sim.start;
+    const logs = Array.from({ length: sim.paths }, (_, p) => Math.abs(Math.log(sim.candles[(p * horizon + k) * 4 + 3] / prev(p))));
+    return Math.max(...logs);
+  };
+  for (const model of ["garch", "bootstrap"]) {
+    const sim = simulate(prep, { model, origin, horizon, paths: 300, seed: 2, earnings: events });
+    assert.ok(spread(sim, step) > 0.08, `${model}: the gap is replayed on its date`);
+    for (let k = 0; k < horizon; k++) if (k !== step) assert.ok(spread(sim, k) < 0.06, `${model}: no gap on step ${k}`);
+    // Without the schedule the gaps are ordinary library candles and turn up anywhere.
+    const plain = simulate(prep, { model, origin, horizon, paths: 300, seed: 2 });
+    assert.ok(Array.from({ length: horizon }, (_, k) => k).filter(k => k !== step).some(k => spread(plain, k) > 0.06), model);
+  }
+});
+
+test("the GJR-GARCH fit leaves scheduled jumps out", () => {
+  const { candles, gaps } = withGaps(1200);
+  const prep = prepare(candles);
+  const events = earningsEvents(prep, { from: "2024-01-01", dates: gaps }, prep.n - 1, 1);
+  const withJumps = fitGjr(prep), without = fitGjr(prep, prep.n - 1, new Set(events.past));
+  const longRun = (f) => Math.sqrt(f.omega / (1 - f.alpha - f.gamma / 2 - f.beta));
+  assert.ok(Math.abs(longRun(without) - 0.01) < 0.001, `long-run vol ${longRun(without)} is the calm days' 1%`);
+  assert.ok(longRun(withJumps) > 0.013, "the gaps inflate it when left in");
 });

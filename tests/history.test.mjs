@@ -69,6 +69,16 @@ test("a sample keeps the raw inputs the engine read, not only the scores it prod
   assert.equal(sample.inputs.impliedVolatility, undefined, "a missing input is absent, never zero");
 });
 
+test("a sample keeps the options surface the build read beyond the at-the-money contract", () => {
+  const options = { impliedVolatility: 0.3, ivHvRatio: 1.1, iv30: 0.29, iv60: 0.31, smileDte: 32, put10Iv: 0.42, put25Iv: 0.35, call25Iv: 0.27, call10Iv: 0.28, earningsMove: 0.045, earningsStraddle: 0.08 };
+  const records = [stock("AAA", { options }), stock("SPY", { etf: true, fundamentals: null })];
+  const ctx = buildMarketContext(records, {});
+  const sample = sampleFromEvaluation(evaluateAsset(records[0], ctx), ctx.spy);
+  for (const key of ["iv30", "iv60", "smileDte", "put10Iv", "put25Iv", "call25Iv", "call10Iv", "earningsMove", "earningsStraddle"]) {
+    assert.equal(sample.inputs[key], options[key], key);
+  }
+});
+
 test("a build is keyed by its own timestamp, so recording it twice cannot count it twice", () => {
   assert.equal(snapshotId("2026-09-18T00:54:47+00:00"), "20260918T005447Z");
   assert.equal(snapshotId("2026-09-18T00:54:47.812Z"), "20260918T005447Z", "sub-second noise does not make a second id");

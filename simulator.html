@@ -344,6 +344,7 @@
                   <th title="How much closer the forecasts were than the random walk's, by CRPS. Positive is better.">Skill vs random walk</th>
                   <th title="Share of outcomes that landed inside the model's 90% band">In 90% band</th>
                   <th title="Share of outcomes that landed inside the model's 50% band">In 50% band</th>
+                  <th title="Share of outcomes below the 90% band's bottom and above its top; 5% each when honest. A band can hold 90% overall while missing far more crashes than rallies.">Missed low · high</th>
                   <th title="Times at least 60% of paths agreed on a direction, and how often that direction was right">Direction calls</th>
                   <th title="Average return of following each call for the horizon, after one round trip of fees, spread and slippage">Avg per call</th>
                 </tr>
@@ -475,6 +476,8 @@
         <p>This page does not predict a price. Each model draws hundreds of possible futures from what the market has done before, and the chart shows how they spread out. Where the cloud is dense, many futures passed through. The histogram on the right shows where they ended.</p>
         <p><strong>Random walk</strong> moves randomly at today's volatility. It knows nothing, which makes it the yardstick: a model that cannot beat it has not learned anything.</p>
         <p><strong>Historical bootstrap</strong> replays real past candles in short runs, resized from the volatility they happened at to today's. It keeps the market's real texture: wick sizes, sudden gaps, crash-sized moves, and calm and wild stretches that cluster. It has no view on direction.</p>
+        <p><strong>Bootstrap, GJR-GARCH vol</strong> is the same replay with a fitted volatility model in place of the bootstrap's simple running average. A drop raises volatility more than a rise of the same size, and after a spike or a calm spell volatility drifts back toward the stock's normal level instead of staying where it last was. It is refitted at every forecast date from the candles before it.</p>
+        <p><strong>GARCH + earnings gaps</strong> adds the one move that is on the calendar. Past earnings reactions (dated from the company's SEC filings) are taken out of the replay and the volatility fit, and on each scheduled release date every path takes one of the stock's own past earnings moves instead, resized to today's volatility. Volatility does not jump after the release the way it would after a surprise crash. In the backtest the release dates are the real ones, which companies announce weeks ahead.</p>
         <p><strong>Pattern analogs</strong> tests the idea that chart patterns are real. It finds the past moments whose last few candles (shape, wicks and volume, in volatility units) looked most like the last few now, and replays what happened after each one. Closer matches count for more. If patterns carry information, this model should beat the other two in the backtest.</p>
         <p><strong>Engine analogs</strong> (stocks only) uses this app's own analysis. It finds past weeks, across every tracked stock, when the scoring engine read a stock the way it reads this one now: the same Trend, Entry and Trade scores, market regime, RSI, stretch above the 50-day, distance to support and strength against SPY. It then replays what those stocks did next, resized to this stock's volatility.</p>
         <p><strong>Fitted signal</strong> (stocks only) is the historical bootstrap tilted by a fitted model's view of this stock. The model is a ridge regression trained on the replayed weeks of the broad list. It predicts each stock's next-month return against the benchmark from its engine scores and the known signals, using only weeks whose outcome had already happened. The tilt is usually a fraction of a percent a month, which is about the size of any real edge. A model that claims more is usually overfitted.</p>
@@ -494,7 +497,7 @@
   </main>
 
   <script type="module">
-    import { MODELS, prepare, simulate, fan, backtest, findAnalogs, closesAt, likelyPath } from "./js/simulator.js";
+    import { EARNINGS_MODEL, MODELS, prepare, simulate, fan, backtest, findAnalogs, closesAt, likelyPath, earningsEvents } from "./js/simulator.js";
     import { CRYPTO_PRODUCTS, TIMEFRAMES, coinbaseCandles, coinbaseSpreadBps, firestoreSnapshots, marketJsonCandles } from "./js/sim-sources.js";
     import { BENCHMARKS, BUCKETS, ENGINE_MODEL, SCORECARD_HORIZONS, UNIVERSES, decodeReplay, engineMatches, liveRecord, replayStates, scorecard } from "./js/replay.js";
     import { FITTED_MODEL, SIGNALS, buildPanel, makePredictor, signalStats, walkForward } from "./js/signals.js";
@@ -521,7 +524,7 @@
     const $ = (id) => document.getElementById(id);
     const escapeHtml = (s) => String(s).replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
 
-    const ALL_MODELS = [...MODELS, ENGINE_MODEL, FITTED_MODEL];
+    const ALL_MODELS = [...MODELS, EARNINGS_MODEL, ENGINE_MODEL, FITTED_MODEL];
     /** The fitted model's outcome window: it predicts the next month and the simulator spreads that over each candle. */
     const FITTED_SESSIONS = 21;
     const modelLabel = (key) => ALL_MODELS.find(m => m.key === key).label;
@@ -558,6 +561,7 @@
     /** Engine analogs need the stock's replayed readings; the fitted signal also needs it to be a stock, not an ETF. */
     const modelAvailable = (key) => key === ENGINE_MODEL.key ? engineReady()
       : key === FITTED_MODEL.key ? engineReady() && !replayData.tickers[state.symbol]?.etf
+      : key === EARNINGS_MODEL.key ? !!(data?.fromReplay && replayData?.tickers[state.symbol]?.earnings)
       : true;
     const activeModels = () => ALL_MODELS.filter(m => modelAvailable(m.key));
     const engineAt = (origin) => ({ matches: engineMatches(replayData, engineStates, replayPreps, state.symbol, origin, { horizon: state.horizon, count: state.neighbors }) });
@@ -574,6 +578,16 @@
     const fittedAt = (origin) => {
       const edge = predictor()(state.symbol, data.prep.candles[origin].t);
       return { model: "bootstrap", drift: edge === null ? 0 : edge / FITTED_SESSIONS, edge };
+    };
+    /**
+     * simulate() options for the earnings model at an origin: GARCH with the stock's earnings gaps on their dates. Past
+     * releases come from SEC filings (replay.json); the next one, for a tracked stock, from market.json.
+     */
+    const earningsAt = (origin) => {
+      const history = replayData.tickers[state.symbol].earnings;
+      const next = stocks[state.symbol]?.catalysts?.nextEarningsDate;
+      const events = earningsEvents(data.prep, next ? { ...history, dates: [...history.dates, next] } : history, origin, state.horizon);
+      return { model: "garch", earnings: events };
     };
     /** Stocks only have daily closes; crypto keeps whichever candle size was last picked. */
     const timeframe = () => isCrypto(state.symbol) ? TIMEFRAMES.find(t => t.key === state.timeframe) ?? TIMEFRAMES[3] : TIMEFRAMES.at(-1);
@@ -646,9 +660,10 @@
       $("likelyToggle").setAttribute("aria-pressed", String(state.showLikely));
       $("legendLikely").hidden = !state.showLikely;
       $("model").querySelectorAll("button").forEach(b => {
-        if (b.dataset.key !== ENGINE_MODEL.key && b.dataset.key !== FITTED_MODEL.key) return;
+        if (![ENGINE_MODEL.key, FITTED_MODEL.key, EARNINGS_MODEL.key].includes(b.dataset.key)) return;
         b.disabled = crypto || !!(data && !modelAvailable(b.dataset.key));
-        b.title = crypto ? "Stocks only: it reads the app's scoring engine"
+        b.title = b.dataset.key === EARNINGS_MODEL.key ? (b.disabled ? "Stocks with an SEC earnings history only" : "")
+          : crypto ? "Stocks only: it reads the app's scoring engine"
           : b.disabled && b.dataset.key === FITTED_MODEL.key ? "Individual stocks only: the model ranks stocks against each other" : "";
       });
       syncTimeframe();
@@ -841,10 +856,11 @@
       const origin = prep.n - 1 - state.replay;
       const engine = state.model === ENGINE_MODEL.key && engineReady();
       const fitted = state.model === FITTED_MODEL.key && modelAvailable(FITTED_MODEL.key) ? fittedAt(origin) : null;
-      const extra = engine ? engineAt(origin) : fitted ?? {};
+      const earnings = state.model === EARNINGS_MODEL.key && modelAvailable(EARNINGS_MODEL.key) ? earningsAt(origin) : null;
+      const extra = engine ? engineAt(origin) : fitted ?? earnings ?? {};
       const sim = simulate(prep, { model: state.model, origin, horizon: state.horizon, paths: state.paths, window: state.window, neighbors: state.neighbors, seed: 1, ...extra });
       const analogs = engine ? extra.matches : state.model === "analog" ? sim.analogs : findAnalogs(prep, { origin, window: state.window, horizon: state.horizon, count: state.neighbors });
-      view = { sim, fan: fan(sim, [0.01, 0.05, 0.25, 0.5, 0.75, 0.95, 0.99]), origin, analogs, engine, edge: fitted?.edge, likely: likelyPath(sim), density: null };
+      view = { sim, fan: fan(sim, [0.01, 0.05, 0.25, 0.5, 0.75, 0.95, 0.99]), origin, analogs, engine, edge: fitted?.edge, earnings: earnings && (earnings.earnings?.ahead ?? null), likely: likelyPath(sim), density: null };
       $("replayOut").textContent = state.replay ? fmtTime(prep.candles[origin].t) : "now";
       $("legendReal").hidden = !state.replay;
       renderStats();
@@ -875,6 +891,9 @@
       const tilt = state.model === FITTED_MODEL.key
         ? view.edge === null || view.edge === undefined ? " · no fitted view yet (too little history before this date)"
           : ` · tilted ${fmtPct(100 * view.edge)} a month vs ${{ beta: "risk-adjusted SPY", sector: "sector peers", spy: "SPY" }[state.benchmark]}`
+        : state.model === EARNINGS_MODEL.key
+          ? view.earnings === null ? " · too few past earnings releases to draw gaps from"
+            : view.earnings?.length ? ` · earnings gap on candle ${view.earnings.map(k => k + 1).join(" and ")}` : " · no earnings release in this window"
         : "";
       $("chartSub").textContent = `${sim.paths} paths · ${state.horizon} candles ahead (${candleSpan(state.horizon)})${tilt}`;
 
@@ -915,7 +934,8 @@
           costBps: roundTripBps(),
           external: {
             ...(modelAvailable(ENGINE_MODEL.key) ? { [ENGINE_MODEL.key]: engineAt } : {}),
-            ...(modelAvailable(FITTED_MODEL.key) ? { [FITTED_MODEL.key]: fittedAt } : {})
+            ...(modelAvailable(FITTED_MODEL.key) ? { [FITTED_MODEL.key]: fittedAt } : {}),
+            ...(modelAvailable(EARNINGS_MODEL.key) ? { [EARNINGS_MODEL.key]: earningsAt } : {})
           }
         });
         renderBacktest(result, performance.now() - t0);
@@ -970,12 +990,16 @@
         const off = Math.abs(v - target), tone = off <= 0.07 ? "" : off <= 0.15 ? "tone-warn" : "tone-neg";
         return `<td class="${tone}">${fmtShare(v)}<span class="target">/ ${fmtShare(target)}</span></td>`;
       };
+      const tailCell = (r) => {
+        const off = Math.max(Math.abs(r.below5 - 0.05), Math.abs(r.above95 - 0.05)), tone = off <= 0.03 ? "" : off <= 0.06 ? "tone-warn" : "tone-neg";
+        return `<td class="${tone}">${fmtShare(r.below5)} · ${fmtShare(r.above95)}<span class="target">/ 5% each</span></td>`;
+      };
       const models = activeModels().filter(m => results[m.key]);
       $("scoreBody").innerHTML = models.map(m => {
         const r = results[m.key];
         const calls = r.trades ? `${r.trades} · ${fmtShare(r.hitRate)} right` : "none";
         const net = r.netPerTrade === null ? `<td class="tone-muted">—</td>` : `<td class="tone-${r.netPerTrade > 0 ? "pos" : "neg"}">${fmtPct(r.netPerTrade)}</td>`;
-        return `<tr class="${m.key === state.model ? "current" : ""}"><td>${escapeHtml(m.label)}</td>${skillCell(r)}${bandCell(r.coverage90, 0.9)}${bandCell(r.coverage50, 0.5)}<td>${calls}</td>${net}</tr>`;
+        return `<tr class="${m.key === state.model ? "current" : ""}"><td>${escapeHtml(m.label)}</td>${skillCell(r)}${bandCell(r.coverage90, 0.9)}${bandCell(r.coverage50, 0.5)}${tailCell(r)}<td>${calls}</td>${net}</tr>`;
       }).join("");
 
       const outcomes = { better: [], worse: [], even: [] };
