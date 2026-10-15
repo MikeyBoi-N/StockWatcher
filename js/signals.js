@@ -15,7 +15,7 @@
  * Fundamentals, revisions and earnings dates are not in the replay (they can't be rebuilt for past dates); the
  * snapshot history collects them going forward.
  */
-import { excessReturn, spearman, testDates } from "./replay.js";
+import { ENTRY_LAG, compareWithSector, excessReturn, forwardReturn, spearman, testDates } from "./replay.js";
 
 const isNum = (v) => typeof v === "number" && Number.isFinite(v);
 const ratio = (a, b) => isNum(a) && isNum(b) && b > -1 ? (1 + a) / (1 + b) - 1 : null;
@@ -38,7 +38,8 @@ export const SIGNALS = [
   { key: "rsi", group: "Known signals", label: "RSI (14)", value: (s) => s.inputs.rsi14 },
   { key: "volume", group: "Known signals", label: "Volume vs its 20-day average", value: (s) => isNum(s.inputs.volume) && s.inputs.avgVolume20 > 0 && s.inputs.volume > 0 ? Math.log(s.inputs.volume / s.inputs.avgVolume20) : null }
 ];
-const FIT_KEYS = SIGNALS.filter(s => s.fit !== false).map(s => s.key);
+/** The signals the model is fitted on, in the order of its coefficients. */
+export const FIT_KEYS = SIGNALS.filter(s => s.fit !== false).map(s => s.key);
 
 /** Ridge strength per training row: enough to keep twelve correlated signals from fighting, small next to the data. */
 const RIDGE = 0.05;
@@ -66,7 +67,8 @@ function rankScores(values) {
  * @param include (ticker) => boolean, which stocks take part
  * @param benchmark a BENCHMARKS key (js/replay.js): what `excess` is measured against
  * Returns { sessions, dates: [{ t, si, rows: [{ ticker, state, ranks: {key: score|null}, x: Float64Array, excess, y }] }] }
- * oldest first. `excess` is the return over the benchmark `sessions` later (null when not known yet); `y` is that excess
+ * oldest first. `excess` is the total return over the benchmark of a position bought the session after the reading and
+ * held `sessions` sessions (forwardReturn; null when not known yet); `y` is that excess
  * clipped to the week's 5th–95th percentile and demeaned within the week, the model's target.
  */
 export function buildPanel(replay, states, { sessions = 21, include = () => true, benchmark = "beta" } = {}) {
@@ -85,10 +87,9 @@ export function buildPanel(replay, states, { sessions = 21, include = () => true
       const v = sig.value(s);
       return isNum(v) ? v : null;
     }))]));
-    const m = si + sessions < spy.candles.length ? spy.candles[si + sessions].c / spy.candles[si].c - 1 : null;
+    const m = forwardReturn(spy.candles, si, sessions);
     const rows = list.map((s, k) => {
-      const candles = replay.tickers[s.ticker].candles;
-      const r = m !== null && s.i + sessions < candles.length ? candles[s.i + sessions].c / candles[s.i].c - 1 : null;
+      const r = m === null ? null : forwardReturn(replay.tickers[s.ticker].candles, s.i, sessions);
       const rowRanks = Object.fromEntries(SIGNALS.map(sig => [sig.key, ranks[sig.key][k]]));
       return {
         ticker: s.ticker, state: s, ranks: rowRanks,
@@ -96,6 +97,7 @@ export function buildPanel(replay, states, { sessions = 21, include = () => true
         excess: r === null ? null : excessReturn(r, m, s.beta, benchmark), y: null
       };
     });
+    compareWithSector(rows.filter(r => r.excess !== null), benchmark, r => replay.tickers[r.ticker].sector);
     const known = rows.filter(r => r.excess !== null).map(r => r.excess).sort((a, b) => a - b);
     if (known.length >= 5) {
       const lo = known[Math.floor(0.05 * (known.length - 1))], hi = known[Math.ceil(0.95 * (known.length - 1))];
@@ -203,10 +205,10 @@ export function signalStats(panel) {
   return Object.fromEntries(SIGNALS.map(sig => [sig.key, rankStats(dates, r => r.ranks[sig.key])]));
 }
 
-/** Index of the last panel date whose outcome window had ended by SPY candle `si`. */
+/** Index of the last panel date whose outcome window (entry lag included) had ended by SPY candle `si`. */
 const trainingEnd = (panel, si) => {
   let k = -1;
-  for (let i = 0; i < panel.dates.length && panel.dates[i].si + panel.sessions <= si; i++) k = i;
+  for (let i = 0; i < panel.dates.length && panel.dates[i].si + ENTRY_LAG + panel.sessions <= si; i++) k = i;
   return k;
 };
 
@@ -230,6 +232,15 @@ export function walkForward(panel) {
   const weights = all ? FIT_KEYS.map((key, i) => ({ key, label: SIGNALS.find(s => s.key === key).label, effect: all.beta[i] * 2 * SQRT3 }))
     .sort((a, b) => Math.abs(b.effect) - Math.abs(a.effect)) : [];
   return { tested: scored.length, ...stats, final: { weights } };
+}
+
+/**
+ * The model fitted on every week whose outcome window had ended by SPY candle `si`, as { weights: { [key]: beta },
+ * rows, dates }, or null with too little history. Used to freeze a model for the paper record (js/paper.js).
+ */
+export function fitCompleted(panel, si) {
+  const fit = fitRidge(panel.dates.slice(0, trainingEnd(panel, si) + 1));
+  return fit && { weights: Object.fromEntries(FIT_KEYS.map((key, i) => [key, fit.beta[i]])), rows: fit.rows, dates: fit.dates };
 }
 
 /**

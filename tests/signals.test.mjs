@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { SIGNALS, buildPanel, fitRidge, makePredictor, signalStats, walkForward } from "../js/signals.js";
-import { decodeReplay, replayStates, excessReturn } from "../js/replay.js";
+import { decodeReplay, replayStates, excessReturn, forwardReturn } from "../js/replay.js";
 import { rng } from "../js/simulator.js";
 
 const FIT = SIGNALS.filter(s => s.fit !== false).map(s => s.key);
@@ -81,8 +81,10 @@ test("panels rank signals within each week, leave out ETFs and demean the target
     [-1, -0.6, -0.2, 0.2, 0.6, 1].map(v => +(v * Math.sqrt(3)).toFixed(6)));
   assert.ok(Math.abs(first.rows.reduce((s, r) => s + r.y, 0)) < 1e-12);
   const row = first.rows[0], st = row.state;
-  const r = replay.tickers[row.ticker].candles[st.i + 21].c / replay.tickers[row.ticker].candles[st.i].c - 1;
-  const m = replay.tickers.SPY.candles[first.si + 21].c / replay.tickers.SPY.candles[first.si].c - 1;
+  // Bought at the close after the reading, held 21 sessions.
+  const r = replay.tickers[row.ticker].candles[st.i + 22].c / replay.tickers[row.ticker].candles[st.i + 1].c - 1;
+  const m = replay.tickers.SPY.candles[first.si + 22].c / replay.tickers.SPY.candles[first.si + 1].c - 1;
+  assert.ok(Math.abs(r - forwardReturn(replay.tickers[row.ticker].candles, st.i, 21)) < 1e-12);
   assert.ok(Math.abs(row.excess - excessReturn(r, m, st.beta, "beta")) < 1e-12);
   const plain = buildPanel(replay, states, { sessions: 21, benchmark: "spy" }).dates[0].rows[0];
   assert.ok(Math.abs(plain.excess - ((1 + r) / (1 + m) - 1)) < 1e-12);

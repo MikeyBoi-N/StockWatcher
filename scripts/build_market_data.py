@@ -17,6 +17,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
 
+from market_data import analyst
 from market_data.http_client import FetchError, HttpClient
 from market_data.indicators import technicals
 from market_data.replay import FIELDS as REPLAY_FIELDS, replay
@@ -165,21 +166,33 @@ def main():
         for t in stocks if t in bars_by_ticker
     }
 
-    # The research list: a rule-based set of large caps (roughly the S&P 100), priced only, so the simulator's
-    # backtests are not limited to the hand-picked tracked list. They never appear in market.json or the API.
+    # The research list: roughly today's S&P 100 members, so the simulator's backtests are not limited to the
+    # hand-picked tracked list. Prices and sector only; they never appear in market.json or the API. Being today's
+    # members, they are survivors too: chosen for being large now.
     research = [] if args.only else [t for t in universe.get("research", []) if t in directory and t not in replays]
 
     def research_replay(ticker):
         errors = []
-        bars = price_history(ticker, directory[ticker]["etf"], providers, as_of, errors)
-        return ticker, (replay(bars) if bars else None), errors
+        is_etf = directory[ticker]["etf"]
+        bars = price_history(ticker, is_etf, providers, as_of, errors)
+        if not bars:
+            return ticker, None, None, errors
+        # The sector lets the page compare a stock with its sector peers; a failed lookup only loses that.
+        try:
+            sector = analyst.parse_summary(providers.analyst.summary(ticker, is_etf))["sector"]
+        except FetchError as err:
+            errors.append(f"sector: {err}")
+            sector = None
+        return ticker, replay(bars), sector, errors
 
     with ThreadPoolExecutor(max_workers=WORKERS) as pool:
-        for ticker, entry, errors in pool.map(research_replay, research):
+        for ticker, entry, sector, errors in pool.map(research_replay, research):
             if entry is None:
                 print(f"  research {ticker}: {'; '.join(errors)}")
                 continue
-            replays[ticker] = {"etf": directory[ticker]["etf"], "sector": None, "research": True, **entry}
+            if errors:
+                print(f"  research {ticker}: {'; '.join(errors)}")
+            replays[ticker] = {"etf": directory[ticker]["etf"], "sector": sector, "research": True, **entry}
     REPLAY_FILE.write_text(json.dumps({"generatedAt": payload["generatedAt"], "fields": REPLAY_FIELDS, "tickers": replays},
                                       separators=(",", ":")), encoding="utf-8")
     print(f"Wrote replay history for {len(replays)} stocks ({sum(r['research'] for r in replays.values())} research-only) "

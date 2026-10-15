@@ -314,8 +314,8 @@ export function crps(sorted, y) {
  * Origins step back from the latest fully-known one by `step` candles (default `horizon`, so test windows never
  * overlap and each origin is an independent check), at most `maxOrigins` of them.
  * A model "calls" a direction when at least 60% of its paths end on one side of the start (with 200 paths, the random
- * walk crosses that by sampling luck well under 1% of the time); each call pays `costBps` for the round trip (fees on
- * both sides plus the spread).
+ * walk crosses that by sampling luck well under 1% of the time); each call is filled at the next candle's close (the
+ * call needs the origin's close to exist) and pays `costBps` for the round trip (fees on both sides plus the spread).
  * `external` adds models built from outside this series: { [key]: (origin) => simulate() options for that origin },
  * e.g. { matches } from other stocks or { model: "bootstrap", drift } from a fitted signal.
  * Returns { origins, horizon, results: { [model]: metrics } } where metrics are
@@ -333,6 +333,8 @@ export function backtest(prep, { models = MODELS.map(m => m.key), horizon = 30, 
   const scores = Object.fromEntries(models.map(m => [m, { crps: [], in50: 0, in90: 0, brier: 0, trades: 0, hits: 0, net: 0 }]));
   for (const origin of origins) {
     const realized = Math.log(prep.candles[origin + horizon].c / prep.candles[origin].c);
+    // A call is made at the origin's close, so the earliest fill is the next candle's close.
+    const traded = horizon > 1 ? Math.log(prep.candles[origin + horizon].c / prep.candles[origin + 1].c) : 0;
     for (const model of models) {
       const extra = external[model] ? external[model](origin) : {};
       const sim = simulate(prep, { model, origin, horizon, paths, window, neighbors, seed: seed + origin, ...extra });
@@ -348,8 +350,8 @@ export function backtest(prep, { models = MODELS.map(m => m.key), horizon = 30, 
       if (pUp >= CALL_SHARE || pUp <= 1 - CALL_SHARE) {
         const side = pUp >= CALL_SHARE ? 1 : -1;
         s.trades++;
-        if (side * realized > 0) s.hits++;
-        s.net += side * realized - fee;
+        if (side * traded > 0) s.hits++;
+        s.net += side * traded - fee;
       }
     }
   }

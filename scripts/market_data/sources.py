@@ -21,6 +21,9 @@ class PriceHistory:
     last_time: str
     # Daily opens, for drawing real candles; None when the source didn't give them. Nothing scored reads them.
     open: list = None
+    # Closes adjusted for dividends and splits (total return), for measuring what a holding earned; None when the
+    # source didn't give them. The engine scores raw closes, as the market quotes them.
+    adj_close: list = None
 
 
 def _bars(source, rows, last_price, last_time):
@@ -29,6 +32,7 @@ def _bars(source, rows, last_price, last_time):
         by_date[row[0]] = row
     ordered = [by_date[d] for d in sorted(by_date)]
     opens = [r[5] if len(r) > 5 else None for r in ordered]
+    adjusted = [r[6] if len(r) > 6 else None for r in ordered]
     if len(ordered) < 30:
         raise FetchError(f"{source}: only {len(ordered)} daily bars")
     return PriceHistory(
@@ -41,6 +45,7 @@ def _bars(source, rows, last_price, last_time):
         last_price=last_price if last_price else ordered[-1][3],
         last_time=last_time,
         open=opens if all(o is not None for o in opens) else None,
+        adj_close=adjusted if all(a is not None for a in adjusted) else None,
     )
 
 
@@ -60,9 +65,10 @@ class YahooChart:
         meta, quotes = chart["meta"], chart["indicators"]["quote"][0]
         offset = timedelta(seconds=meta.get("gmtoffset", 0))
         rows = [
-            ((datetime.fromtimestamp(ts, timezone.utc) + offset).date(), h, l, c, v or 0, o)
-            for ts, h, l, c, v, o in zip(chart["timestamp"], quotes["high"], quotes["low"], quotes["close"], quotes["volume"],
-                                         quotes.get("open") or [None] * len(chart["timestamp"]))
+            ((datetime.fromtimestamp(ts, timezone.utc) + offset).date(), h, l, c, v or 0, o, a)
+            for ts, h, l, c, v, o, a in zip(chart["timestamp"], quotes["high"], quotes["low"], quotes["close"], quotes["volume"],
+                                            quotes.get("open") or [None] * len(chart["timestamp"]),
+                                            ((chart["indicators"].get("adjclose") or [{}])[0].get("adjclose")) or [None] * len(chart["timestamp"]))
             if None not in (h, l, c)
         ]
         market_time = meta.get("regularMarketTime")

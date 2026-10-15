@@ -42,3 +42,12 @@ def test_bars_are_compact_parallel_lists():
     assert out["d"][0] == 20210104
     assert len(out["d"]) == len(out["c"]) == len(out["o"]) == len(out["v"])
     assert replay(weekday_bars(40, with_open=False))["bars"]["o"] is None
+    assert out["a"] is None, "no adjusted closes from the source, none in the file"
+
+
+def test_adjusted_closes_are_carried_for_total_returns():
+    bars = weekday_bars(WARMUP + 5)
+    bars.adj_close = [c * 0.9 for c in bars.close]
+    out = replay(bars)
+    assert out["bars"]["a"] == [round(c * 0.9, 4) for c in bars.close]
+    assert out["rows"][-1][1:] == replay(weekday_bars(WARMUP + 5))["rows"][-1][1:], "the engine inputs still use raw closes"

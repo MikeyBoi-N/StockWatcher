@@ -222,6 +222,8 @@
     .bench tr.current td { background: var(--surface-2); }
     .bench tr.group td { color: var(--text-3); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; padding-top: 12px; }
     .bench tr.headline td { font-weight: 600; }
+    .bench.paper td:first-child { white-space: normal; min-width: 280px; max-width: 460px; }
+    .bench.paper .measures { display: block; font-size: 11px; color: var(--text-3); margin-top: 2px; }
     .bench .target { color: var(--text-3); font-size: 11px; margin-left: 4px; }
     .footnote { font-size: 12px; color: var(--text-3); margin-top: 10px; }
     .footnote + .footnote { margin-top: 4px; }
@@ -374,8 +376,8 @@
       <div class="card-body">
         <div class="toolbar">
           <div class="field"><span>Measured over</span><div class="segmented" id="scoreHorizon"></div></div>
-          <div class="field" title="App's list: the stocks this site tracks (hand-picked, leaning to big winners). Broad list adds a rule-based set of large caps."><span>Stocks</span><div class="segmented" id="scoreUniverse"></div></div>
-          <div class="field" title="Risk-adjusted subtracts beta times SPY's return, so a stock doesn't get credit just for moving more than the market"><span>Compared with</span><div class="segmented" id="benchmark"></div></div>
+          <div class="field" title="App's list: the stocks this site tracks (hand-picked, leaning to big winners). The second option adds today's S&amp;P 100 members: broader, but still chosen for being large today, so still survivors."><span>Stocks</span><div class="segmented" id="scoreUniverse"></div></div>
+          <div class="field" title="Risk-adjusted subtracts beta times SPY's return, so a stock doesn't get credit just for moving more than the market. Sector peers also compares it with the other stocks in its sector that week."><span>Compared with</span><div class="segmented" id="benchmark"></div></div>
         </div>
         <div class="verdict-line" id="scoreVerdict">Loading five years of replayed engine readings…</div>
         <div class="score-grid">
@@ -427,7 +429,31 @@
           </table>
         </div>
         <div class="footnote" id="scoreNote"></div>
-        <div class="footnote">The replay runs the real engine on each past week's price data only. Fundamentals, analyst targets, earnings dates and options can't be rebuilt for past dates, so Quality is blank and the Trade score is only its price half. Every stock here exists today, so the replay never sees stocks that were dropped or collapsed (the broad list dilutes the app list's lean towards winners but can't remove that), and the replay assumes earnings were never close.</div>
+        <div class="footnote">The replay runs the real engine on each past week's price data only. Fundamentals, analyst targets, earnings dates and options can't be rebuilt for past dates, so Quality is blank and the Trade score is only its price half. Every stock here exists today, so the replay never sees stocks that were dropped or collapsed. The app's list is hand-picked and leans to big winners; the S&amp;P 100 option is broader but is today's members, chosen for being large now, so it is a survivor list too. The replay also assumes earnings were never close.</div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <h2>Paper record (pre-registered)</h2>
+        <div class="sub" id="paperSub"></div>
+      </div>
+      <div class="card-body">
+        <div class="verdict-line" id="paperIntro">Loading the registry…</div>
+        <div class="table-wrap" id="paperTable" hidden>
+          <table class="bench paper">
+            <thead><tr>
+              <th>Hypothesis</th>
+              <th title="Window, benchmark and the number of independent tests required before it is judged">Test</th>
+              <th title="Independent tests scored so far, of the number registered">Tests</th>
+              <th title="Estimate so far ± one standard error (interim until the minimum is reached)">So far</th>
+              <th title="Estimate divided by its standard error; must reach the registered bar">z</th>
+              <th>Status</th>
+            </tr></thead>
+            <tbody id="paperBody"></tbody>
+          </table>
+        </div>
+        <div class="footnote" id="paperNote"></div>
       </div>
     </section>
 
@@ -453,12 +479,14 @@
         <p><strong>Engine analogs</strong> (stocks only) uses this app's own analysis. It finds past weeks, across every tracked stock, when the scoring engine read a stock the way it reads this one now: the same Trend, Entry and Trade scores, market regime, RSI, stretch above the 50-day, distance to support and strength against SPY. It then replays what those stocks did next, resized to this stock's volatility.</p>
         <p><strong>Fitted signal</strong> (stocks only) is the historical bootstrap tilted by a fitted model's view of this stock. The model is a ridge regression trained on the replayed weeks of the broad list. It predicts each stock's next-month return against the benchmark from its engine scores and the known signals, using only weeks whose outcome had already happened. The tilt is usually a fraction of a percent a month, which is about the size of any real edge. A model that claims more is usually overfitted.</p>
         <p><strong>The backtest</strong> moves back through history, makes a forecast at each step using only the data before it, then checks what really happened. <em>Skill</em> compares forecast quality (CRPS, which rewards being both right and confident) against the random walk. The value after &plusmn; is one standard error, so a skill smaller than about twice that is noise. <em>In 90% band</em> should be near 90%: lower means the model is overconfident, higher means it is too timid. <em>Direction calls</em> counts the times at least 60% of paths agreed on a direction, and what following each call would have earned after costs. Costs are one round trip: the fee on both sides plus the spread and slippage. Stocks default to a commission-free broker with a 2 bps spread. Crypto defaults to Coinbase's entry-tier taker fee (about 0.60% per side; check your own tier) plus 5 bps, and shows the live quoted spread next to the input.</p>
-        <p><strong>Compared with</strong>: plain SPY rewards simply holding riskier stocks. In a rising market, a stock that moves 1.5 times as much as the market beats SPY with no skill at all. <em>Risk-adjusted</em> subtracts the stock's beta times SPY's return. Beta is measured over the year before each reading. What's left is what the stock did on its own, and it's the fairer test of whether the analysis picks stocks.</p>
-        <p><strong>Known signals</strong> are price effects with published evidence behind them: 12-month momentum (skipping the latest month), last week's and last month's returns (short-term reversal), volatility, closeness to the 52-week high, distance from the 200-day average, RSI and unusual volume. Each is tested on its own, ranked against the other stocks each week.</p>
+        <p><strong>Compared with</strong>: plain SPY rewards simply holding riskier stocks. In a rising market, a stock that moves 1.5 times as much as the market beats SPY with no skill at all. <em>Risk-adjusted</em> subtracts the stock's beta times SPY's return. Beta is measured over the year before each reading and shrunk a third of the way toward 1 (Blume's adjustment), because a single year overstates how unusual a stock is. <em>Sector peers</em> also compares each stock with the others in its sector that week, so a sector's run (tech in 2023–2025) isn't credited to the stocks that happen to be in it. That's the strictest test of stock picking.</p>
+        <p><strong>How returns are measured</strong>: total return including dividends (without them, a stock paying 6% a year looks half a percent a month worse than it did), bought at the close <em>after</em> the reading, since nobody can trade at the close the reading was computed from.</p>
+        <p><strong>Known signals</strong> are price effects with published evidence behind them: 12-month momentum (skipping the latest month), last week's and last month's returns (short-term reversal), volatility, closeness to the 52-week high, distance from the 200-day average, RSI and unusual volume. Each is tested on its own, ranked against the other stocks each week. Testing twelve at once means one or two will look significant at two standard errors by luck alone, so a signal is only highlighted beyond three.</p>
         <p><strong>Options vs model volatility</strong> compares the move the options market is pricing for a stock (implied volatility from the latest data build) with the spread of the model's simulated paths. Options pricing in much more movement than the model expects often means options are expensive, and the reverse means they're cheap. The implied volatility is from the most recent build, at the option's own expiry, so treat it as a rough comparison.</p>
         <p><strong>Does the app's analysis work?</strong> replays the scoring engine on every past week of five years of prices, using only the data available that week, and checks what followed. <em>vs SPY</em> is the average return over SPY for stocks with each verdict. <em>Rank correlation</em> says whether higher scores lined up with better returns that week. 0 is no relationship and negative means the score ranked stocks backwards. Dates are spaced a full window apart, so each one is an independent test. The live record does the same with the verdicts the app actually published, fundamentals included. It is small for now and grows with every build.</p>
         <p><strong>Most likely path</strong> highlights one real simulated run: the one that stays in the most crowded part of the cloud from start to finish (at each step, how many other runs closed near it). Any single exact path is about as unlikely as any other, so this is the most typical run, not a prediction. It shows what an ordinary outcome looks like candle by candle, wicks and all, and it sits near the median by construction.</p>
-        <p><strong>Reset to live forecast</strong> returns to the latest candles and the default inputs, then shows whichever model's past forecasts came closest on this symbol and candle size.</p>
+        <p><strong>Reset to live forecast</strong> returns to the latest candles and the default inputs. It shows the historical bootstrap unless another model beat the random walk on this symbol by more than the noise. Picking whichever scored best would mostly pick whichever got lucky.</p>
+        <p><strong>Paper record</strong>: backtests on the same five years are exploratory, because every idea tried on them makes a lucky result likelier. The paper record writes hypotheses down first, with the exact measurement, stocks, benchmark, window, number of tests and pass bar, and scores them only on weeks that happen afterwards. Registrations are in <code>data/paper/registry.json</code>, added by <code>node scripts/register_paper.mjs</code> and never edited. The commit that adds one is its timestamp. If the engine, a signal or the measurement code changes after registration, the hypotheses that depend on it are marked "rules changed" rather than quietly scoring something else.</p>
         <p><strong>Forecast from</strong> rewinds the starting point so you can watch a past forecast play out against the candles that actually came next.</p>
         <p>Crypto candles come live from Coinbase. Stock candles are five years of daily candles from this site's data build, updated with each build.</p>
       </div>
@@ -470,6 +498,7 @@
     import { CRYPTO_PRODUCTS, TIMEFRAMES, coinbaseCandles, coinbaseSpreadBps, firestoreSnapshots, marketJsonCandles } from "./js/sim-sources.js";
     import { BENCHMARKS, BUCKETS, ENGINE_MODEL, SCORECARD_HORIZONS, UNIVERSES, decodeReplay, engineMatches, liveRecord, replayStates, scorecard } from "./js/replay.js";
     import { FITTED_MODEL, SIGNALS, buildPanel, makePredictor, signalStats, walkForward } from "./js/signals.js";
+    import { scorePaper } from "./js/paper.js";
     import { firebaseConfig } from "./firebase-config.js";
 
     const VIEWS = [
@@ -845,7 +874,7 @@
       $("chartTitle").textContent = `${state.symbol} · ${modelLabel(state.model)}`;
       const tilt = state.model === FITTED_MODEL.key
         ? view.edge === null || view.edge === undefined ? " · no fitted view yet (too little history before this date)"
-          : ` · tilted ${fmtPct(100 * view.edge)} a month vs ${state.benchmark === "beta" ? "risk-adjusted SPY" : "SPY"}`
+          : ` · tilted ${fmtPct(100 * view.edge)} a month vs ${{ beta: "risk-adjusted SPY", sector: "sector peers", spy: "SPY" }[state.benchmark]}`
         : "";
       $("chartSub").textContent = `${sim.paths} paths · ${state.horizon} candles ahead (${candleSpan(state.horizon)})${tilt}`;
 
@@ -894,24 +923,27 @@
     }
 
     /**
-     * After a reset, shows the model whose forecasts scored best (lowest CRPS) in this backtest. Without enough tests to
-     * judge, falls back to the bootstrap: real candle texture and no directional opinion.
-     * Returns a sentence saying what it picked, or "" when no reset is pending.
+     * After a reset, picks the model to show. The default is the bootstrap (real candle texture, no directional
+     * opinion); another model replaces it only if its skill over the random walk is more than two standard errors
+     * above zero, and then the most skilful of those. Picking the lowest score outright would pick whichever model got
+     * lucky in this sample. Returns a sentence saying what it picked, or "" when no reset is pending.
      */
     function applyBestModel(results, n) {
       if (!pickBest) return "";
       pickBest = false;
-      const models = activeModels().filter(m => results[m.key]);
-      const best = n >= 10 ? models.reduce((a, b) => results[b.key].crps < results[a.key].crps ? b : a) : MODELS.find(m => m.key === "bootstrap");
+      const bootstrap = MODELS.find(m => m.key === "bootstrap");
+      const proven = n >= 10 ? activeModels().filter(m => results[m.key]?.skill !== null && results[m.key]?.skill !== undefined
+        && results[m.key].skill - 2 * results[m.key].skillSE > 0) : [];
+      const best = proven.length ? proven.reduce((a, b) => results[b.key].skill > results[a.key].skill ? b : a) : bootstrap;
       if (best.key !== state.model) {
         state.model = best.key;
         saveSettings();
         syncControls();
         runSimulation();
       }
-      return n >= 10
-        ? ` Showing <strong>${escapeHtml(best.label)}</strong>, the model whose past forecasts here came closest.`
-        : ` Too few tests to rank the models, so showing <strong>${escapeHtml(best.label)}</strong>.`;
+      return n < 10 ? ` Too few tests to rank the models, so showing <strong>${escapeHtml(best.label)}</strong>.`
+        : proven.length ? ` Showing <strong>${escapeHtml(best.label)}</strong>, which beat the random walk by more than the noise here.`
+        : ` No model beat the random walk by more than the noise here, so showing <strong>${escapeHtml(best.label)}</strong>: real price behaviour, no view on direction.`;
     }
 
     function renderBacktest(result, ms) {
@@ -1033,16 +1065,19 @@
     }
 
     // ---------- engine scorecard ----------
-    const seCell = (stat, digits = 2, scale = 100) => {
+    /** A mean ± SE cell, coloured when it is more than `z` standard errors from zero. */
+    const seCell = (stat, digits = 2, scale = 100, z = 2) => {
       if (!Number.isFinite(stat?.mean)) return `<td class="tone-muted">—</td>`;
       const se = stat.se ?? Infinity;
-      const tone = stat.mean - 2 * se > 0 ? "tone-pos" : stat.mean + 2 * se < 0 ? "tone-neg" : "";
+      const tone = stat.mean - z * se > 0 ? "tone-pos" : stat.mean + z * se < 0 ? "tone-neg" : "";
       const value = scale === 100 ? fmtPct(scale * stat.mean, digits) : stat.mean.toFixed(digits);
       return `<td class="${tone}">${value}${Number.isFinite(se) ? ` <span class="target">± ${(scale * se).toFixed(digits)}</span>` : ""}</td>`;
     };
 
     /** Walk-forward tests are the slow part (a refit per test date), so each combination is computed once. */
     const scoreCache = new Map();
+    const BENCH_NAMES = { beta: "risk-adjusted SPY", sector: "their sector peers", spy: "SPY" };
+    const VS_HEADS = { beta: "vs SPY (risk-adj.)", sector: "vs sector peers", spy: "vs SPY" };
     function scoreResults() {
       const key = `${state.scoreSessions}|${state.scoreUniverse}|${state.benchmark}`;
       if (!scoreCache.has(key)) {
@@ -1053,28 +1088,33 @@
       return scoreCache.get(key);
     }
 
-    const verdictWord = (stat) => !Number.isFinite(stat?.mean) || !Number.isFinite(stat?.se) ? "none"
-      : stat.mean - 2 * stat.se > 0 ? "right" : stat.mean + 2 * stat.se < 0 ? "backwards" : "none";
+    /**
+     * Twelve signals are tested at once, so by luck alone about one in twenty-two would clear two standard errors in
+     * each direction. A signal has to clear three to count (roughly the Bonferroni bar for twelve tests).
+     */
+    const SIGNAL_Z = 3;
+    const verdictWord = (stat, z = 2) => !Number.isFinite(stat?.mean) || !Number.isFinite(stat?.se) ? "none"
+      : stat.mean - z * stat.se > 0 ? "right" : stat.mean + z * stat.se < 0 ? "backwards" : "none";
 
     function renderScorecard() {
       if (!replayData || !engineStates) return;
       const sessions = state.scoreSessions;
       const horizonLabel = SCORECARD_HORIZONS.find(h => h.sessions === sessions).label;
-      const benchName = state.benchmark === "beta" ? "risk-adjusted SPY" : "SPY";
+      const benchName = BENCH_NAMES[state.benchmark];
       const { include, signals, fitted } = scoreResults();
       const card = scorecard(replayData, engineStates, { sessions, costBps: roundTripBps("stock"), include, benchmark: state.benchmark });
       const stocksCount = Object.entries(replayData.tickers).filter(([t, v]) => !v.etf && include(t)).length;
       $("scoreSub").textContent = `${stocksCount} stocks · ${card.dates} independent dates`;
-      document.querySelectorAll(".vsHead").forEach(th => { th.textContent = state.benchmark === "beta" ? "vs SPY (risk-adj.)" : "vs SPY"; });
+      document.querySelectorAll(".vsHead").forEach(th => { th.textContent = VS_HEADS[state.benchmark]; });
 
       $("bucketBody").innerHTML = BUCKETS.map(({ key, label }) => {
         const b = card.buckets[key];
         return `<tr><td>${escapeHtml(label)}</td><td>${b.n.toLocaleString()}</td>${seCell(b.excess)}<td>${fmtShare(b.hitRate)}</td><td>${fmtPct(100 * b.net)}</td></tr>`;
       }).join("");
 
-      const signalRow = (label, stat, cls = "") => `<tr class="${cls}"><td>${escapeHtml(label)}</td>${seCell(stat.ic, 3, 1)}${seCell(stat.spread)}</tr>`;
+      const signalRow = (label, stat, cls = "", z = SIGNAL_Z) => `<tr class="${cls}"><td>${escapeHtml(label)}</td>${seCell(stat.ic, 3, 1, z)}${seCell(stat.spread, 2, 100, z)}</tr>`;
       const groups = [...new Set(SIGNALS.map(sig => sig.group))];
-      $("icBody").innerHTML = signalRow(`Fitted model (walk-forward, ${fitted.tested} tests)`, fitted, "headline")
+      $("icBody").innerHTML = signalRow(`Fitted model (walk-forward, ${fitted.tested} tests)`, fitted, "headline", 2)
         + groups.map(g => `<tr class="group"><td colspan="3">${escapeHtml(g)}</td></tr>`
           + SIGNALS.filter(sig => sig.group === g).map(sig => signalRow(sig.label, signals[sig.key])).join("")).join("");
       $("weightBody").innerHTML = fitted.final.weights.map(w =>
@@ -1088,7 +1128,7 @@
       const fittedWord = { right: "ranked stocks the right way, by more than the noise", backwards: "ranked stocks backwards", none: "did no better than chance" }[verdictWord(fitted.ic)];
       const sorted = { right: [], backwards: [] };
       for (const sig of SIGNALS) {
-        const w = verdictWord(signals[sig.key].ic);
+        const w = verdictWord(signals[sig.key].ic, SIGNAL_Z);
         if (w !== "none") sorted[w].push(`<strong>${escapeHtml(sig.label)}</strong>`);
       }
       $("scoreVerdict").innerHTML = `Over the ${horizonLabel.toLowerCase()} after each reading, replayed Buy-zone stocks ${buyWord}. `
@@ -1096,17 +1136,68 @@
         + (Number.isFinite(fitted.spread.mean) ? ` (top fifth minus bottom fifth ${fmtPct(100 * fitted.spread.mean)} ± ${(100 * fitted.spread.se).toFixed(2)})` : "") + ". "
         + [sorted.right.length ? `${listWords(sorted.right)} ranked stocks the right way` : null,
            sorted.backwards.length ? `${listWords(sorted.backwards)} ranked them backwards` : null].filter(Boolean).join("; ")
-        + (sorted.right.length || sorted.backwards.length ? "; everything else was within noise." : "No single signal stood out from the noise.");
+        + (sorted.right.length || sorted.backwards.length ? "; everything else was within noise." : "No single signal cleared the three-standard-error bar that twelve tests at once require.");
       $("scoreNote").textContent = `Readings at the end of each week from ${new Date(engineStates[0].t).toISOString().slice(0, 10)}, tested every ${Math.max(1, Math.ceil(sessions / 5))} week${Math.ceil(sessions / 5) > 1 ? "s" : ""} so windows never overlap. `
-        + `After costs is the raw return less ${+roundTripBps("stock").toFixed(1)} bps for one round trip. Green or red means more than two standard errors from zero.`;
+        + `Returns include dividends and start at the close after each reading. After costs is the total return less ${+roundTripBps("stock").toFixed(1)} bps for one round trip. `
+        + `Green or red means more than two standard errors from zero, or three for the individual signals, because twelve are tested at once.`;
       renderLiveRecord();
+      renderPaper();
+    }
+
+    // ---------- paper record ----------
+    const registryReady = fetch("data/paper/registry.json", { cache: "no-cache" })
+      .then(res => res.ok ? res.json() : { entries: [] })
+      .catch(() => ({ entries: [] }));
+
+    const PAPER_STATUS = {
+      collecting: ["Collecting", "tone-muted"],
+      passed: ["Passed", "tone-pos"],
+      failed: ["Failed", "tone-neg"],
+      invalid: ["Rules changed", "tone-warn"]
+    };
+    const WINDOW_WORDS = { 5: "1 week", 21: "1 month", 63: "3 months" };
+
+    async function renderPaper() {
+      const registry = await registryReady;
+      if (!replayData || !engineStates) return;
+      const entries = [...(registry.entries ?? [])].sort((a, b) => b.registeredOn.localeCompare(a.registeredOn));
+      if (!entries.length) {
+        $("paperIntro").textContent = "Nothing registered yet. Run node scripts/register_paper.mjs after a data build and commit data/paper/registry.json.";
+        $("paperTable").hidden = true;
+        return;
+      }
+      const rows = entries.flatMap(spec => scorePaper(spec, replayData, engineStates, snapshots).map(h => ({ spec, h })));
+      const latest = entries[0];
+      $("paperSub").textContent = `${entries.length} registration${entries.length > 1 ? "s" : ""} · latest ${latest.registeredOn}`;
+      const counts = rows.reduce((c, { h }) => ({ ...c, [h.status]: (c[h.status] ?? 0) + 1 }), {});
+      $("paperIntro").innerHTML = `${rows.length} hypotheses, scored only on data after their registration date: `
+        + Object.entries(PAPER_STATUS).filter(([k]) => counts[k]).map(([k, [label]]) => `<strong>${counts[k]}</strong> ${label.toLowerCase()}`).join(", ") + ".";
+      const value = (h) => {
+        const e = h.estimate;
+        if (!Number.isFinite(e.mean)) return `<td class="tone-muted">${h.source === "published" && !snapshots ? "loading…" : "no tests yet"}</td>`;
+        const fmt = (v) => h.kind === "signal" ? v.toFixed(3) : fmtPct(100 * v);
+        const se = Number.isFinite(e.se) ? ` <span class="target">± ${h.kind === "signal" ? e.se.toFixed(3) : (100 * e.se).toFixed(2)}</span>` : "";
+        return `<td>${fmt(e.mean)}${se}</td>`;
+      };
+      $("paperBody").innerHTML = rows.map(({ spec, h }) => {
+        const [label, tone] = PAPER_STATUS[h.status];
+        const test = `${WINDOW_WORDS[h.sessions] ?? `${h.sessions} sessions`} · ${{ beta: "risk-adj. SPY", sector: "sector peers", spy: "SPY" }[h.benchmark]} · needs ${h.minDates}`;
+        const why = h.status === "invalid" ? ` title="Changed since registration: ${escapeHtml(h.changed.join(", "))}"` : "";
+        return `<tr><td>${escapeHtml(`${spec.id} ${h.id}`)}: ${escapeHtml(h.statement)}<span class="measures">${escapeHtml(h.measures)}</span></td>`
+          + `<td>${escapeHtml(test)}</td><td>${h.estimate.n} / ${h.minDates}</td>${value(h)}`
+          + `<td>${Number.isFinite(h.z) ? h.z.toFixed(2) : "—"}</td><td class="${tone}"${why}>${label}</td></tr>`;
+      }).join("");
+      $("paperTable").hidden = false;
+      $("paperNote").textContent = `Registered ${latest.registeredOn} from data through ${latest.dataThrough}. `
+        + `A hypothesis passes once it has its minimum number of independent tests and its estimate is at least ${latest.passRule.z} standard errors above zero: a one-sided 5% test, split across the hypotheses (Bonferroni). `
+        + "Until then the estimate is shown but not judged. Expect the first 1-week numbers about two weeks after registration, the first 1-month numbers after about six weeks, and verdicts after roughly six months (1-week tests) to a year (1-month tests).";
     }
 
     let snapshotsLoading = null;
     function renderLiveRecord() {
       if (!snapshots) {
         snapshotsLoading ??= firestoreSnapshots(firebaseConfig)
-          .then(list => { snapshots = list; renderLiveRecord(); })
+          .then(list => { snapshots = list; renderLiveRecord(); renderPaper(); })
           .catch(err => { $("liveVerdict").textContent = `Couldn't read published snapshots (${err.message}).`; });
         return;
       }

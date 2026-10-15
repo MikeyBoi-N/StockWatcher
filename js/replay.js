@@ -15,9 +15,12 @@
  *   engineMatches()  The "Engine analogs" forecast model: past moments, across every stock, when the engine read the
  *                    market the way it reads this stock now, so the simulator can replay what followed them.
  *
- * Known biases, also stated on the page: every stock in the file is one that exists today (survivors of the last
- * five years), the app's own list is hand-picked and leans towards big winners (the build adds a rule-based research
- * list of large caps to dilute that), and the replay assumes no earnings were ever inside 14 days.
+ * How outcomes are measured: total return (dividend-adjusted closes, when the source gives them), bought at the close
+ * after the reading (ENTRY_LAG) rather than the close the reading was computed from, which nobody could trade at.
+ *
+ * Known biases, also stated on the page: every stock in the file exists today. The app's own list is hand-picked and
+ * leans towards big winners; the research list is today's S&P 100 members, chosen for being large now, so it is a
+ * survivor list too (broader, not unbiased). The replay assumes no earnings were ever inside 14 days.
  */
 import { buildMarketContext, evaluateAsset, monthlySigma } from "./engine.js";
 
@@ -37,60 +40,112 @@ export const BUCKETS = [
   { key: "avoid", label: "Avoid" }
 ];
 /**
- * What a stock's return is measured against. Plain SPY rewards simply holding more market risk: in a rising market a
- * stock that moves 1.5x the market beats SPY without any skill. Risk-adjusted takes away beta times SPY's return
- * (beta from the stock's year of daily returns before the reading), leaving what the stock did on its own.
+ * What a stock's return is measured against.
+ *   spy     Plain SPY. Rewards simply holding more market risk: in a rising market a stock that moves 1.5x the
+ *           market beats SPY without any skill.
+ *   beta    SPY scaled by the stock's beta (trailingBeta), leaving what the stock did beyond its market exposure.
+ *   sector  Risk-adjusted, then compared with the other stocks in the same sector that week, so a sector's run (tech
+ *           in 2023-2025) isn't credited to the stocks that happen to be in it. Sectors with fewer than three stocks
+ *           that week are compared with the rest of the list instead.
  */
 export const BENCHMARKS = [
   { key: "beta", label: "SPY, risk-adjusted" },
+  { key: "sector", label: "Sector peers" },
   { key: "spy", label: "SPY" }
 ];
 
-/** Return `r` over the benchmark, given SPY's return `m` over the same window and the stock's beta. */
+/** Signals are scored at the close of the reading's day, so the earliest anyone could act is the next close. */
+export const ENTRY_LAG = 1;
+
+/** A candle's close for measuring returns: dividend-adjusted when the data has it. */
+const totalClose = (k) => k.a ?? k.c;
+
+/**
+ * Total return of a position bought ENTRY_LAG sessions after bar i and held `h` sessions, or null past the data.
+ */
+export const forwardReturn = (candles, i, h) =>
+  i + ENTRY_LAG + h < candles.length ? totalClose(candles[i + ENTRY_LAG + h]) / totalClose(candles[i + ENTRY_LAG]) - 1 : null;
+
+/** Return `r` over the benchmark, before any sector comparison, given SPY's return `m` and the stock's beta. */
 export const excessReturn = (r, m, beta, benchmark = "beta") =>
-  benchmark === "beta" ? r - (Number.isFinite(beta) ? beta : 1) * m : (1 + r) / (1 + m) - 1;
+  benchmark === "spy" ? (1 + r) / (1 + m) - 1 : r - (Number.isFinite(beta) ? beta : 1) * m;
+
+/**
+ * For the sector benchmark: subtracts the week's sector average from each row's `excess` (in place). Rows in sectors
+ * with fewer than three stocks that week, or no sector, are compared with the average of those rows instead.
+ * Any other benchmark leaves the rows untouched.
+ */
+export function compareWithSector(rows, benchmark, sectorOf) {
+  if (benchmark !== "sector") return rows;
+  const groups = new Map();
+  for (const r of rows) {
+    const key = sectorOf(r) ?? "";
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(r);
+  }
+  const leftovers = [];
+  for (const [key, list] of groups) {
+    if (key && list.length >= 3) {
+      const mean = list.reduce((a, r) => a + r.excess, 0) / list.length;
+      for (const r of list) r.excess -= mean;
+    } else {
+      leftovers.push(...list);
+    }
+  }
+  if (leftovers.length) {
+    const mean = leftovers.reduce((a, r) => a + r.excess, 0) / leftovers.length;
+    for (const r of leftovers) r.excess -= mean;
+  }
+  return rows;
+}
 
 const BETA_DAYS = 252;
 /**
- * Beta of a stock to SPY from up to a year of daily log returns ending at bar i (dates matched to SPY's), or null
- * with fewer than 120 shared days.
+ * Beta of a stock to SPY from up to a year of daily total returns ending at bar i (dates matched to SPY's), shrunk
+ * a third of the way towards 1 (Blume's adjustment: a year of data overstates how far betas sit from the market's,
+ * and they drift back), or null with fewer than 120 shared days.
  */
 export function trailingBeta(candles, i, spyCandles, spyIndex) {
   let sx = 0, sy = 0, sxx = 0, sxy = 0, n = 0;
   for (let k = Math.max(1, i - BETA_DAYS + 1); k <= i; k++) {
     const a = spyIndex.get(candles[k].t), b = spyIndex.get(candles[k - 1].t);
     if (a === undefined || b === undefined || a !== b + 1) continue;
-    const x = Math.log(spyCandles[a].c / spyCandles[b].c), y = Math.log(candles[k].c / candles[k - 1].c);
+    const x = Math.log(totalClose(spyCandles[a]) / totalClose(spyCandles[b])), y = Math.log(totalClose(candles[k]) / totalClose(candles[k - 1]));
     sx += x; sy += y; sxx += x * x; sxy += x * y; n++;
   }
   const varX = sxx - sx * sx / n;
-  return n >= 120 && varX > 0 ? (sxy - sx * sy / n) / varX : null;
+  return n >= 120 && varX > 0 ? 0.67 * (sxy - sx * sy / n) / varX + 0.33 : null;
 }
 
-/** Which stocks a test covers: the app's tracked list, or that plus the research list. */
+/**
+ * Which stocks a test covers: the app's tracked list, or that plus the research list (today's S&P 100 members, which
+ * is broader but still a list of survivors).
+ */
 export const UNIVERSES = [
   { key: "tracked", label: "App's list", include: (replay) => (ticker) => !replay.tickers[ticker].research },
-  { key: "broad", label: "Broad list", include: () => () => true }
+  { key: "broad", label: "+ S&P 100 (today's)", include: () => () => true }
 ];
 const REGIME_LEVEL = { BULLISH: 1, NEUTRAL: 0.66, CAUTIOUS: 0.33, BEARISH: 0 };
 
 const dateMs = (yyyymmdd) => Date.UTC(Math.floor(yyyymmdd / 10000), Math.floor(yyyymmdd / 100) % 100 - 1, yyyymmdd % 100);
 
 /**
- * data/replay.json as { generatedAt, tickers: { [ticker]: { etf, sector, candles, rows } } } with candles as
- * [{ t, o, h, l, c, v }] (t in UTC ms) and rows as [{ i, record }], where record is the engine input for bar i.
+ * data/replay.json as { generatedAt, tickers: { [ticker]: { etf, sector, research, candles, rows } } } with candles
+ * as [{ t, o, h, l, c, a, v }] (t in UTC ms; `a` the dividend-adjusted close or null) and rows as [{ i, record }],
+ * where record is the engine input for bar i.
  */
 export function decodeReplay(json) {
   const tickers = {};
   for (const [ticker, raw] of Object.entries(json.tickers ?? {})) {
     const b = raw.bars;
-    const candles = b.d.map((d, i) => ({ t: dateMs(d), o: b.o ? b.o[i] : null, h: b.h[i], l: b.l[i], c: b.c[i], v: b.v[i] }));
+    const candles = b.d.map((d, i) => ({ t: dateMs(d), o: b.o ? b.o[i] : null, h: b.h[i], l: b.l[i], c: b.c[i], a: b.a ? b.a[i] : null, v: b.v[i] }));
+    const sector = raw.sector && raw.sector !== "N/A" ? raw.sector : null;
     const rows = raw.rows.map(([i, ...values]) => {
-      const record = { ticker, name: ticker, etf: raw.etf, sector: raw.sector, fundamentals: null, valuation: null, catalysts: {}, options: null };
+      const record = { ticker, name: ticker, etf: raw.etf, sector, fundamentals: null, valuation: null, catalysts: {}, options: null };
       json.fields.forEach((f, k) => { record[f] = values[k]; });
       return { i, record };
     });
-    tickers[ticker] = { etf: raw.etf, sector: raw.sector, research: !!raw.research, candles, rows };
+    tickers[ticker] = { etf: raw.etf, sector, research: !!raw.research, candles, rows };
   }
   return { generatedAt: json.generatedAt, tickers };
 }
@@ -147,8 +202,6 @@ export function replayStates(replay) {
   return states;
 }
 
-/** Close `h` sessions after bar i over the close at bar i, minus one; null past the end of the data. */
-const forward = (candles, i, h) => i + h < candles.length ? candles[i + h].c / candles[i].c - 1 : null;
 
 /**
  * The dates to test at, out of `times` (ascending, all with a complete window): one every `sessions` sessions
@@ -197,7 +250,8 @@ function meanSE(values) {
 /**
  * How each replayed verdict worked out `sessions` later, for stocks (ETFs excluded; SPY is the yardstick) that
  * `include(ticker)` accepts. Dates come from testDates(), so every standard error treats each date as one independent
- * test. `costBps` is one round trip (fees plus spread). `benchmark` is a BENCHMARKS key.
+ * test. Outcomes are total returns from the close after the reading (forwardReturn). `costBps` is one round trip
+ * (fees plus spread). `benchmark` is a BENCHMARKS key.
  * Returns { dates, sessions, buckets: { [bucket]: { n, dates, excess: {mean, se}, hitRate, raw, net } } }
  * where excess is the return over the benchmark and net is the raw return less the round trip.
  */
@@ -205,18 +259,19 @@ export function scorecard(replay, states, { sessions = 21, costBps = 2, include 
   const spy = replay.tickers.SPY;
   const spyIndex = new Map(spy.candles.map((k, i) => [k.t, i]));
   const complete = [...new Set(states.map(s => s.t))].sort((a, b) => a - b)
-    .filter(t => spyIndex.has(t) && spyIndex.get(t) + sessions < spy.candles.length);
+    .filter(t => spyIndex.has(t) && forwardReturn(spy.candles, spyIndex.get(t), sessions) !== null);
   const picked = new Set(testDates(complete, sessions));
 
   const perDate = new Map();
   for (const s of states) {
     if (s.etf || !picked.has(s.t) || !include(s.ticker)) continue;
-    const r = forward(replay.tickers[s.ticker].candles, s.i, sessions);
-    const m = forward(spy.candles, spyIndex.get(s.t), sessions);
+    const r = forwardReturn(replay.tickers[s.ticker].candles, s.i, sessions);
+    const m = forwardReturn(spy.candles, spyIndex.get(s.t), sessions);
     if (r === null || m === null) continue;
     if (!perDate.has(s.t)) perDate.set(s.t, []);
     perDate.get(s.t).push({ ...s, r, excess: excessReturn(r, m, s.beta, benchmark) });
   }
+  for (const obs of perDate.values()) compareWithSector(obs, benchmark, o => replay.tickers[o.ticker].sector);
 
   const cost = costBps / 10000;
   const buckets = {};
@@ -242,11 +297,13 @@ export function scorecard(replay, states, { sessions = 21, costBps = 2, include 
  * replay's daily closes `sessions` later against the benchmark. One reading per stock per market day (the day's last build).
  * @param {Array} snapshots stored snapshot documents ({ day, at, tickers: { [ticker]: { bucket, ... } } })
  * Days are thinned so no two windows overlap (see below), so SE across days treats each as an independent test.
+ * `since` (YYYY-MM-DD) keeps only days after it, for scoring a hypothesis registered on that day.
  * Returns { days, eligibleDays, buckets: { [bucket]: { n, excess: {mean, se}, hitRate } } }.
  */
-export function liveRecord(replay, snapshots, { sessions = 5, benchmark = "beta" } = {}) {
+export function liveRecord(replay, snapshots, { sessions = 5, benchmark = "beta", since = "" } = {}) {
   const lastOfDay = new Map();
   for (const s of snapshots) {
+    if (s.day <= since) continue;
     if (!lastOfDay.has(s.day) || lastOfDay.get(s.day).at < s.at) lastOfDay.set(s.day, s);
   }
   const indexOf = (ticker, day) => {
@@ -262,7 +319,7 @@ export function liveRecord(replay, snapshots, { sessions = 5, benchmark = "beta"
   const spyIndexMap = new Map(spyCandles.map((k, i) => [k.t, i]));
   const days = [...lastOfDay.keys()]
     .map(day => ({ day, si: indexOf("SPY", day) }))
-    .filter(d => d.si !== null && d.si + sessions < spyCandles.length)
+    .filter(d => d.si !== null && forwardReturn(spyCandles, d.si, sessions) !== null)
     .sort((a, b) => b.si - a.si);
   const kept = [];
   for (const d of days) if (!kept.length || kept.at(-1).si - d.si >= sessions) kept.push(d);
@@ -270,17 +327,18 @@ export function liveRecord(replay, snapshots, { sessions = 5, benchmark = "beta"
   const perDay = new Map();
   for (const { day, si } of kept) {
     const s = lastOfDay.get(day);
-    const m = forward(spyCandles, si, sessions);
+    const m = forwardReturn(spyCandles, si, sessions);
     for (const [ticker, reading] of Object.entries(s.tickers ?? {})) {
       if (replay.tickers[ticker]?.etf !== false) continue;
       const i = indexOf(ticker, day);
-      const r = i === null ? null : forward(replay.tickers[ticker].candles, i, sessions);
+      const r = i === null ? null : forwardReturn(replay.tickers[ticker].candles, i, sessions);
       if (r === null) continue;
       if (!perDay.has(day)) perDay.set(day, []);
-      const beta = benchmark === "beta" ? trailingBeta(replay.tickers[ticker].candles, i, spyCandles, spyIndexMap) : null;
-      perDay.get(day).push({ bucket: reading.bucket, excess: excessReturn(r, m, beta, benchmark) });
+      const beta = benchmark === "spy" ? null : trailingBeta(replay.tickers[ticker].candles, i, spyCandles, spyIndexMap);
+      perDay.get(day).push({ ticker, bucket: reading.bucket, excess: excessReturn(r, m, beta, benchmark) });
     }
   }
+  for (const obs of perDay.values()) compareWithSector(obs, benchmark, o => replay.tickers[o.ticker].sector);
   const buckets = {};
   for (const { key } of BUCKETS) {
     const dayMeans = [];

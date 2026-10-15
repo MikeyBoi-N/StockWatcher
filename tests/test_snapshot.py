@@ -78,6 +78,8 @@ def test_yahoo_adapter_parses_real_chart(fixture):
     assert bars.last_price == 332.27
     assert bars.dates == sorted(bars.dates) and len(bars.dates) == len(set(bars.dates))
     assert bars.dates[-1] == date(2026, 9, 11)   # exchange-local date, not UTC
+    assert bars.adj_close and len(bars.adj_close) == len(bars.close), "dividend-adjusted closes come along for total returns"
+    assert bars.open and len(bars.open) == len(bars.close)
 
 
 def test_full_record_from_all_sources(fixture):

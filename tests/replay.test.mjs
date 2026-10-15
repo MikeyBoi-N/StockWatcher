@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { decodeReplay, engineMatches, liveRecord, replayStates, scorecard, spearman } from "../js/replay.js";
+import { compareWithSector, decodeReplay, engineMatches, forwardReturn, liveRecord, replayStates, scorecard, spearman, trailingBeta } from "../js/replay.js";
 import { prepare, rng } from "../js/simulator.js";
 
 const FIELDS = ["price", "prevClose", "high52", "low52", "sma20", "sma50", "sma200", "rsi14", "hv30", "majorSupport", "entrySupport",
@@ -115,4 +115,40 @@ test("the live record keeps one build per day and only days a full window apart"
   assert.equal(live.days, 4);
   assert.equal(live.buckets.buy.n, 8, "the later build of each day wins and ETFs are left out");
   assert.equal(live.buckets.watch.n, 0);
+});
+
+test("outcomes are total returns bought at the next close", () => {
+  const candles = [100, 101, 102, 103, 104].map((c, i) => ({ t: i, c, a: c * (1 + 0.01 * i) }));
+  // Reading at bar 0, bought at bar 1's adjusted close, held 2 sessions to bar 3.
+  assert.ok(Math.abs(forwardReturn(candles, 0, 2) - (103 * 1.03) / (101 * 1.01) + 1) < 1e-12);
+  assert.equal(forwardReturn(candles, 2, 2), null, "the window runs past the data");
+  const raw = candles.map(({ t, c }) => ({ t, c, a: null }));
+  assert.ok(Math.abs(forwardReturn(raw, 0, 2) - (103 / 101 - 1)) < 1e-12, "raw closes when no adjusted ones exist");
+});
+
+test("sector peers: each stock is compared with its sector that week, small sectors with the leftovers", () => {
+  const rows = [
+    { s: "Tech", excess: 0.05 }, { s: "Tech", excess: 0.03 }, { s: "Tech", excess: 0.01 },
+    { s: "Energy", excess: -0.02 }, { s: null, excess: 0.04 }
+  ];
+  compareWithSector(rows, "sector", r => r.s);
+  assert.deepEqual(rows.slice(0, 3).map(r => +r.excess.toFixed(6)), [0.02, 0, -0.02]);
+  assert.deepEqual(rows.slice(3).map(r => +r.excess.toFixed(6)), [-0.03, 0.03]);
+  const untouched = [{ s: "Tech", excess: 0.05 }];
+  compareWithSector(untouched, "beta", r => r.s);
+  assert.equal(untouched[0].excess, 0.05);
+});
+
+test("beta is shrunk a third of the way to 1", () => {
+  const rand = rng(5);
+  const spy = [], stock = [];
+  let a = 100, b = 100;
+  for (let i = 0; i < 300; i++) {
+    const m = 0.01 * (rand() - 0.5);
+    a *= Math.exp(m); b *= Math.exp(2 * m);
+    spy.push({ t: i, c: a, a: null }); stock.push({ t: i, c: b, a: null });
+  }
+  const spyIndex = new Map(spy.map((k, i) => [k.t, i]));
+  assert.ok(Math.abs(trailingBeta(stock, 299, spy, spyIndex) - (0.67 * 2 + 0.33)) < 1e-9);
+  assert.equal(trailingBeta(stock, 50, spy, spyIndex), null, "needs 120 shared days");
 });

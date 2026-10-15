@@ -29,7 +29,9 @@ def replay(bars, warmup=WARMUP):
     """
     bars: PriceHistory. Returns {"bars": {...}, "rows": [[bar index, *FIELDS values]]}, rows oldest first.
     `bars` holds the daily candles as parallel lists (dates as YYYYMMDD integers; `o` is null when the source gave
-    no opens), so the page can draw them and measure what followed each row.
+    no opens), so the page can draw them, and `a` the dividend-adjusted closes (null when the source gave none), so
+    what followed each row is measured as total return: a stock paying 6% a year would otherwise look 0.5% a month
+    worse than it did.
     """
     rows = []
     for i in week_ends(bars.dates):
@@ -38,6 +40,7 @@ def replay(bars, warmup=WARMUP):
         end = i + 1
         cut = replace(bars, dates=bars.dates[:end], high=bars.high[:end], low=bars.low[:end], close=bars.close[:end],
                       volume=bars.volume[:end], open=bars.open[:end] if bars.open else None,
+                      adj_close=bars.adj_close[:end] if bars.adj_close else None,
                       last_price=bars.close[i], last_time=None)
         tech = technicals(cut)
         rows.append([i] + [tech.get(f) for f in FIELDS])
@@ -48,6 +51,7 @@ def replay(bars, warmup=WARMUP):
             "h": [round(v, 2) for v in bars.high],
             "l": [round(v, 2) for v in bars.low],
             "c": [round(v, 2) for v in bars.close],
+            "a": [round(v, 4) for v in bars.adj_close] if bars.adj_close else None,
             "v": [int(v) for v in bars.volume],
         },
         "rows": rows,

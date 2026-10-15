@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test tests/engine.test.mjs tests/alerts.test.mjs tests/developments.test.mjs tests/benchmarks.test.mjs tests/history.test.mjs tests/api.test.mjs tests/simulator.test.mjs tests/replay.test.mjs tests/signals.test.mjs"
+    "test": "node --test tests/engine.test.mjs tests/alerts.test.mjs tests/developments.test.mjs tests/benchmarks.test.mjs tests/history.test.mjs tests/api.test.mjs tests/simulator.test.mjs tests/replay.test.mjs tests/signals.test.mjs tests/paper.test.mjs"
   },
   "dependencies": {
     "firebase-admin": "^14.4.0",
