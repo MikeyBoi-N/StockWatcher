@@ -15,16 +15,18 @@ permissions:
   pages: write
   id-token: write
 
-concurrency:
-  group: "pages"
-  cancel-in-progress: false
-
+# Two jobs so a stuck Pages deploy can't stop the data. On 2026-10-06 one run hung in "waiting" on the github-pages
+# environment and, sharing a single concurrency group, held back every later run for nine days: no data, no history,
+# no alerts. Now only the deploy job touches the environment, and each job has its own queue.
 jobs:
-  deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+  build:
     runs-on: ubuntu-latest
+    # Builds take about 3 minutes; a hung step is killed instead of blocking the queue behind it.
+    timeout-minutes: 30
+    # One build at a time, never cancelled midway: each one records history and sends alerts.
+    concurrency:
+      group: data-build
+      cancel-in-progress: false
     env:
       SITE_URL: https://mikeyboi-n.github.io/StockWatcher/
     steps:
@@ -78,6 +80,7 @@ jobs:
         uses: actions/configure-pages@v5
 
       - name: Upload Artifact
+        # The deploy job publishes this artifact.
         uses: actions/upload-pages-artifact@v3
         with:
           path: '.'
@@ -101,14 +104,29 @@ jobs:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
         run: node scripts/record_history.mjs
 
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
-
       - name: Send Email Alerts
-        # Runs after deploy so email links show the data that triggered them; skips itself until the secrets exist.
+        # Sent from the build rather than after the deploy so a stuck deploy can't hold them back; the site normally
+        # shows the new data a minute or two later. A mail failure is marked on the step but doesn't block the deploy.
+        # Skips itself until the secrets exist.
+        continue-on-error: true
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           GMAIL_USER: ${{ secrets.GMAIL_USER }}
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
         run: node scripts/send_alerts.mjs "$RUNNER_TEMP/previous-market.json"
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # Only the newest build matters on the site, so a newer deploy replaces an older one, including one stuck waiting.
+    concurrency:
+      group: pages
+      cancel-in-progress: true
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

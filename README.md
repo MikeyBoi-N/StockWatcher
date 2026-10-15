@@ -92,6 +92,9 @@ Stocks users add to their watchlists are recorded in the public Firestore `ticke
 1. **Settings → Secrets and variables → Actions → Variables → New repository variable:** `SEC_USER_AGENT` = `StockWatcher your-email@example.com`. SEC requires a contact email in the User-Agent; without it, fundamentals from filings are skipped.
 2. Deploy the Firestore rules (they include the `tickerRequests` collection): in Cloud Shell or locally, `firebase deploy --only firestore:rules`.
 3. GitHub pauses scheduled workflows after 60 days without repository activity; re-enable it from the Actions tab if that happens.
+4. **Settings → Pages → Source** must be **GitHub Actions**. With "Deploy from a branch", every push also publishes the repository as committed: the fallback `data/market.json` and no `api/` folder.
+
+The workflow runs two jobs. **build** runs the tests, refreshes the data, builds the API, records history and sends alerts, with no environment attached and a 30-minute timeout. **deploy** only publishes the site to the `github-pages` environment, and a newer deploy replaces an older one. If the site's data looks stale (the page shows when it was built), open the Actions tab. A failed or stuck **deploy** clears itself at the next build. A **build** that keeps failing needs its log read; the history snapshot is skipped whenever the build fell back to the committed data.
 
 ---
 
