@@ -6,6 +6,8 @@
 
 **Live Web App:** [https://mikeyboi-n.github.io/StockWatcher/](https://mikeyboi-n.github.io/StockWatcher/)
 
+**Developer API:** free read-only JSON, no key needed. See [Developer API](#developer-api).
+
 ---
 
 ## How to Enable GitHub Pages
@@ -171,6 +173,148 @@ Queries filter and sort on the snapshot's stored `at` timestamp. Keep it that wa
 - **Download CSV:** the current view with its search and sort, one column per table column plus the company name; percentages are plain numbers (12.5 means 12.5%). In the Historical view it is written long instead - one row per stock per snapshot.
 - **Stress tests:** simulated -8% tech pullback, implied volatility x1.6, or +8% rally applied to the real data and labeled as simulated.
 - **Copy report:** markdown export of the current view.
+- **API:** links to the [Developer API](#developer-api) docs below.
+
+---
+
+## Developer API
+
+StockWatcher publishes its readings as free, read-only JSON files. You don't need a key, an account or a server. The files are rebuilt with every data build and served by GitHub Pages, so any script, app or web page can fetch them directly.
+
+**Base URL:** `https://mikeyboi-n.github.io/StockWatcher/api/v1/`
+
+| Endpoint | Returns |
+|---|---|
+| [`stocks.json`](https://mikeyboi-n.github.io/StockWatcher/api/v1/stocks.json) | Build time, market regime, and one summary row per tracked stock, in the dashboard's ranking order |
+| [`stocks/{TICKER}.json`](https://mikeyboi-n.github.io/StockWatcher/api/v1/stocks/AAPL.json) | One stock's full reading: the four scores with every factor's points, verdict, trading levels, entry diagnostics, peer ranks, bear/bull meter, SEC fundamentals and recent 8-K filings |
+
+### Quick start
+
+```bash
+# Every tracked stock's Overall score and verdict
+curl -s https://mikeyboi-n.github.io/StockWatcher/api/v1/stocks.json \
+  | jq -r '.stocks[] | "\(.ticker)\t\(.overall)\t\(.verdict.label)"'
+```
+
+```js
+// Browser or Node 18+ (as an ES module); cross-origin requests are allowed
+const base = "https://mikeyboi-n.github.io/StockWatcher/api/v1/";
+const index = await (await fetch(new URL("stocks.json", base))).json();
+const row = index.stocks.find(s => s.ticker === "NVDA");
+const nvda = await (await fetch(new URL(row.href, base))).json();
+console.log(nvda.verdict.label, nvda.scores.entry.score, nvda.levels.entrySupport);
+```
+
+```python
+import requests
+
+BASE = "https://mikeyboi-n.github.io/StockWatcher/api/v1/"
+index = requests.get(BASE + "stocks.json", timeout=10).json()
+in_buy_zone = [s["ticker"] for s in index["stocks"] if s["verdict"]["bucket"] == "buy"]
+```
+
+### Things to know
+
+- **No price quotes.** Prices, options chains, analyst estimates and headlines come from Yahoo Finance, Nasdaq.com and Cboe, and their terms restrict redistribution. The API therefore carries only StockWatcher's own readings plus SEC EDGAR data, which is public domain. Get quotes from your own source if you need them. Levels are dollar prices; `upside`, `downside` and the other distances are fractions of the price at build time (`0.097` = 9.7%).
+- **Coverage.** The core universe plus stocks users have added (up to 250). `stocks.json` lists exactly what's available. Any other ticker returns `404` with an HTML body, not JSON. `unavailable` lists tickers whose data failed in the latest build.
+- **Ticker paths** are uppercase and case-sensitive. Share classes keep their dot: `stocks/BRK.B.json`.
+- **Freshness.** Data rebuilds about three times each weekday, around 11am, 3pm and 7pm New York time (GitHub sometimes starts the runs late), and on each push to `main`. Read `meta.generatedAt`: if it is older than the latest scheduled run, that run's sources failed and the previous build is still being served. Responses are cached for 10 minutes (`Cache-Control: max-age=600`).
+- **Polling.** Checking more often than every 30 minutes gets you nothing new. GitHub Pages has a soft bandwidth limit, so cache responses on your side.
+- **CORS.** Responses send `Access-Control-Allow-Origin: *`.
+- **Versioning.** `meta.apiVersion` is `1`. Within v1, fields may be added, so ignore fields you don't recognize, but none will be renamed, removed or change type. A breaking change ships under a new `/api/v2/` path.
+- **Scores can be retuned.** The thresholds are hand-chosen starting points, not fitted to past returns. When they're retuned, the numbers move without a version change. What each score measures is described under [Four-Score Rules Engine](#3-four-score-rules-engine-jsenginejs).
+- **Not investment advice.** Every response carries this in `meta.disclaimer`.
+
+### `stocks.json`
+
+| Field | Type | Meaning |
+|---|---|---|
+| `meta.apiVersion` | number | `1` |
+| `meta.generatedAt` | ISO 8601 string | When this data build ran |
+| `meta.docs`, `meta.disclaimer` | string | Link to this section; not-investment-advice notice |
+| `market.regime` | string | `BULLISH`, `NEUTRAL`, `CAUTIOUS` or `BEARISH`, from SPY and QQQ vs their 50- and 200-day averages |
+| `market.description` | string | One sentence explaining the regime |
+| `market.breadth` | number \| null | Share of tracked stocks (not ETFs) above their 50-day average, 0 to 1 |
+| `market.breadthMonthAgo` | number \| null | The same a month earlier |
+| `market.trackedStocks` | number | Stocks (not ETFs) that breadth counts |
+| `best` | string \| null | Ticker of the buy-zone stock with the highest Overall score. Usually `null`, because waiting is the default |
+| `stocks[]` | array | One row per stock, sorted by verdict (buy, strong, watch, avoid) and then Overall |
+| `stocks[].ticker`, `.name`, `.sector` | string | `sector` can be `null` for ETFs |
+| `stocks[].etf`, `.primary` | boolean | `primary` marks the core universe's primary list |
+| `stocks[].verdict` | object | `{ bucket, label }`, described below |
+| `stocks[].overall` | number \| null | 0-100 |
+| `stocks[].scores` | object | `{ quality, trend, entry, trade }`, each 0-100 or `null` (`quality` is `null` for ETFs) |
+| `stocks[].chaseRisk` | string | `Low`, `Moderate` or `High` |
+| `stocks[].href` | string | Path of the stock's document, relative to the base URL |
+| `unavailable` | string[] | Tickers whose data failed in this build |
+
+### `stocks/{TICKER}.json`
+
+| Field | Type | Meaning |
+|---|---|---|
+| `meta` | object | Same as in `stocks.json` |
+| `ticker`, `name`, `exchange`, `sector`, `industry` | string \| null | |
+| `etf`, `primary` | boolean | |
+| `asOf` | ISO 8601 string | Time of the price the reading used |
+| `verdict.bucket` | string | `buy`, `strong`, `watch` or `avoid` |
+| `verdict.label` | string | `Buy zone`, `Strong asset, poor entry`, `Strong asset, poor risk/reward`, `Strong asset, wait for earnings`, `Watch`, `Avoid, broken trend` or `Avoid, weak business` |
+| `overall` | number \| null | 30% Quality + 25% Trend + 25% Entry + 20% Trade (reweighted without Quality for ETFs). Used for sorting only; it never decides the verdict |
+| `scores.{quality,trend,entry,trade}.score` | number \| null | 0-100 |
+| `scores.{…}.factors[]` | array | `{ label, points, max, missing }`. A score is its factors' total `points` over their total `max`, scaled to 100. A `missing` input scores half its `max` |
+| `levels.entrySupport` | number \| null | Nearest support at least 1% below price; this is the trade's stop |
+| `levels.entrySupportMethod` | string \| null | How entry support was found (`structural` when it fell back to structural support) |
+| `levels.structuralSupport` | number \| null | One-year swing low, where the longer-term thesis breaks |
+| `levels.resistance` | number \| null | Nearest swing-high resistance above price; `null` when price is above all of them |
+| `levels.preferredEntryLow`, `levels.preferredEntryHigh` | number \| null | The preferred entry zone just above entry support |
+| `levels.targetSource` | string | What the upside is measured to: `resistance`, `analyst target` or `one-month expected move` |
+| `levels.upside`, `levels.downside` | number \| null | Fraction up to the target, and down to entry support |
+| `levels.rewardRisk` | number \| null | `upside / downside` |
+| `levels.distanceFromPreferredEntry` | number \| null | Fraction above the preferred entry zone (`0` = in the zone) |
+| `levels.downsideToStructural` | number \| null | Fraction down to structural support |
+| `entry.type` | string | `Pullback`, `Breakout`, `Continuation`, `Reversal` or `Mean Reversion` |
+| `entry.chaseRisk` | string | `Low`, `Moderate` or `High` |
+| `entry.trigger` | string | What would make it actionable, e.g. `Hold $300.00 on a retest` |
+| `entry.primaryTrend` | string \| null | `Bullish`, `Neutral` or `Bearish` |
+| `earningsWithin14Days` | boolean | Earnings inside 14 days keeps a stock out of the buy zone |
+| `options.vehicle` | string | `WAIT`, `SHARES`, `SHARES ONLY (OR WAIT)`, `CASH-SECURED PUT OR SHARES`, `LONG CALL OR CALL DEBIT SPREAD` or `CALL DEBIT SPREAD` |
+| `options.liquid` | boolean \| null | Whether the at-the-money call is liquid enough to trade; `null` without options data |
+| `bull.{24h,5d,30d,6m,12m}` | object \| null | Backward-looking bear/bull meter: `{ position, word }`. `position` runs 0 (bearish) to 100 (bullish); `word` is `Bearish`, `Weak`, `Neutral`, `Firm` or `Bullish` |
+| `peers.{key}` | object | `{ label, rank, of, leader }`: rank among tracked stocks, with ties sharing a rank. Keys: `quality`, `trend`, `entry`, `trade`, `revg`, `margin`, `lev`, `fcfy`, `fpe`, `peg`, `revisions`, `target`, `rs3m`, `rs12m`. A metric with fewer than 5 ranked stocks is left out, and ETFs are ranked only on `trend`, `entry`, `trade`, `rs3m` and `rs12m` |
+| `diagnostics.{market,quality,technical,entry}[]` | array | The dashboard's diagnostic labels as `{ name, value, tone }`. `tone` is `pos`, `warn`, `neg` or `""`. `value` is display text and may use `−` (U+2212) as a minus sign |
+| `fundamentals` | object \| null | From SEC EDGAR filings; `null` for ETFs and companies without recent filings. Fields: `periodEnd`, `basis` (`ttm`, or `latest_quarter_yoy` for companies without four quarters of filings), `reportingCurrency`, `revenue`, `revenueGrowthYoY`, `earningsGrowthYoY`, `operatingMargin`, `operatingMarginChange`, `freeCashFlow`, `fcfTrend`, `netDebtToEbitda`, `epsTTM`, `sharesOutstanding`, `buybacksTTM`, `dividendsTTM`, `direction`, and `latestQuarter` (`periodEnd`, `currency`, then `revenue`, `operatingIncome` and `netIncome`, each with a `…PriorYear` value). Rates are fractions; amounts are in the reporting currency |
+| `filings[]` | array | 8-K events from the last 120 days, the newest filing per item, negative ones first: `{ date, item, label, short, tone, url }`. `tone` is `negative` or `neutral`; `url` links to sec.gov. Routine results releases (item 2.02) are left out |
+| `dataGaps` | string[] | Inputs the engine didn't have; each scored at its midpoint |
+
+Shortened example (`stocks/AAPL.json`):
+
+```json
+{
+  "meta": { "apiVersion": 1, "generatedAt": "2026-09-14T05:58:10+00:00", "docs": "…", "disclaimer": "…" },
+  "ticker": "AAPL", "name": "Apple Inc.", "exchange": "NASDAQ", "sector": "Technology", "etf": false, "primary": false,
+  "verdict": { "bucket": "strong", "label": "Strong asset, poor entry" },
+  "overall": 73,
+  "scores": {
+    "quality": { "score": 89, "factors": [{ "label": "Revenue growth", "points": 15, "max": 20, "missing": false }] },
+    "trend": { "score": 85, "factors": [] },
+    "entry": { "score": 55, "factors": [] },
+    "trade": { "score": 54, "factors": [] }
+  },
+  "levels": { "entrySupport": 300, "structuralSupport": 300, "resistance": 344.57, "preferredEntryLow": 300.75, "preferredEntryHigh": 304.65,
+              "targetSource": "resistance", "upside": 0.037, "downside": 0.0971, "rewardRisk": 0.38 },
+  "entry": { "type": "Pullback", "chaseRisk": "Moderate", "trigger": "Hold $300.00 on a retest", "primaryTrend": "Bullish" },
+  "earningsWithin14Days": false,
+  "options": { "vehicle": "WAIT", "liquid": true },
+  "bull": { "24h": { "position": 64, "word": "Firm" } },
+  "peers": { "fcfy": { "label": "FCF yield", "rank": 2, "of": 12, "leader": true } },
+  "fundamentals": { "revenueGrowthYoY": 0.1424, "operatingMargin": 0.3317, "fcfTrend": "growing", "direction": "getting_stronger" },
+  "filings": [],
+  "dataGaps": ["3-month relative strength", "12-month relative strength"]
+}
+```
+
+Arrays and objects are trimmed in this example; the real files carry every factor, level and horizon.
+
+The files are built by [`scripts/build_api.mjs`](scripts/build_api.mjs) from [`js/api.js`](js/api.js), using the same engine as the dashboard. [`tests/api.test.mjs`](tests/api.test.mjs) checks that no quoted third-party value ends up in them.
 
 ---
 
@@ -192,7 +336,8 @@ To test locally without installing dependencies:
 SEC_USER_AGENT="StockWatcher you@example.com" python scripts/build_market_data.py   # core + requested tickers
 python scripts/build_market_data.py --only AAPL,SPY                                  # quick partial build
 python -m pip install pytest && python -m pytest tests                               # data pipeline tests
-npm test                                                                             # scoring engine, alert, summary, benchmark and history tests
+npm test                                                                             # scoring engine, alert, summary, benchmark, history and API tests
+node scripts/build_api.mjs                                                           # write the developer API to api/v1/ (gitignored)
 ```
 
 To see the history snapshot for the current `data/market.json` without writing it:
