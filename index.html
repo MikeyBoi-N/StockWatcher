@@ -90,6 +90,7 @@
       align-items: center;
       gap: 6px;
       white-space: nowrap;
+      text-decoration: none;
     }
     .btn-secondary { background: var(--surface); border: 1px solid var(--border); color: var(--text); }
     .btn-secondary:hover { background: var(--surface-2); border-color: var(--border-strong); }
@@ -287,9 +288,6 @@
     .ticker { font-weight: 600; color: var(--text); }
     .company { display: block; font-size: 11px; color: var(--text-3); overflow: hidden; text-overflow: ellipsis; max-width: 190px; }
     .dev-line { display: inline-block; max-width: 360px; overflow: hidden; text-overflow: ellipsis; vertical-align: bottom; }
-    .dev-list { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-direction: column; gap: 5px; font-size: 13px; }
-    .dev-list a { color: var(--text); text-decoration: none; }
-    .dev-list a:hover { text-decoration: underline; }
     .dev-meta { color: var(--text-3); font-size: 11px; }
     .tag {
       display: inline-block;
@@ -329,19 +327,116 @@
     .score-mini { font-weight: 600; }
 
     /* Scores and diagnostics in the detail view */
-    .score-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(185px, 1fr)); gap: 10px; }
-    .score-card { border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 12px; }
-    .score-card-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
-    .score-card-head strong { font-size: 13px; font-weight: 600; }
-    .score-card-head span { font-size: 20px; font-weight: 600; }
-    .factor-row { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; padding: 2px 0; }
-    .factor-row .factor-detail { color: var(--text-3); font-size: 11px; }
-    .factor-row .factor-points { white-space: nowrap; font-variant-numeric: tabular-nums; }
-    .diag-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 14px 20px; }
-    .diag-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-2); margin-bottom: 4px; }
-    .diag-row { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; padding: 2px 0; }
+    .score-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; }
+    .score-card { border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; background: var(--surface); }
+    .score-card-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+    .score-card-head strong { font-size: 15px; font-weight: 700; }
+    .score-card-head span { font-size: 26px; font-weight: 700; line-height: 1; }
+    .score-card .gauge { margin-bottom: 6px; }
+    .score-card-sub { font-size: 12px; color: var(--text-3); margin-bottom: 10px; line-height: 1.45; }
+    .factor-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; font-size: 13px; padding: 7px 0; }
+    .factor-row + .factor-row { border-top: 1px solid var(--border); }
+    .factor-row .factor-detail { color: var(--text-3); font-size: 12px; line-height: 1.4; }
+    .factor-score { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; flex: none; }
+    .factor-row .factor-points { white-space: nowrap; font-variant-numeric: tabular-nums; font-size: 12px; font-weight: 600; }
+    .factor-bar { width: 44px; height: 5px; border-radius: 3px; background: var(--surface-3); overflow: hidden; }
+    .factor-bar span { display: block; height: 100%; background: currentColor; }
+    .diag-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 22px 36px; }
+    .diag-title { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-2); margin-bottom: 6px; }
+    .diag-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; font-size: 13px; padding: 6px 0; }
+    .diag-row + .diag-row { border-top: 1px solid var(--border); }
     .diag-row .diag-name { color: var(--text-2); }
     .diag-row .diag-value { font-weight: 600; text-align: right; }
+
+    /* Significance at a glance: a tinted pill whose symbol carries the meaning, so it reads without color too */
+    .val { display: inline-flex; align-items: center; gap: 5px; padding: 0 8px; border-radius: 999px; border: 1px solid transparent; font-weight: 600; line-height: 22px; white-space: nowrap; }
+    .val::before { font-size: 11px; font-weight: 700; }
+    .val-pos { color: var(--pos); background: rgba(79, 176, 105, 0.13); border-color: rgba(79, 176, 105, 0.3); }
+    .val-pos::before { content: "✓"; }
+    .val-warn { color: var(--warn); background: rgba(214, 167, 58, 0.12); border-color: rgba(214, 167, 58, 0.3); }
+    .val-warn::before { content: "◐"; }
+    .val-neg { color: var(--neg); background: rgba(224, 96, 90, 0.13); border-color: rgba(224, 96, 90, 0.32); }
+    .val-neg::before { content: "✕"; }
+    .val-muted { color: var(--text-2); background: var(--surface-2); border-color: var(--border); }
+    .val-muted::before { content: none; }
+    .val a, .filing-row .val a { color: inherit; }
+
+    /* 0-100 bar with a tick where the buy zone starts */
+    .gauge { position: relative; height: 6px; border-radius: 3px; background: var(--surface-3); }
+    .gauge > span { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 3px; background: currentColor; }
+    .gauge > i { position: absolute; top: -4px; bottom: -4px; width: 2px; margin-left: -1px; border-radius: 1px; background: var(--text); opacity: 0.75; }
+
+    .glance { display: grid; grid-template-columns: minmax(230px, 1.1fr) 2.4fr; gap: 14px; }
+    .glance-verdict { border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; background: var(--surface-2); display: flex; flex-direction: column; gap: 4px; }
+    .glance-verdict.tint-pos { background: rgba(79, 176, 105, 0.09); border-color: rgba(79, 176, 105, 0.3); }
+    .glance-verdict.tint-warn { background: rgba(214, 167, 58, 0.08); border-color: rgba(214, 167, 58, 0.3); }
+    .glance-verdict.tint-neg { background: rgba(224, 96, 90, 0.09); border-color: rgba(224, 96, 90, 0.32); }
+    .glance-k { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-3); }
+    .glance-verdict-text { font-size: 19px; font-weight: 700; line-height: 1.3; }
+    .glance-next { font-size: 13px; color: var(--text-2); line-height: 1.45; }
+    .glance-scores { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
+    .glance-tile { border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 12px 10px; background: var(--surface); display: flex; flex-direction: column; gap: 6px; }
+    .glance-tile-v { font-size: 26px; font-weight: 700; line-height: 1; }
+    .glance-tile-cap { font-size: 11px; color: var(--text-3); line-height: 1.3; }
+    .legend { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; font-size: 12px; color: var(--text-3); }
+    .legend .val { font-size: 11px; line-height: 20px; }
+    .legend-tick { display: inline-block; width: 2px; height: 12px; background: var(--text); opacity: 0.75; vertical-align: -1px; margin-right: 6px; }
+    @media (max-width: 760px) {
+      .glance { grid-template-columns: 1fr; }
+      .glance-scores { grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); }
+    }
+
+    /* Price map: where price sits between the stop and the target */
+    .price-map { padding: 30px 6px 0; margin-bottom: 18px; }
+    .pm-track { position: relative; height: 8px; border-radius: 4px; background: var(--surface-3); }
+    .pm-seg { position: absolute; top: 0; bottom: 0; }
+    .pm-risk { background: rgba(224, 96, 90, 0.55); }
+    .pm-reward { background: rgba(79, 176, 105, 0.6); }
+    .pm-zone { position: absolute; top: -5px; bottom: -5px; border: 1px solid rgba(79, 176, 105, 0.7); border-radius: 3px; background: rgba(79, 176, 105, 0.18); min-width: 6px; }
+    .pm-mark { position: absolute; top: -6px; width: 3px; height: 20px; margin-left: -1.5px; border-radius: 2px; }
+    .pm-now { position: absolute; top: 50%; width: 14px; height: 14px; border-radius: 50%; background: var(--text); border: 3px solid var(--bg); transform: translate(-50%, -50%); box-shadow: 0 0 0 1px var(--text-3); }
+    .pm-now-label { position: absolute; bottom: 16px; transform: translateX(-50%); font-size: 12px; font-weight: 700; white-space: nowrap; }
+    .pm-legend { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 8px 18px; margin-top: 18px; font-size: 12px; }
+    .pm-legend div { display: flex; flex-direction: column; }
+    .pm-legend b { font-size: 14px; font-weight: 600; color: var(--text); }
+    .pm-legend span { color: var(--text-3); }
+    .pm-key { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: 0; }
+    .pm-summary { margin-top: 14px; font-size: 13px; color: var(--text-2); line-height: 1.9; }
+
+    /* Small range bars: RSI zones, 52-week range */
+    .range { position: relative; height: 6px; border-radius: 3px; background: var(--surface-3); margin: 8px 0 2px; }
+    .range-band { position: absolute; top: 0; bottom: 0; background: var(--border-strong); }
+    .range-dot { position: absolute; top: 50%; width: 12px; height: 12px; border-radius: 50%; background: currentColor; border: 2px solid var(--bg); transform: translate(-50%, -50%); }
+    .range-scale { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-3); }
+
+    .metric { padding: 8px 0; }
+    .metric + .metric { border-top: 1px solid var(--border); }
+    .metric-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+    .metric-k { color: var(--text-2); }
+    .metric-v { font-weight: 600; text-align: right; display: inline-flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 6px; }
+    .metric-note { font-size: 12px; color: var(--text-3); margin-top: 10px; line-height: 1.5; }
+    .flag-list { display: flex; flex-wrap: wrap; gap: 6px; }
+    .flag-list .val { white-space: normal; line-height: 1.4; padding: 3px 9px; font-weight: 500; }
+
+    /* Headlines as a sideways-scrolling strip of cards */
+    .news-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 10px; }
+    .news-nav { display: flex; gap: 6px; }
+    .news-nav button { width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--border-strong); background: var(--surface-2); color: var(--text); cursor: pointer; font-size: 15px; line-height: 1; }
+    .news-nav button:hover { background: var(--surface-3); }
+    .news-strip { display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory; scroll-behavior: smooth; padding-bottom: 8px; scrollbar-width: thin; }
+    .news-card { flex: 0 0 250px; scroll-snap-align: start; display: flex; flex-direction: column; gap: 8px; padding: 14px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); text-decoration: none; min-height: 150px; }
+    a.news-card:hover { border-color: var(--border-strong); background: var(--surface-2); }
+    .news-card.tint-pos { border-color: rgba(79, 176, 105, 0.35); }
+    .news-card.tint-neg { border-color: rgba(224, 96, 90, 0.4); }
+    .news-card .val { align-self: flex-start; font-size: 11px; line-height: 20px; }
+    .news-title { font-weight: 600; font-size: 14px; line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; flex: 1; }
+    .news-meta { font-size: 12px; color: var(--text-3); }
+    .filing-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 7px 0; }
+    .filing-row + .filing-row { border-top: 1px solid var(--border); }
+    .filing-row a { color: var(--text); text-decoration: none; }
+    .filing-row a:hover { text-decoration: underline; }
+    .dev-block-title { font-weight: 700; font-size: 14px; margin-bottom: 6px; }
+
     .horizon-picker { display: inline-flex; border: 1px solid var(--border-strong); border-radius: var(--radius); overflow: hidden; margin-bottom: 10px; }
     .horizon-picker button { background: transparent; border: none; color: var(--text-2); padding: 4px 10px; font-size: 12px; cursor: pointer; }
     .horizon-picker button:hover { color: var(--text); }
@@ -432,12 +527,36 @@
     }
     .vehicle-preference-box { display: flex; flex-direction: column; gap: 6px; }
     .sub-box-title { font-size: 12px; color: var(--text-3); margin-bottom: 6px; }
-    .detail-line { margin-bottom: 2px; }
-    .detail-line strong { font-weight: 500; color: var(--text-2); }
     .muted { color: var(--text-3); }
     .chart-box { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 14px 20px; }
     .chart-legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 11px; color: var(--text-2); margin-bottom: 8px; }
     .chart-legend i { display: inline-block; width: 14px; height: 0; border-top: 2px solid; vertical-align: middle; margin-right: 5px; }
+
+    /* Detail view: softer contrast (lifted greys, cream text) and room between sections */
+    #detailModal {
+      --bg: #19191c;
+      --surface: #202024;
+      --surface-2: #27272c;
+      --surface-3: #303036;
+      --border: #313137;
+      --border-strong: #45454d;
+      --text: #e6dfcf;
+      --text-2: #b0a99b;
+      --text-3: #888276;
+    }
+    #detailModal .modal-card { max-width: 980px; line-height: 1.65; color: var(--text); }
+    #detailModal .modal-header { padding: 16px 24px; }
+    #detailModal .modal-content { padding: 24px; gap: 28px; }
+    #detailModal .sub-box, #detailModal .vehicle-preference-box, #detailModal .chart-box { padding: 20px 22px; font-size: 14px; }
+    #detailModal .chart-box { padding-bottom: 28px; }
+    #detailModal .grid-2col { gap: 20px; }
+    #detailModal .sub-box-title { font-size: 17px; font-weight: 700; color: var(--text); letter-spacing: -0.01em; margin-bottom: 14px; }
+    #detailModal .sub-box-title:has(+ .section-intro) { margin-bottom: 2px; }
+    .section-intro { font-size: 13px; color: var(--text-3); margin-bottom: 16px; }
+    @media (max-width: 640px) {
+      #detailModal .modal-content { padding: 16px; gap: 22px; }
+      #detailModal .sub-box, #detailModal .vehicle-preference-box, #detailModal .chart-box { padding: 16px; }
+    }
 
     .options-specs-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 6px; font-size: 12px; font-variant-numeric: tabular-nums; }
     .spec-item { border: 1px solid var(--border); border-radius: 4px; padding: 5px 8px; }
@@ -604,6 +723,7 @@
       </button>
       <button class="btn-secondary" id="btnExportJournal" title="Copy the current table as a markdown report">Copy report</button>
       <button class="btn-secondary" id="btnDownloadCsv" title="Download the current view, in its current sort, as a CSV file">Download CSV</button>
+      <a class="btn-secondary" href="https://github.com/MikeyBoi-N/StockWatcher#developer-api" target="_blank" rel="noopener" title="Free JSON API with every stock's scores and verdict, for developers">API</a>
       <div id="authPillContainer"></div>
     </div>
   </header>
@@ -905,23 +1025,42 @@
       </div>
 
       <div class="modal-content">
-        <div id="modalScoreLine" style="display:flex; flex-wrap:wrap; gap:6px 18px; font-size:13px;"></div>
+        <!-- Verdict and the five scores at a glance -->
+        <div style="display:flex; flex-direction:column; gap:12px;">
+          <div id="modalGlance" class="glance"></div>
+          <div class="legend">
+            <span class="val val-pos">favorable</span>
+            <span class="val val-warn">in between</span>
+            <span class="val val-neg">unfavorable</span>
+            <span><i class="legend-tick"></i>where the buy zone starts</span>
+          </div>
+        </div>
+
+        <!-- Bear / bull meter, bear case and invalidation -->
+        <div class="sub-box">
+          <div class="sub-box-title">Bear / bull evaluation</div>
+          <div class="section-intro">How the price has behaved over the period you pick. Looks back only; not a forecast.</div>
+          <div id="modalBearCaseDetails"></div>
+        </div>
 
         <!-- Four scores with the factors behind them -->
         <div class="sub-box">
           <div class="sub-box-title">Scores and how they are calculated</div>
+          <div class="section-intro">Each score adds up the points its factors earn. The bar under each score shows how close it is to the buy zone.</div>
           <div id="modalScoreCards" class="score-cards"></div>
         </div>
 
         <!-- Entry diagnostics -->
         <div class="sub-box">
           <div class="sub-box-title">Entry diagnostics</div>
+          <div class="section-intro">Where today's price sits between the stop and the target, and what would make it a buy.</div>
+          <div id="modalPriceMap"></div>
           <div id="modalEntryDiagnostics" class="diag-grid"></div>
         </div>
 
         <div class="chart-box">
           <div class="chart-legend">
-            <span><i style="border-color:#ececec;"></i>Price</span>
+            <span><i style="border-color:#e6dfcf;"></i>Price</span>
             <span><i style="border-color:#6f6f75;"></i>20d SMA</span>
             <span><i style="border-color:#a3a3a8;"></i>50d SMA</span>
             <span><i style="border-color:#a3a3a8; border-top-style:dashed;"></i>200d SMA</span>
@@ -966,25 +1105,19 @@
         <!-- Latest quarter, 8-K filings and headlines -->
         <div class="sub-box">
           <div class="sub-box-title">What's happening</div>
-          <div id="modalDevelopmentsDetails" style="display:flex; flex-direction:column; gap:8px;"></div>
+          <div id="modalDevelopmentsDetails" style="display:flex; flex-direction:column; gap:20px;"></div>
         </div>
 
         <!-- Facts, Interpretation, Speculation Separation -->
         <div class="sub-box">
           <div class="sub-box-title">Fact, interpretation, speculation</div>
-          <div id="modalEpistemicDetails" style="display:flex; flex-direction:column; gap:6px;"></div>
-        </div>
-
-        <!-- Bear Case and Invalidation -->
-        <div class="sub-box">
-          <div class="sub-box-title">Bear / bull evaluation</div>
-          <div id="modalBearCaseDetails"></div>
+          <div id="modalEpistemicDetails" style="display:flex; flex-direction:column; gap:12px;"></div>
         </div>
 
         <!-- Score Breakdown, Data Gaps and Sources -->
         <div class="sub-box">
           <div class="sub-box-title">Score, data gaps and sources</div>
-          <div id="modalSourcesDetails" style="display:flex; flex-direction:column; gap:4px;"></div>
+          <div id="modalSourcesDetails" style="display:flex; flex-direction:column; gap:8px;"></div>
         </div>
       </div>
     </div>
@@ -1648,6 +1781,12 @@
           if (!button) return;
           this.horizon = button.dataset.horizon;
           this.renderBearBull();
+        });
+        document.getElementById("modalDevelopmentsDetails").addEventListener("click", (e) => {
+          const button = e.target.closest("[data-news-scroll]");
+          if (!button) return;
+          const strip = e.currentTarget.querySelector(".news-strip");
+          strip?.scrollBy({ left: Number(button.dataset.newsScroll) * strip.clientWidth * 0.8 });
         });
         this.btnExportJournal.addEventListener("click", () => this.exportMarkdown());
         document.getElementById("btnDownloadCsv").addEventListener("click", () => this.downloadCsv());
@@ -2595,20 +2734,36 @@
         const c = item.catalysts;
         const o = item.options;
         const lv = e.levels;
-        const g = (tone, html) => tone ? `<span class="tone-${tone}">${html}</span>` : html;
+        // Graded values become a tinted pill whose symbol (✓ ◐ ✕) says favorable / in between / unfavorable.
+        const g = (tone, html) => tone ? `<span class="val val-${tone}">${html}</span>` : html;
+        const buyZoneBar = { quality: RULES.buyZone.quality, trend: RULES.buyZone.trend, entry: RULES.buyZone.entry, trade: RULES.buyZone.trade };
+        const gauge = (score, mark) => `<div class="gauge">${isNum(score) ? `<span style="width:${score}%"></span>` : ""}${isNum(mark) ? `<i style="left:${mark}%" title="Buy zone needs ${mark}+"></i>` : ""}</div>`;
 
         document.getElementById("modalSymbol").textContent = item.ticker;
         document.getElementById("modalName").textContent = [item.name, item.sector, item.industry].filter(Boolean).join(" · ");
-        const scoreChip = (key) => {
+        const glanceTile = (key) => {
           const score = key === "overall" ? e.overall : e.scores[key].score;
-          return `<span>${SCORE_LABELS[key]} <strong class="tone-${scoreTone(score)}">${isNum(score) ? score : "N/A"}</strong></span>`;
+          const mark = buyZoneBar[key];
+          const caption = key === "overall" ? "Weighted blend; sorts the table"
+            : !isNum(score) ? "Not scored"
+            : score >= mark ? `Clears the ${mark} bar` : `${mark - score} short of ${mark}`;
+          return `
+            <div class="glance-tile tone-${scoreTone(score)}">
+              <div class="glance-k">${SCORE_LABELS[key]}</div>
+              <div class="glance-tile-v">${isNum(score) ? score : "N/A"}</div>
+              ${gauge(score, mark)}
+              <div class="glance-tile-cap">${caption}</div>
+            </div>`;
         };
-        document.getElementById("modalScoreLine").innerHTML = `
-          <span class="verdict tone-${VERDICTS[e.bucket].tone}">${escapeHtml(e.verdict)}</span>
-          ${["overall", ...SCORE_KEYS].map(scoreChip).join("")}
-          <span class="muted">${escapeHtml(this.nextStep(e).text)}</span>
-          <span class="muted">Vehicle: ${escapeHtml(e.optionsEval.recommendation.toLowerCase())}</span>
-          <span class="muted"><span class="tone-pos">Green</span> is favorable · <span class="tone-warn">yellow</span> in between · <span class="tone-neg">red</span> unfavorable</span>
+        const verdictTone = VERDICTS[e.bucket].tone;
+        document.getElementById("modalGlance").innerHTML = `
+          <div class="glance-verdict tint-${verdictTone}">
+            <div class="glance-k">Verdict</div>
+            <div class="glance-verdict-text ${verdictTone === "muted" ? "" : `tone-${verdictTone}`}">${escapeHtml(e.verdict)}</div>
+            <div class="glance-next"><strong>Next:</strong> ${escapeHtml(this.nextStep(e).text)}</div>
+            <div class="glance-next"><strong>Vehicle:</strong> ${escapeHtml(e.optionsEval.recommendation.toLowerCase())}</div>
+          </div>
+          <div class="glance-scores">${["overall", ...SCORE_KEYS].map(glanceTile).join("")}</div>
         `;
 
         const ranks = this.peerRanks.get(item.ticker);
@@ -2620,13 +2775,21 @@
             ? sc.factors.map(fc => {
                 const share = fc.points / fc.max;
                 const tone = fc.missing ? "muted" : share >= 0.7 ? "pos" : share >= 0.4 ? "warn" : "neg";
-                return `<div class="factor-row"><div>${escapeHtml(fc.label)}<div class="factor-detail">${escapeHtml(fc.detail)}</div></div><div class="factor-points tone-${tone}">${+fc.points.toFixed(1)} / ${fc.max}</div></div>`;
+                return `
+                  <div class="factor-row">
+                    <div>${escapeHtml(fc.label)}<div class="factor-detail">${escapeHtml(fc.detail)}</div></div>
+                    <div class="factor-score tone-${tone}">
+                      <span class="factor-points">${+fc.points.toFixed(1)} / ${fc.max}</span>
+                      <span class="factor-bar"><span style="width:${Math.round(share * 100)}%"></span></span>
+                    </div>
+                  </div>`;
               }).join("")
-            : '<div class="muted" style="font-size:12px;">Not scored: no company fundamentals (ETF or no recent SEC filings). Overall reweights the other three.</div>';
+            : '<div class="muted" style="font-size:13px;">Not scored: no company fundamentals (ETF or no recent SEC filings). Overall reweights the other three.</div>';
           return `
             <div class="score-card">
               <div class="score-card-head"><strong>${SCORE_LABELS[key]}</strong><span class="tone-${scoreTone(sc.score)}">${isNum(sc.score) ? sc.score : "N/A"}</span></div>
-              <div class="muted" style="font-size:11px; margin-bottom:6px;">${questions[key]}${rank ? ` · #${rank.rank} of ${rank.of} tracked` : ""}</div>
+              <div class="tone-${scoreTone(sc.score)}">${gauge(sc.score, buyZoneBar[key])}</div>
+              <div class="score-card-sub">${questions[key]}${rank ? ` · #${rank.rank} of ${rank.of} tracked` : ""}</div>
               ${body}
             </div>`;
         }).join("");
@@ -2634,8 +2797,9 @@
         const diagSection = (title, rows) => `
           <div>
             <div class="diag-title">${escapeHtml(title)}</div>
-            ${rows.map(x => `<div class="diag-row" title="${escapeHtml(x.detail || "")}"><span class="diag-name">${escapeHtml(x.name)}</span><span class="diag-value${x.tone ? ` tone-${x.tone}` : ""}">${escapeHtml(x.value)}</span></div>`).join("")}
+            ${rows.map(x => `<div class="diag-row" title="${escapeHtml(x.detail || "")}"><span class="diag-name">${escapeHtml(x.name)}</span><span class="diag-value">${g(x.tone, escapeHtml(x.value))}</span></div>`).join("")}
           </div>`;
+        document.getElementById("modalPriceMap").innerHTML = this.priceMap(item, lv);
         const entryRows = e.diagnostics.entry;
         document.getElementById("modalEntryDiagnostics").innerHTML =
           diagSection("Setup", entryRows.slice(0, 5)) + diagSection("Plan", entryRows.slice(5));
@@ -2658,51 +2822,80 @@
           ${hline(item.sma200, "#a3a3a8", 1.2, "4,4")}
           ${hline(item.sma50, "#a3a3a8", 1.2)}
           ${hline(item.sma20, "#6f6f75", 1)}
-          <polyline fill="none" stroke="#ececec" stroke-width="2" points="${series.map((val, idx) => `${getX(idx)},${getY(val)}`).join(" ")}" />
-          <circle cx="${w}" cy="${getY(series[series.length - 1])}" r="4" fill="#ececec" />
-          <text x="${w - 80}" y="${getY(series[series.length - 1]) - 8}" fill="#ececec" font-size="11" font-weight="600">${money(item.price)}</text>
-          <text x="0" y="${h + 14}" fill="#6f6f75" font-size="10">Daily closes since ${escapeHtml(item.historicalStart || "")} · lines show current SMA and support levels</text>
+          <polyline fill="none" stroke="#e6dfcf" stroke-width="2" points="${series.map((val, idx) => `${getX(idx)},${getY(val)}`).join(" ")}" />
+          <circle cx="${w}" cy="${getY(series[series.length - 1])}" r="4" fill="#e6dfcf" />
+          <text x="${w - 80}" y="${getY(series[series.length - 1]) - 8}" fill="#e6dfcf" font-size="11" font-weight="600">${money(item.price)}</text>
+          <text x="0" y="${h + 14}" fill="#888276" font-size="10">Daily closes since ${escapeHtml(item.historicalStart || "")} · lines show current SMA and support levels</text>
         `;
 
-        const line = (label, value) => `<div class="detail-line"><strong>${label}:</strong> ${value}</div>`;
+        const metric = (label, value, visual = "") =>
+          `<div class="metric"><div class="metric-row"><span class="metric-k">${label}</span><span class="metric-v">${value}</span></div>${visual}</div>`;
+        const note = (html) => `<div class="metric-note">${html}</div>`;
+        /** A bar from min to max with a dot at value; `band` shades a range (e.g. RSI's healthy 30-70). */
+        const rangeBar = ({ min, max, value, tone = "", band = null, labels = [] }) => {
+          if (![min, max, value].every(isNum) || max <= min) return "";
+          const at = (x) => Math.max(0, Math.min(100, (x - min) / (max - min) * 100));
+          return `
+            <div class="range">
+              ${band ? `<span class="range-band" style="left:${at(band[0])}%; width:${at(band[1]) - at(band[0])}%"></span>` : ""}
+              <span class="range-dot${tone ? ` tone-${tone}` : ""}" style="left:${at(value)}%"></span>
+            </div>
+            <div class="range-scale">${labels.map(l => `<span>${l}</span>`).join("")}</div>`;
+        };
         const vsSpy = (field) => {
           const rel = relativeToSpy(item, this.spy, field);
           return isNum(rel) && item.ticker !== "SPY" ? g(rel >= 0 ? "pos" : "neg", signedPercent(rel)) : "N/A";
         };
         const dist50 = isNum(item.sma50) ? item.price / item.sma50 - 1 : null;
         const dist200 = isNum(item.sma200) ? item.price / item.sma200 - 1 : null;
+        const smaLine = (dist, tone, sma) => isNum(sma) ? `${g(tone, signedPercent(dist))} <span class="muted" style="font-weight:400;">${money(sma)}</span>` : "N/A";
+        const rsiTone = grade.rsi(item.rsi14);
         document.getElementById("modalTechnicalDetails").innerHTML = [
-          line("Price", `${money(item.price)} | <strong>52w Range:</strong> ${money(item.low52)} – ${money(item.high52)}`),
-          line("SMAs", `20d ${money(item.sma20)} | 50d ${money(item.sma50)} (${g(grade.trend50(dist50), signedPercent(dist50))}) | 200d ${money(item.sma200)} (${g(grade.trend200(dist200), signedPercent(dist200))})`),
-          line("RSI(14)", `${g(grade.rsi(item.rsi14), fixed(item.rsi14))} | <strong>30d Realized Vol:</strong> ${percent(item.hv30)}`),
-          line("Entry support", isNum(lv.entrySupport) ? `${money(lv.entrySupport)} (${escapeHtml(lv.entryMethod)}, −${percent(lv.downside)})` : "N/A"),
-          line("Structural support", isNum(lv.structural) ? `${money(lv.structural)} (−${percent(lv.toStructural)}) | <strong>Resistance:</strong> ${lv.resistance ? money(lv.resistance) : "clear"}` : "N/A"),
-          line("Return vs SPY", `3m ${vsSpy("return3m")} | 12m ${vsSpy("return12m")}`),
-          `<div class="muted" style="font-size:11px;">Entry support is the nearest 50/200-day SMA or 3-month swing low within about a month's typical move; structural support is the one-year swing low. Volume ${isNum(item.volume) ? item.volume.toLocaleString() : "N/A"} vs 20d avg ${isNum(item.avgVolume20) ? item.avgVolume20.toLocaleString() : "N/A"}.</div>`
+          metric("Price", money(item.price)),
+          metric("52-week range", isNum(item.high52) ? `${signedPercent(item.price / item.high52 - 1)} from the high` : "N/A",
+            rangeBar({ min: item.low52, max: item.high52, value: item.price, labels: [`Low ${money(item.low52)}`, `High ${money(item.high52)}`] })),
+          metric("RSI (14)", g(rsiTone, fixed(item.rsi14)),
+            rangeBar({ min: 0, max: 100, value: item.rsi14, tone: rsiTone, band: [30, 70], labels: ["Oversold &lt; 30", "Healthy", "Overbought &gt; 70"] })),
+          metric("Price vs 50-day SMA", smaLine(dist50, grade.trend50(dist50), item.sma50)),
+          metric("Price vs 200-day SMA", smaLine(dist200, grade.trend200(dist200), item.sma200)),
+          metric("20-day SMA", money(item.sma20)),
+          metric("3-month return vs SPY", vsSpy("return3m")),
+          metric("12-month return vs SPY", vsSpy("return12m")),
+          metric("30-day realized volatility", percent(item.hv30)),
+          metric("Volume", isNum(item.volume) && isNum(item.avgVolume20) && item.avgVolume20 > 0
+            ? `${(item.volume / item.avgVolume20).toFixed(2)}× the 20-day average` : "N/A")
         ].join("");
 
         const usd = f?.reportingCurrency === "USD";
         const trajectoryText = { getting_stronger: "Getting Stronger", roughly_unchanged: "Roughly Unchanged", getting_weaker: "Getting Weaker" }[f?.direction];
         document.getElementById("modalFundamentalDetails").innerHTML = f ? [
-          line("Revenue Growth", `${g(grade.revenueGrowth(f.revenueGrowthYoY), signedPercent(f.revenueGrowthYoY))} | <strong>Earnings Growth:</strong> ${g(grade.earningsGrowth(f.earningsGrowthYoY), signedPercent(f.earningsGrowthYoY))}`),
-          line("Operating Margin", `${g(grade.operatingMargin(f.operatingMargin), percent(f.operatingMargin))}${isNum(f.operatingMarginChange) ? ` (${g(grade.marginChange(f.operatingMarginChange), signedPercent(f.operatingMarginChange))} YoY)` : ""}`),
-          line("Free Cash Flow", `${usd ? g(grade.freeCashFlow(f.freeCashFlow), compactUsd(f.freeCashFlow)) : "N/A"}${f.fcfTrend ? ` (${g(grade.fcfTrend(f.fcfTrend), f.fcfTrend)})` : ""} | <strong>Net Debt/EBITDA:</strong> ${g(grade.leverage(f.netDebtToEbitda), multiple(f.netDebtToEbitda))}`),
-          line("Trajectory", trajectoryText ? g(grade.trajectory(trajectoryText), trajectoryText) : "N/A"),
-          `<div class="muted" style="font-size:11px;">${f.basis === "ttm" ? "Trailing twelve months" : "Latest quarter vs same quarter last year"} ending ${escapeHtml(f.periodEnd)}${f.foreignFiler ? " (foreign filer)" : ""}. Source: SEC EDGAR filings.</div>`
-        ].join("") : `<div>${item.etf ? "N/A (ETF)" : "N/A (no recent SEC filing data)"}</div>`;
+          metric("Revenue growth", g(grade.revenueGrowth(f.revenueGrowthYoY), signedPercent(f.revenueGrowthYoY))),
+          metric("Earnings growth", g(grade.earningsGrowth(f.earningsGrowthYoY), signedPercent(f.earningsGrowthYoY))),
+          metric("Operating margin", `${g(grade.operatingMargin(f.operatingMargin), percent(f.operatingMargin))}${isNum(f.operatingMarginChange) ? g(grade.marginChange(f.operatingMarginChange), `${signedPercent(f.operatingMarginChange)} YoY`) : ""}`),
+          metric("Free cash flow", `${usd ? g(grade.freeCashFlow(f.freeCashFlow), compactUsd(f.freeCashFlow)) : "N/A"}${f.fcfTrend ? g(grade.fcfTrend(f.fcfTrend), f.fcfTrend) : ""}`),
+          metric("Net debt / EBITDA", g(grade.leverage(f.netDebtToEbitda), multiple(f.netDebtToEbitda))),
+          metric("Trajectory", trajectoryText ? g(grade.trajectory(trajectoryText), trajectoryText) : "N/A"),
+          note(`${f.basis === "ttm" ? "Trailing twelve months" : "Latest quarter vs same quarter last year"} ending ${escapeHtml(f.periodEnd)}${f.foreignFiler ? " (foreign filer)" : ""}. Source: SEC EDGAR filings.`)
+        ].join("") : `<div class="muted">${item.etf ? "N/A (ETF)" : "N/A (no recent SEC filing data)"}</div>`;
 
         const upside = isNum(c.oneYearTarget) ? c.oneYearTarget / item.price - 1 : null;
         const valuation = valuationLabel(item);
+        const vsHistory = isNum(v.forwardPe) && isNum(v.historical5yPe) && v.historical5yPe > 0 ? v.forwardPe / v.historical5yPe - 1 : null;
         document.getElementById("modalValuationDetails").innerHTML = [
-          line("Forward P/E (NTM)", `${g(grade.forwardPe(v.forwardPe), multiple(v.forwardPe))} | <strong>Trailing:</strong> ${multiple(v.trailingPe)} | <strong>5y Avg:</strong> ${multiple(v.historical5yPe)}`),
-          line("PEG", `${g(grade.peg(v.pegRatio), fixed(v.pegRatio, 2))} | <strong>FCF Yield:</strong> ${g(grade.fcfYield(v.fcfYield), percent(v.fcfYield))} | <strong>Market Cap:</strong> ${compactUsd(item.marketCap)}`),
-          line("Assessment", valuation ? g({ Cheap: "pos", Fair: "warn", Expensive: "neg", Extreme: "neg", Unprofitable: "neg" }[valuation], valuation) : (item.etf ? "N/A (ETF)" : "N/A"))
+          metric("Assessment", valuation ? g({ Cheap: "pos", Fair: "warn", Expensive: "neg", Extreme: "neg", Unprofitable: "neg" }[valuation], valuation) : (item.etf ? "N/A (ETF)" : "N/A")),
+          metric("Forward P/E (next 12 months)", g(grade.forwardPe(v.forwardPe), multiple(v.forwardPe))),
+          metric("Forward P/E vs its 5-year average", isNum(vsHistory) ? `${signedPercent(vsHistory)} <span class="muted" style="font-weight:400;">avg ${multiple(v.historical5yPe)}</span>` : "N/A"),
+          metric("Trailing P/E", multiple(v.trailingPe)),
+          metric("PEG", g(grade.peg(v.pegRatio), fixed(v.pegRatio, 2))),
+          metric("FCF yield", g(grade.fcfYield(v.fcfYield), percent(v.fcfYield))),
+          metric("Market cap", compactUsd(item.marketCap))
         ].join("");
 
         document.getElementById("modalCatalystDetails").innerHTML = [
-          line("Next Earnings", c.nextEarningsDate ? g(grade.earningsDays(c.daysToEarnings), `${escapeHtml(c.nextEarningsDate)} (${c.daysToEarnings} days${c.earningsDateEstimated ? ", estimated" : ""})`) : (item.etf ? "N/A (ETF)" : "Not announced")),
-          line("Analysts", isNum(c.analystCount) ? `${c.analystCount} | <strong>4-week EPS revisions:</strong> ${g(grade.revisions(c.revisionsUp, c.revisionsDown), `${c.revisionsUp} up / ${c.revisionsDown} down`)}` : "N/A"),
-          line("1y Price Target", isNum(c.oneYearTarget) ? g(grade.targetUpside(upside), `${money(c.oneYearTarget)} (${signedPercent(upside)})`) : "N/A")
+          metric("Next earnings", c.nextEarningsDate ? g(grade.earningsDays(c.daysToEarnings), `${escapeHtml(c.nextEarningsDate)} (${c.daysToEarnings} days${c.earningsDateEstimated ? ", estimated" : ""})`) : (item.etf ? "N/A (ETF)" : "Not announced")),
+          metric("Analysts covering", isNum(c.analystCount) ? c.analystCount : "N/A"),
+          metric("EPS revisions (4 weeks)", isNum(c.revisionsUp) ? g(grade.revisions(c.revisionsUp, c.revisionsDown), `${c.revisionsUp} up / ${c.revisionsDown} down`) : "N/A"),
+          metric("1-year price target", isNum(c.oneYearTarget) ? g(grade.targetUpside(upside), `${money(c.oneYearTarget)} (${signedPercent(upside)})`) : "N/A")
         ].join("");
 
         const spec = (k, val) => `<div class="spec-item"><div class="spec-k">${k}</div><div class="spec-v">${val}</div></div>`;
@@ -2724,7 +2917,12 @@
 
         document.getElementById("modalEpistemicDetails").innerHTML = `
           <div><span class="epistemic-tag tag-fact">FACT</span> ${money(item.price)} as of ${escapeHtml(shortDateTime(item.asOf))} (${escapeHtml(item.sources.prices)}); forward P/E ${multiple(v.forwardPe)}; RSI ${fixed(item.rsi14)}.</div>
-          <div><span class="epistemic-tag tag-interpretation">INTERPRETATION</span> ${escapeHtml(e.flags.join("; ") || "No technical, fundamental or valuation flags triggered.")}</div>
+          <div>
+            <div style="margin-bottom:6px;"><span class="epistemic-tag tag-interpretation">INTERPRETATION</span></div>
+            ${e.flags.length
+              ? `<div class="flag-list">${e.flags.map(flag => g(e.warnings.includes(flag) ? "neg" : "pos", escapeHtml(flag))).join("")}</div>`
+              : "No technical, fundamental or valuation flags triggered."}
+          </div>
           <div><span class="epistemic-tag tag-speculation">SPECULATION</span> If entry support ${money(lv.entrySupport)} holds, a move to the ${escapeHtml(lv.targetSource)} ${money(lv.target)} would be ${signedPercent(lv.upside)}.</div>
           ${this.thesisFor(item.ticker) ? `<div><span class="epistemic-tag tag-speculation">YOUR THESIS</span> ${escapeHtml(this.thesisFor(item.ticker))}</div>` : ""}
         `;
@@ -2747,6 +2945,60 @@
         `;
 
         this.detailModal.classList.add("active");
+      }
+
+      /**
+       * One line from the thesis-break level to the target with today's price on it: red is the distance at risk to the
+       * stop, green the distance to the target, so reward/risk reads from the lengths before any number does.
+       */
+      priceMap(item, lv) {
+        const price = item.price;
+        const stop = lv.entrySupport;
+        const thesis = isNum(lv.structural) && (!isNum(stop) || Math.abs(lv.structural / stop - 1) > 0.001) ? lv.structural : null;
+        const values = [price, stop, thesis, lv.target, lv.zoneHigh].filter(isNum);
+        const lo = Math.min(...values);
+        const hi = Math.max(...values);
+        const pad = (hi - lo) * 0.05 || price * 0.02;
+        const at = (v) => (v - (lo - pad)) / (hi - lo + 2 * pad) * 100;
+        const segment = (a, b, cls) => isNum(a) && isNum(b)
+          ? `<span class="pm-seg ${cls}" style="left:${at(Math.min(a, b))}%; width:${at(Math.max(a, b)) - at(Math.min(a, b))}%"></span>` : "";
+        const mark = (v, color, title) => isNum(v) ? `<span class="pm-mark" style="left:${at(v)}%; background:${color};" title="${escapeHtml(title)}"></span>` : "";
+        const nowAt = at(price);
+        const nowShift = nowAt < 12 ? "0" : nowAt > 88 ? "-100%" : "-50%";
+        const key = (color, outline = false) => `<i class="pm-key" style="${outline ? `border:1px solid ${color}; background:rgba(79, 176, 105, 0.18)` : `background:${color}`};"></i>`;
+        const below = (v) => `−${percent((price - v) / price)} from here`;
+
+        const legend = [
+          isNum(thesis) ? `<div><span>${key("var(--neg)")}Thesis breaks</span><b>${money(thesis)}</b><span>${below(thesis)} · one-year swing low</span></div>` : "",
+          isNum(stop) ? `<div><span>${key("var(--warn)")}${thesis === null && isNum(lv.structural) ? "Stop and thesis break" : "Stop"}</span><b>${money(stop)}</b><span>${below(stop)} · ${escapeHtml(lv.entryMethod)}</span></div>` : "",
+          isNum(lv.zoneLow) ? `<div><span>${key("rgba(79, 176, 105, 0.7)", true)}Preferred entry</span><b>${money(lv.zoneLow)}–${money(lv.zoneHigh)}</b><span>${lv.distanceFromIdeal === 0 ? "price is in the zone" : `price is ${signedPercent(lv.distanceFromIdeal)} above it`}</span></div>` : "",
+          `<div><span>${key("var(--pos)")}Target</span><b>${money(lv.target)}</b><span>${signedPercent(lv.upside)} from here · ${escapeHtml(lv.targetSource)}</span></div>`
+        ].join("");
+
+        const rr = lv.rewardRisk;
+        const needed = RULES.buyZone.rewardRisk;
+        const rrTone = !isNum(rr) ? "" : rr >= needed ? "pos" : rr >= 1 ? "warn" : "neg";
+        const summary = isNum(rr)
+          ? `Risking <strong class="tone-neg">−${percent(lv.downside)}</strong> to the stop for <strong class="tone-pos">${signedPercent(lv.upside)}</strong> to the target:
+             <span class="val val-${rrTone}">${rr.toFixed(1)} : 1 reward/risk</span> <span class="muted">(the buy zone needs ${needed} : 1)</span>`
+          : `<span class="muted">No stop below price, so reward/risk can't be measured.</span>`;
+
+        return `
+          <div class="price-map" role="img" aria-label="Price ${money(price)} between the stop ${money(stop)} and the target ${money(lv.target)}">
+            <div class="pm-track">
+              ${segment(stop, price, "pm-risk")}
+              ${segment(price, lv.target, "pm-reward")}
+              ${isNum(lv.zoneLow) ? `<span class="pm-zone" style="left:${at(lv.zoneLow)}%; width:${at(lv.zoneHigh) - at(lv.zoneLow)}%"></span>` : ""}
+              ${mark(thesis, "var(--neg)", "Thesis breaks")}
+              ${mark(stop, "var(--warn)", "Stop")}
+              ${mark(lv.target, "var(--pos)", "Target")}
+              <span class="pm-now" style="left:${nowAt}%"></span>
+              <span class="pm-now-label" style="left:${nowAt}%; transform:translateX(${nowShift});">Now ${money(price)}</span>
+            </div>
+            <div class="pm-legend">${legend}</div>
+            <div class="pm-summary">${summary}</div>
+            <div class="metric-note">The stop is entry support: the nearest 50/200-day SMA or 3-month swing low within about a month's typical move. The longer-term thesis breaks at structural support, the one-year swing low.</div>
+          </div>`;
       }
 
       /** Bear/bull meter for the chosen period, from price action only; the bear case and invalidation levels follow. */
@@ -2778,9 +3030,11 @@
         document.getElementById("modalBearCaseDetails").innerHTML = `
           ${picker}
           ${meter}
-          <div class="muted" style="font-size:11px; margin-bottom:8px;">Price action only, looking back: the period's return in units of the stock's typical move, its return vs SPY, and where price sits against the matching trend line (20-day for 5d, 50-day for 30d, 200-day for 6m/12m). Not a forecast and not part of any score.</div>
-          <div><strong>Bear Case:</strong> ${escapeHtml(e.bearCase.bearCase)}</div>
-          <div><strong>Invalidation:</strong> ${escapeHtml(e.bearCase.invalidationLevel)}</div>
+          <div class="metric-note" style="margin-bottom:18px;">Price action only: the period's return in units of the stock's typical move, its return vs SPY, and where price sits against the matching trend line (20-day for 5d, 50-day for 30d, 200-day for 6m/12m). Not part of any score.</div>
+          <div class="diag-grid">
+            <div><div class="diag-title">Bear case</div><div>${escapeHtml(e.bearCase.bearCase)}</div></div>
+            <div><div class="diag-title">Invalidation</div><div>${escapeHtml(e.bearCase.invalidationLevel)}</div></div>
+          </div>
         `;
       }
 
@@ -2810,8 +3064,18 @@
         const link = (url, text) => /^https?:\/\//.test(url)
           ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(text)}</a>`
           : escapeHtml(text);
-        const toneClass = { negative: "tone-neg", positive: "tone-pos", neutral: "" };
+        const tones = { negative: ["neg", "Negative"], positive: ["pos", "Positive"], neutral: ["muted", "Neutral"] };
         const dateText = (iso) => new Date(iso.length === 10 ? `${iso}T12:00:00` : iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+        const newsCard = (h) => {
+          const [tone, word] = tones[h.tone] ?? tones.neutral;
+          const inner = `
+            <span class="val val-${tone}">${word}</span>
+            <span class="news-title">${escapeHtml(h.title)}</span>
+            <span class="news-meta">${escapeHtml(h.publisher)} · ${escapeHtml(dateText(h.published))}</span>`;
+          return /^https?:\/\//.test(h.url)
+            ? `<a class="news-card tint-${tone}" href="${escapeHtml(h.url)}" target="_blank" rel="noopener noreferrer">${inner}</a>`
+            : `<div class="news-card tint-${tone}">${inner}</div>`;
+        };
 
         const summary = [quarterSummary(item), capitalReturns(item)].filter(Boolean);
         const actions = filingActions(item);
@@ -2819,20 +3083,26 @@
         el.innerHTML = `
           ${summary.length ? `<div>${summary.map(escapeHtml).join(" ")}</div>` : '<div class="muted">No recent quarterly figures in SEC filings.</div>'}
           <div>
-            <strong>SEC 8-K events (last 120 days)</strong>
+            <div class="dev-block-title">SEC 8-K events <span class="dev-meta">last 120 days</span></div>
             ${item.filingEvents === null || item.filingEvents === undefined
               ? '<div class="muted">Filings could not be read in the last data build.</div>'
               : actions.length
-                ? `<ul class="dev-list">${actions.map(a => `<li><span class="${toneClass[a.tone]}">${link(a.url, a.label)}</span> <span class="dev-meta">${escapeHtml(dateText(a.date))}</span></li>`).join("")}</ul>`
+                ? actions.map(a => `<div class="filing-row"><span>${a.tone === "negative" ? `<span class="val val-neg">${link(a.url, a.label)}</span>` : link(a.url, a.label)}</span><span class="dev-meta">${escapeHtml(dateText(a.date))}</span></div>`).join("")
                 : '<div class="muted">None beyond routine results releases.</div>'}
           </div>
           <div>
-            <strong>Headlines (last 7 days)</strong>
+            <div class="news-head">
+              <div class="dev-block-title" style="margin:0;">Headlines <span class="dev-meta">last 7 days</span></div>
+              ${headlines.length > 1 ? `<div class="news-nav">
+                <button type="button" data-news-scroll="-1" aria-label="Earlier headlines">‹</button>
+                <button type="button" data-news-scroll="1" aria-label="More headlines">›</button>
+              </div>` : ""}
+            </div>
             ${headlines.length
-              ? `<ul class="dev-list">${headlines.map(h => `<li><span class="${toneClass[h.tone]}">${h.tone === "neutral" ? "" : h.tone === "positive" ? "+ " : "− "}</span>${link(h.url, h.title)} <span class="dev-meta">${escapeHtml(h.publisher)} · ${escapeHtml(dateText(h.published))}</span></li>`).join("")}</ul>`
+              ? `<div class="news-strip" tabindex="0" aria-label="Headlines">${headlines.map(newsCard).join("")}</div>`
               : `<div class="muted">${item.headlines ? "No headlines naming the company." : "Headlines could not be read in the last data build."}</div>`}
           </div>
-          <div class="dev-meta">8-K events are labeled from the item numbers the company selected on the form. Headline tone (+/−) is a keyword match on event words like "downgrade" or "raises guidance", not analysis; most headlines are opinion and stay neutral.</div>
+          <div class="metric-note" style="margin-top:0;">8-K events are labeled from the item numbers the company selected on the form. Headline tone is a keyword match on event words like "downgrade" or "raises guidance", not analysis; most headlines are opinion and stay neutral.</div>
         `;
       }
 
