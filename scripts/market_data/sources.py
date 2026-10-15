@@ -19,6 +19,8 @@ class PriceHistory:
     volume: list
     last_price: float
     last_time: str
+    # Daily opens, for drawing real candles; None when the source didn't give them. Nothing scored reads them.
+    open: list = None
 
 
 def _bars(source, rows, last_price, last_time):
@@ -26,6 +28,7 @@ def _bars(source, rows, last_price, last_time):
     for row in rows:
         by_date[row[0]] = row
     ordered = [by_date[d] for d in sorted(by_date)]
+    opens = [r[5] if len(r) > 5 else None for r in ordered]
     if len(ordered) < 30:
         raise FetchError(f"{source}: only {len(ordered)} daily bars")
     return PriceHistory(
@@ -37,6 +40,7 @@ def _bars(source, rows, last_price, last_time):
         volume=[r[4] for r in ordered],
         last_price=last_price if last_price else ordered[-1][3],
         last_time=last_time,
+        open=opens if all(o is not None for o in opens) else None,
     )
 
 
@@ -56,8 +60,9 @@ class YahooChart:
         meta, quotes = chart["meta"], chart["indicators"]["quote"][0]
         offset = timedelta(seconds=meta.get("gmtoffset", 0))
         rows = [
-            ((datetime.fromtimestamp(ts, timezone.utc) + offset).date(), h, l, c, v or 0)
-            for ts, h, l, c, v in zip(chart["timestamp"], quotes["high"], quotes["low"], quotes["close"], quotes["volume"])
+            ((datetime.fromtimestamp(ts, timezone.utc) + offset).date(), h, l, c, v or 0, o)
+            for ts, h, l, c, v, o in zip(chart["timestamp"], quotes["high"], quotes["low"], quotes["close"], quotes["volume"],
+                                         quotes.get("open") or [None] * len(chart["timestamp"]))
             if None not in (h, l, c)
         ]
         market_time = meta.get("regularMarketTime")
@@ -83,12 +88,13 @@ class NasdaqHistory:
         rows = []
         for r in table:
             try:
-                rows.append((datetime.strptime(r["date"], "%m/%d/%Y").date(), num(r["high"]), num(r["low"]), num(r["close"]), int(num(r["volume"]))))
+                rows.append((datetime.strptime(r["date"], "%m/%d/%Y").date(), num(r["high"]), num(r["low"]), num(r["close"]), int(num(r["volume"])),
+                             num(r["open"]) if r.get("open") not in (None, "", "N/A") else None))
             except (KeyError, ValueError):
                 continue
         if not rows:
             raise FetchError(f"Nasdaq returned no price history for {symbol}")
-        latest = max(rows)
+        latest = max(rows, key=lambda r: r[0])
         return _bars(self.name, rows, latest[3], latest[0].isoformat())
 
 

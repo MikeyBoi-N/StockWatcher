@@ -1,0 +1,1442 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Simulator · StockWatcher</title>
+  <style>
+    :root {
+      --bg: #0e0e0f;
+      --surface: #151517;
+      --surface-2: #1b1b1e;
+      --surface-3: #232327;
+      --border: #26262a;
+      --border-strong: #37373c;
+      --text: #ececec;
+      --text-2: #a3a3a8;
+      --text-3: #6f6f75;
+      --pos: #4fb069;
+      --warn: #d6a73a;
+      --neg: #e0605a;
+      /* The forecast's own hue: every simulated mark wears it, so real and simulated never blur together. */
+      --sim: #a66bd8;
+      /* The highlighted most-typical run: the same hue, lighter, so it reads as one of the simulations. */
+      --sim-strong: #c58cf7;
+
+      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+      --radius: 6px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    [hidden] { display: none !important; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font-sans);
+      font-size: 14px;
+      line-height: 1.5;
+      min-height: 100vh;
+      padding-bottom: 48px;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    button, input, select { font: inherit; color: inherit; }
+    a { color: var(--text); }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
+      padding: 10px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+    }
+    .brand { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; color: var(--text); text-decoration: none; }
+    .header-actions { display: flex; align-items: center; gap: 8px; }
+    .btn-secondary {
+      border-radius: var(--radius);
+      padding: 6px 12px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      white-space: nowrap;
+      text-decoration: none;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+    }
+    .btn-secondary:hover { background: var(--surface-2); border-color: var(--border-strong); }
+
+    .page {
+      max-width: 1600px;
+      margin: 0 auto;
+      padding: 20px 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .page-head { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px 16px; }
+    .page-head h1 { font-size: 18px; font-weight: 600; letter-spacing: -0.01em; }
+    .data-freshness { font-size: 12px; color: var(--text-3); }
+    .data-freshness strong { color: var(--text-2); font-weight: 500; }
+
+    .toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 16px; }
+    .field { display: flex; align-items: center; gap: 8px; }
+    .field > span { font-size: 12px; color: var(--text-3); }
+    .segmented { display: inline-flex; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+    .filter-btn {
+      background: transparent;
+      border: none;
+      border-right: 1px solid var(--border);
+      color: var(--text-2);
+      font-size: 13px;
+      padding: 6px 12px;
+      cursor: pointer;
+    }
+    .filter-btn:last-child { border-right: none; }
+    .filter-btn:hover:not(:disabled) { color: var(--text); background: var(--surface-2); }
+    .filter-btn.active { background: var(--surface-3); color: var(--text); }
+    .filter-btn:disabled { color: var(--text-3); cursor: not-allowed; }
+    .select, .num-input {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 6px 10px;
+      font-size: 13px;
+    }
+    .num-input { width: 64px; }
+    .hint { font-size: 11px; color: var(--text-3); }
+    .select:focus, .num-input:focus { outline: none; border-color: var(--border-strong); }
+    .settings { font-size: 13px; }
+    .settings .select { padding: 4px 8px; }
+
+    .overview {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--surface);
+    }
+    .stat { padding: 12px 16px; border-right: 1px solid var(--border); min-width: 0; }
+    .stat:last-child { border-right: none; }
+    .stat-label { font-size: 12px; color: var(--text-3); margin-bottom: 2px; }
+    .stat-value { font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; }
+    .stat-sub { font-size: 12px; color: var(--text-2); font-variant-numeric: tabular-nums; }
+    @media (max-width: 700px) { .stat { border-right: none; border-bottom: 1px solid var(--border); } }
+
+    .tone-pos { color: var(--pos); }
+    .tone-warn { color: var(--warn); }
+    .tone-neg { color: var(--neg); }
+    .tone-muted { color: var(--text-3); }
+
+    .card { border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
+    .card-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      flex-wrap: wrap;
+      gap: 6px 16px;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    .card-head h2 { font-size: 14px; font-weight: 600; }
+    .card-head .sub { font-size: 12px; color: var(--text-3); }
+    .card-body { padding: 12px 16px; }
+
+    .chart-wrap { position: relative; height: 460px; }
+    @media (max-width: 700px) { .chart-wrap { height: 340px; } }
+    .chart-wrap canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+    #overlay { cursor: crosshair; }
+    .chart-status {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-3);
+      font-size: 13px;
+      text-align: center;
+      padding: 16px;
+    }
+    .tooltip {
+      position: absolute;
+      pointer-events: none;
+      background: var(--surface-2);
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius);
+      padding: 8px 10px;
+      font-size: 12px;
+      font-variant-numeric: tabular-nums;
+      min-width: 170px;
+      z-index: 5;
+    }
+    .tooltip .tt-title { color: var(--text-2); margin-bottom: 4px; }
+    .tooltip .tt-row { display: flex; justify-content: space-between; gap: 16px; }
+    .tooltip .tt-row span:first-child { color: var(--text-3); }
+
+    .chart-foot {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px 20px;
+      padding: 10px 16px;
+      border-top: 1px solid var(--border);
+      font-size: 12px;
+      color: var(--text-2);
+    }
+    .legend { display: flex; flex-wrap: wrap; gap: 6px 16px; }
+    .legend span { display: inline-flex; align-items: center; gap: 6px; }
+    .swatch { width: 10px; height: 10px; border-radius: 2px; flex: none; }
+    .swatch.hollow { border: 1.5px solid var(--pos); }
+    .swatch.filled { background: var(--neg); }
+    .swatch.sim { background: var(--sim); }
+    .swatch.real { border: 1.5px solid var(--text); }
+    .swatch.likely { border: 1.5px solid var(--sim-strong); }
+    .replay { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; }
+    .replay input[type=range] { width: 200px; accent-color: var(--sim); }
+    .replay output { min-width: 96px; color: var(--text); font-variant-numeric: tabular-nums; }
+    .step-btn { padding: 3px 8px; font-size: 12px; }
+    .replay .num-input { width: 70px; padding: 4px 8px; }
+
+    .split { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 16px; }
+    @media (max-width: 1000px) { .split { grid-template-columns: minmax(0, 1fr); } }
+
+    .verdict-line { font-size: 13px; color: var(--text-2); margin-bottom: 10px; }
+    .verdict-line strong { color: var(--text); font-weight: 600; }
+    .table-wrap { overflow-x: auto; }
+    .bench { border-collapse: collapse; width: 100%; font-size: 13px; font-variant-numeric: tabular-nums; }
+    .bench th, .bench td { padding: 7px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; text-align: right; }
+    .bench th:first-child, .bench td:first-child { text-align: left; }
+    .bench thead th { color: var(--text-3); font-weight: 500; font-size: 12px; }
+    .bench tbody tr:last-child td { border-bottom: none; }
+    .bench tr.current td { background: var(--surface-2); }
+    .bench tr.group td { color: var(--text-3); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; padding-top: 12px; }
+    .bench tr.headline td { font-weight: 600; }
+    .bench .target { color: var(--text-3); font-size: 11px; margin-left: 4px; }
+    .footnote { font-size: 12px; color: var(--text-3); margin-top: 10px; }
+    .footnote + .footnote { margin-top: 4px; }
+
+    .patterns { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+    .pattern { border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface-2); padding: 6px; }
+    .pattern canvas { width: 100%; height: 64px; display: block; }
+    .pattern .cap { display: flex; justify-content: space-between; gap: 6px; font-size: 11px; color: var(--text-3); margin-top: 4px; font-variant-numeric: tabular-nums; }
+    .pattern .cap strong { font-weight: 600; }
+
+    .score-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px 24px; margin-top: 4px; }
+    @media (max-width: 1000px) { .score-grid { grid-template-columns: minmax(0, 1fr); } }
+    .card-body h3 { font-size: 12px; font-weight: 500; color: var(--text-3); margin: 6px 0 4px; }
+    .card-body .toolbar { margin-bottom: 10px; }
+
+    details.notes summary { cursor: pointer; padding: 12px 16px; font-size: 14px; font-weight: 600; list-style: none; }
+    details.notes summary::-webkit-details-marker { display: none; }
+    details.notes summary::before { content: "+ "; color: var(--text-3); }
+    details.notes[open] summary::before { content: "− "; }
+    details.notes .card-body { border-top: 1px solid var(--border); font-size: 13px; color: var(--text-2); display: grid; gap: 10px; max-width: 900px; }
+    details.notes strong { color: var(--text); font-weight: 600; }
+    .fan-table { margin-top: 4px; }
+
+    @media (max-width: 600px) {
+      .topbar, .page { padding-left: 16px; padding-right: 16px; }
+      .field { flex-wrap: wrap; max-width: 100%; }
+      .segmented { flex-wrap: wrap; max-width: 100%; }
+      .replay input[type=range] { width: 140px; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="./">StockWatcher</a>
+    <div class="header-actions">
+      <a class="btn-secondary" href="./">Overview</a>
+    </div>
+  </header>
+
+  <main class="page">
+    <div class="page-head">
+      <h1>Simulator</h1>
+      <div id="freshness" class="data-freshness">Loading…</div>
+    </div>
+
+    <div class="toolbar">
+      <label class="field"><span>Symbol</span><select id="symbol" class="select"></select></label>
+      <div class="field"><span>Candles</span><div class="segmented" id="timeframe"></div></div>
+      <div class="field"><span>Model</span><div class="segmented" id="model"></div></div>
+      <div class="field"><span>View</span><div class="segmented" id="view"></div>
+        <div class="segmented"><button class="filter-btn" id="likelyToggle" aria-pressed="true" title="Highlight the simulated run that stays in the densest part of the cloud">Likely path</button></div></div>
+    </div>
+
+    <div class="toolbar settings">
+      <label class="field"><span>Horizon</span><select id="horizon" class="select"></select></label>
+      <label class="field"><span>Paths</span><select id="paths" class="select"></select></label>
+      <label class="field" title="How many recent candles a pattern spans"><span>Pattern length</span><select id="window" class="select"></select></label>
+      <label class="field" title="How many past patterns the analog model replays"><span>Matches</span><select id="neighbors" class="select"></select></label>
+      <label class="field" title="Commission per side, in basis points (60 = 0.60%). Stock defaults assume a commission-free broker; crypto defaults assume Coinbase's entry-tier taker fee."><span>Fee / side (bps)</span><input id="fee" class="num-input" type="number" min="0" max="300" step="1" /></label>
+      <label class="field" title="Bid/ask spread plus slippage for one round trip, in basis points"><span>Spread + slippage (bps)</span><input id="spread" class="num-input" type="number" min="0" max="300" step="0.5" /><span class="hint" id="spreadHint"></span></label>
+      <button class="btn-secondary" id="reset" title="Back to the latest real candles and default inputs, showing the model that scored best in the backtest">Reset to live forecast</button>
+    </div>
+
+    <section class="overview">
+      <div class="stat"><div class="stat-label">Last close</div><div class="stat-value" id="statLast">—</div><div class="stat-sub" id="statLastSub"></div></div>
+      <div class="stat"><div class="stat-label">Volatility</div><div class="stat-value" id="statVol">—</div><div class="stat-sub" id="statVolSub"></div></div>
+      <div class="stat"><div class="stat-label" id="statMedianLabel">Median outcome</div><div class="stat-value" id="statMedian">—</div><div class="stat-sub" id="statMedianSub"></div></div>
+      <div class="stat"><div class="stat-label">90% of paths end between</div><div class="stat-value" id="statRange">—</div><div class="stat-sub" id="statRangeSub"></div></div>
+      <div class="stat"><div class="stat-label">Paths ending higher</div><div class="stat-value" id="statUp">—</div><div class="stat-sub" id="statUpSub"></div></div>
+      <div class="stat" id="statIvTile" hidden title="Annualized volatility the options market is pricing (at-the-money call, from the latest data build) next to the volatility of this model's simulated paths over the horizon"><div class="stat-label">Options vs model volatility</div><div class="stat-value" id="statIv">—</div><div class="stat-sub" id="statIvSub"></div></div>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <h2 id="chartTitle">Simulated futures</h2>
+        <div class="sub" id="chartSub"></div>
+      </div>
+      <div class="chart-wrap" id="chartWrap">
+        <canvas id="chart" aria-hidden="true"></canvas>
+        <canvas id="overlay" role="img" aria-label="Price chart with simulated future paths"></canvas>
+        <div class="chart-status" id="chartStatus">Loading candles…</div>
+        <div class="tooltip" id="tooltip" hidden></div>
+      </div>
+      <div class="chart-foot">
+        <div class="legend">
+          <span><i class="swatch hollow"></i>Up candle</span>
+          <span><i class="swatch filled"></i>Down candle</span>
+          <span><i class="swatch sim"></i>Simulated</span>
+          <span id="legendLikely"><i class="swatch likely"></i>Most likely path</span>
+          <span id="legendReal" hidden><i class="swatch real"></i>What actually happened</span>
+        </div>
+        <div class="replay" title="Move the forecast back in time and reveal what really followed">
+          <span>Forecast from</span>
+          <button class="btn-secondary step-btn" data-step="-horizon" title="One horizon further back">« H</button>
+          <button class="btn-secondary step-btn" data-step="-1" title="One candle further back">‹</button>
+          <input type="range" id="replay" min="0" max="0" step="1" value="0" aria-label="Candles ago" />
+          <button class="btn-secondary step-btn" data-step="1" title="One candle closer to now">›</button>
+          <button class="btn-secondary step-btn" data-step="horizon" title="One horizon closer to now">H »</button>
+          <label class="field"><input type="number" id="replayNum" class="num-input" min="0" step="1" value="0" aria-label="Candles ago" /><span>candles ago</span></label>
+          <output id="replayOut">now</output>
+        </div>
+      </div>
+    </section>
+
+    <div class="split">
+      <section class="card">
+        <div class="card-head">
+          <h2>Did the forecasts hold up?</h2>
+          <div class="sub" id="testSub"></div>
+        </div>
+        <div class="card-body">
+          <div class="verdict-line" id="verdict">Running the backtest…</div>
+          <div class="table-wrap">
+            <table class="bench">
+              <thead>
+                <tr>
+                  <th>Model</th>
+                  <th title="How much closer the forecasts were than the random walk's, by CRPS. Positive is better.">Skill vs random walk</th>
+                  <th title="Share of outcomes that landed inside the model's 90% band">In 90% band</th>
+                  <th title="Share of outcomes that landed inside the model's 50% band">In 50% band</th>
+                  <th title="Times at least 60% of paths agreed on a direction, and how often that direction was right">Direction calls</th>
+                  <th title="Average return of following each call for the horizon, after one round trip of fees, spread and slippage">Avg per call</th>
+                </tr>
+              </thead>
+              <tbody id="scoreBody"></tbody>
+            </table>
+          </div>
+          <div class="footnote" id="testNote"></div>
+          <div class="footnote" id="testWarn"></div>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-head">
+          <h2 id="patternTitle">Closest past patterns</h2>
+          <div class="sub" id="patternSub"></div>
+        </div>
+        <div class="card-body">
+          <div class="verdict-line" id="patternSummary"></div>
+          <div class="patterns" id="patterns"></div>
+        </div>
+      </section>
+    </div>
+
+    <section class="card">
+      <div class="card-head">
+        <h2>Does the app's analysis work?</h2>
+        <div class="sub" id="scoreSub"></div>
+      </div>
+      <div class="card-body">
+        <div class="toolbar">
+          <div class="field"><span>Measured over</span><div class="segmented" id="scoreHorizon"></div></div>
+          <div class="field" title="App's list: the stocks this site tracks (hand-picked, leaning to big winners). Broad list adds a rule-based set of large caps."><span>Stocks</span><div class="segmented" id="scoreUniverse"></div></div>
+          <div class="field" title="Risk-adjusted subtracts beta times SPY's return, so a stock doesn't get credit just for moving more than the market"><span>Compared with</span><div class="segmented" id="benchmark"></div></div>
+        </div>
+        <div class="verdict-line" id="scoreVerdict">Loading five years of replayed engine readings…</div>
+        <div class="score-grid">
+          <div>
+            <h3>By verdict (replayed)</h3>
+            <div class="table-wrap">
+              <table class="bench">
+                <thead><tr>
+                  <th>Verdict</th>
+                  <th title="How many stock-weeks got this verdict on the tested dates">Readings</th>
+                  <th title="Average return over the benchmark in the window that followed (± one standard error across dates)" class="vsHead">vs SPY</th>
+                  <th title="Share of readings that beat the benchmark over the window">Beat it</th>
+                  <th title="Average raw return over the window, after one round trip at the stock cost settings">After costs</th>
+                </tr></thead>
+                <tbody id="bucketBody"></tbody>
+              </table>
+            </div>
+          </div>
+          <div>
+            <h3>By signal (replayed)</h3>
+            <div class="table-wrap">
+              <table class="bench">
+                <thead><tr>
+                  <th>Signal</th>
+                  <th title="Average rank correlation between the signal and the return over the benchmark that followed, per date. Above 0 means higher values did better.">Rank correlation</th>
+                  <th title="Top fifth of stocks by this signal minus the bottom fifth, return over the benchmark">Top fifth − bottom fifth</th>
+                </tr></thead>
+                <tbody id="icBody"></tbody>
+              </table>
+            </div>
+            <h3 style="margin-top:12px">What the fitted model learned</h3>
+            <div class="table-wrap">
+              <table class="bench">
+                <thead><tr>
+                  <th>Signal</th>
+                  <th title="Fitted on every complete week: the modelled return gap between the highest- and lowest-ranked stock on this signal, everything else equal">Top-ranked vs bottom-ranked</th>
+                </tr></thead>
+                <tbody id="weightBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        <h3 style="margin-top:14px">Live record (verdicts the app actually published)</h3>
+        <div class="verdict-line" id="liveVerdict">Loading published snapshots…</div>
+        <div class="table-wrap" id="liveTable" hidden>
+          <table class="bench">
+            <thead><tr><th>Verdict</th><th>Readings</th><th class="vsHead">vs SPY</th><th>Beat it</th></tr></thead>
+            <tbody id="liveBody"></tbody>
+          </table>
+        </div>
+        <div class="footnote" id="scoreNote"></div>
+        <div class="footnote">The replay runs the real engine on each past week's price data only. Fundamentals, analyst targets, earnings dates and options can't be rebuilt for past dates, so Quality is blank and the Trade score is only its price half. Every stock here exists today, so the replay never sees stocks that were dropped or collapsed (the broad list dilutes the app list's lean towards winners but can't remove that), and the replay assumes earnings were never close.</div>
+      </div>
+    </section>
+
+    <details class="card notes">
+      <summary>Forecast table</summary>
+      <div class="card-body">
+        <div class="table-wrap">
+          <table class="bench fan-table">
+            <thead><tr><th>Ahead</th><th>5%</th><th>25%</th><th>Median</th><th>75%</th><th>95%</th><th>Likely path</th><th>Paths higher</th></tr></thead>
+            <tbody id="fanBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </details>
+
+    <details class="card notes">
+      <summary>How this works</summary>
+      <div class="card-body">
+        <p>This page does not predict a price. Each model draws hundreds of possible futures from what the market has done before, and the chart shows how they spread out. Where the cloud is dense, many futures passed through. The histogram on the right shows where they ended.</p>
+        <p><strong>Random walk</strong> moves randomly at today's volatility. It knows nothing, which makes it the yardstick: a model that cannot beat it has not learned anything.</p>
+        <p><strong>Historical bootstrap</strong> replays real past candles in short runs, resized from the volatility they happened at to today's. It keeps the market's real texture: wick sizes, sudden gaps, crash-sized moves, and calm and wild stretches that cluster. It has no view on direction.</p>
+        <p><strong>Pattern analogs</strong> tests the idea that chart patterns are real. It finds the past moments whose last few candles (shape, wicks and volume, in volatility units) looked most like the last few now, and replays what happened after each one. Closer matches count for more. If patterns carry information, this model should beat the other two in the backtest.</p>
+        <p><strong>Engine analogs</strong> (stocks only) uses this app's own analysis. It finds past weeks, across every tracked stock, when the scoring engine read a stock the way it reads this one now: the same Trend, Entry and Trade scores, market regime, RSI, stretch above the 50-day, distance to support and strength against SPY. It then replays what those stocks did next, resized to this stock's volatility.</p>
+        <p><strong>Fitted signal</strong> (stocks only) is the historical bootstrap tilted by a fitted model's view of this stock. The model is a ridge regression trained on the replayed weeks of the broad list. It predicts each stock's next-month return against the benchmark from its engine scores and the known signals, using only weeks whose outcome had already happened. The tilt is usually a fraction of a percent a month, which is about the size of any real edge. A model that claims more is usually overfitted.</p>
+        <p><strong>The backtest</strong> moves back through history, makes a forecast at each step using only the data before it, then checks what really happened. <em>Skill</em> compares forecast quality (CRPS, which rewards being both right and confident) against the random walk. The value after &plusmn; is one standard error, so a skill smaller than about twice that is noise. <em>In 90% band</em> should be near 90%: lower means the model is overconfident, higher means it is too timid. <em>Direction calls</em> counts the times at least 60% of paths agreed on a direction, and what following each call would have earned after costs. Costs are one round trip: the fee on both sides plus the spread and slippage. Stocks default to a commission-free broker with a 2 bps spread. Crypto defaults to Coinbase's entry-tier taker fee (about 0.60% per side; check your own tier) plus 5 bps, and shows the live quoted spread next to the input.</p>
+        <p><strong>Compared with</strong>: plain SPY rewards simply holding riskier stocks. In a rising market, a stock that moves 1.5 times as much as the market beats SPY with no skill at all. <em>Risk-adjusted</em> subtracts the stock's beta times SPY's return. Beta is measured over the year before each reading. What's left is what the stock did on its own, and it's the fairer test of whether the analysis picks stocks.</p>
+        <p><strong>Known signals</strong> are price effects with published evidence behind them: 12-month momentum (skipping the latest month), last week's and last month's returns (short-term reversal), volatility, closeness to the 52-week high, distance from the 200-day average, RSI and unusual volume. Each is tested on its own, ranked against the other stocks each week.</p>
+        <p><strong>Options vs model volatility</strong> compares the move the options market is pricing for a stock (implied volatility from the latest data build) with the spread of the model's simulated paths. Options pricing in much more movement than the model expects often means options are expensive, and the reverse means they're cheap. The implied volatility is from the most recent build, at the option's own expiry, so treat it as a rough comparison.</p>
+        <p><strong>Does the app's analysis work?</strong> replays the scoring engine on every past week of five years of prices, using only the data available that week, and checks what followed. <em>vs SPY</em> is the average return over SPY for stocks with each verdict. <em>Rank correlation</em> says whether higher scores lined up with better returns that week. 0 is no relationship and negative means the score ranked stocks backwards. Dates are spaced a full window apart, so each one is an independent test. The live record does the same with the verdicts the app actually published, fundamentals included. It is small for now and grows with every build.</p>
+        <p><strong>Most likely path</strong> highlights one real simulated run: the one that stays in the most crowded part of the cloud from start to finish (at each step, how many other runs closed near it). Any single exact path is about as unlikely as any other, so this is the most typical run, not a prediction. It shows what an ordinary outcome looks like candle by candle, wicks and all, and it sits near the median by construction.</p>
+        <p><strong>Reset to live forecast</strong> returns to the latest candles and the default inputs, then shows whichever model's past forecasts came closest on this symbol and candle size.</p>
+        <p><strong>Forecast from</strong> rewinds the starting point so you can watch a past forecast play out against the candles that actually came next.</p>
+        <p>Crypto candles come live from Coinbase. Stock candles are five years of daily candles from this site's data build, updated with each build.</p>
+      </div>
+    </details>
+  </main>
+
+  <script type="module">
+    import { MODELS, prepare, simulate, fan, backtest, findAnalogs, closesAt, likelyPath } from "./js/simulator.js";
+    import { CRYPTO_PRODUCTS, TIMEFRAMES, coinbaseCandles, coinbaseSpreadBps, firestoreSnapshots, marketJsonCandles } from "./js/sim-sources.js";
+    import { BENCHMARKS, BUCKETS, ENGINE_MODEL, SCORECARD_HORIZONS, UNIVERSES, decodeReplay, engineMatches, liveRecord, replayStates, scorecard } from "./js/replay.js";
+    import { FITTED_MODEL, SIGNALS, buildPanel, makePredictor, signalStats, walkForward } from "./js/signals.js";
+    import { firebaseConfig } from "./firebase-config.js";
+
+    const VIEWS = [
+      { key: "density", label: "Density" },
+      { key: "runs", label: "Runs" },
+      { key: "bands", label: "Bands" }
+    ];
+    const HORIZONS = [10, 20, 30, 60, 90];
+    const PATH_COUNTS = [200, 500, 1000];
+    const WINDOWS = [6, 12, 24, 48];
+    const NEIGHBOR_COUNTS = [40, 150, 400];
+    const CRYPTO_HISTORY = 3000;
+    const SETTINGS_KEY = "stockwatcher.simulator";
+
+    const css = getComputedStyle(document.documentElement);
+    const color = (name) => css.getPropertyValue(name).trim();
+    const C = { pos: color("--pos"), neg: color("--neg"), sim: color("--sim"), simStrong: color("--sim-strong"), text: color("--text"), text2: color("--text-2"), text3: color("--text-3"), border: color("--border"), borderStrong: color("--border-strong"), surface: color("--surface"), bg: color("--bg") };
+    const SIM_RGB = [0xa6, 0x6b, 0xd8];
+
+    const $ = (id) => document.getElementById(id);
+    const escapeHtml = (s) => String(s).replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+
+    const ALL_MODELS = [...MODELS, ENGINE_MODEL, FITTED_MODEL];
+    /** The fitted model's outcome window: it predicts the next month and the simulator spreads that over each candle. */
+    const FITTED_SESSIONS = 21;
+    const modelLabel = (key) => ALL_MODELS.find(m => m.key === key).label;
+    /** Round-trip trading costs per asset class: fee per side and spread + slippage, in basis points. */
+    const DEFAULT_COSTS = { crypto: { fee: 60, spread: 5 }, stock: { fee: 0, spread: 2 } };
+    const defaults = { symbol: "SPY", timeframe: "1h", model: "analog", view: "density", horizon: 30, paths: 500, window: 12, neighbors: 150, costs: DEFAULT_COSTS, scoreSessions: 21, scoreUniverse: "broad", benchmark: "beta", showLikely: true };
+    const state = { ...defaults, replay: 0 };
+    try {
+      const saved = JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}");
+      Object.assign(state, saved, { costs: { ...DEFAULT_COSTS, ...(saved.costs ?? {}) } });
+    } catch {}
+    const saveSettings = () => {
+      try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(Object.fromEntries(Object.keys(defaults).map(k => [k, state[k]])))); } catch {}
+    };
+
+    let stocks = {};
+    let replayData = null;    // decoded data/replay.json, once loaded
+    let engineStates = null;  // replayStates(replayData)
+    let replayPreps = null;   // prepare() per replayed ticker, for engine analogs
+    let snapshots = null;     // published Firestore snapshots, for the live record
+    let data = null;     // { key, kind, seconds, candles, prep, fromReplay }
+    let view = null;     // the simulation on screen: { sim, fan, origin, analogs }
+    let loadToken = 0;
+    let pollTimer = null;
+    let testTimer = null;
+    /** Set by the reset button: the next backtest picks the model to show. */
+    let pickBest = false;
+
+    const isCrypto = (symbol) => CRYPTO_PRODUCTS.includes(symbol);
+    const assetClass = () => isCrypto(state.symbol) ? "crypto" : "stock";
+    const roundTripBps = (cls = assetClass()) => 2 * state.costs[cls].fee + state.costs[cls].spread;
+    /** The engine model needs this stock's replayed readings and candles drawn from the same file. */
+    const engineReady = () => !!(data?.fromReplay && engineStates);
+    /** Engine analogs need the stock's replayed readings; the fitted signal also needs it to be a stock, not an ETF. */
+    const modelAvailable = (key) => key === ENGINE_MODEL.key ? engineReady()
+      : key === FITTED_MODEL.key ? engineReady() && !replayData.tickers[state.symbol]?.etf
+      : true;
+    const activeModels = () => ALL_MODELS.filter(m => modelAvailable(m.key));
+    const engineAt = (origin) => ({ matches: engineMatches(replayData, engineStates, replayPreps, state.symbol, origin, { horizon: state.horizon, count: state.neighbors }) });
+
+    /** The fitted model as of any moment, trained on the broad list against the chosen benchmark (cached per benchmark). */
+    const predictors = new Map();
+    const predictor = () => {
+      if (!predictors.has(state.benchmark)) {
+        predictors.set(state.benchmark, makePredictor(buildPanel(replayData, engineStates, { sessions: FITTED_SESSIONS, benchmark: state.benchmark })));
+      }
+      return predictors.get(state.benchmark);
+    };
+    /** simulate() options for the fitted signal at an origin: the bootstrap, tilted by the predicted monthly edge. */
+    const fittedAt = (origin) => {
+      const edge = predictor()(state.symbol, data.prep.candles[origin].t);
+      return { model: "bootstrap", drift: edge === null ? 0 : edge / FITTED_SESSIONS, edge };
+    };
+    /** Stocks only have daily closes; crypto keeps whichever candle size was last picked. */
+    const timeframe = () => isCrypto(state.symbol) ? TIMEFRAMES.find(t => t.key === state.timeframe) ?? TIMEFRAMES[3] : TIMEFRAMES.at(-1);
+
+    // ---------- formatting ----------
+    const fmtPrice = (v) => !Number.isFinite(v) ? "—" : v.toLocaleString("en-US", { minimumFractionDigits: v >= 1000 ? 0 : 2, maximumFractionDigits: v >= 1000 ? 0 : 2 });
+    const fmtPct = (v, digits = 2) => !Number.isFinite(v) ? "—" : `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(v).toFixed(digits)}%`;
+    const listWords = (names) => names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names.at(-1)}` : names[0];
+    const fmtShare = (v) => !Number.isFinite(v) ? "—" : `${Math.round(v * 100)}%`;
+    const candleSpan = (count) => {
+      const s = data.seconds * count;
+      if (data.kind === "stock") return `${count} trading day${count === 1 ? "" : "s"}`;
+      if (s < 3600) return `${Math.round(s / 60)} min`;
+      if (s < 86400 * 2) return `${+(s / 3600).toFixed(1)} h`;
+      return `${+(s / 86400).toFixed(1)} days`;
+    };
+    const fmtTime = (t, withDate = true) => {
+      const d = new Date(t);
+      if (data.seconds >= 86400) {
+        const zone = data.kind === "stock" ? "UTC" : undefined;
+        const day = d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: zone });
+        const spansYears = data.candles.at(-1).t - data.candles[0].t > 330 * 86400000;
+        return spansYears ? `${day} '${d.toLocaleDateString("en-US", { year: "2-digit", timeZone: zone })}` : day;
+      }
+      const time = d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false });
+      return withDate ? `${d.toLocaleDateString("en-US", { month: "short", day: "numeric" })} ${time}` : time;
+    };
+
+    // ---------- controls ----------
+    function segmented(el, items, active, onPick) {
+      el.innerHTML = items.map(i => `<button class="filter-btn" data-key="${i.key}">${escapeHtml(i.label)}</button>`).join("");
+      el.addEventListener("click", (e) => {
+        const btn = e.target.closest("button");
+        if (!btn || btn.disabled) return;
+        onPick(btn.dataset.key);
+      });
+      return () => el.querySelectorAll("button").forEach(b => b.classList.toggle("active", b.dataset.key === active()));
+    }
+    function options(el, values, format = (v) => v) {
+      el.innerHTML = values.map(v => `<option value="${v}">${escapeHtml(format(v))}</option>`).join("");
+    }
+
+    const syncTimeframe = segmented($("timeframe"), TIMEFRAMES, () => timeframe().key, (k) => { state.timeframe = k; state.replay = 0; saveSettings(); load(); });
+    const syncModel = segmented($("model"), ALL_MODELS, () => state.model, (k) => { state.model = k; saveSettings(); syncControls(); runSimulation(); });
+    const syncView = segmented($("view"), VIEWS, () => state.view, (k) => { state.view = k; saveSettings(); syncControls(); draw(); });
+    options($("horizon"), HORIZONS, (v) => `${v} candles`);
+    options($("paths"), PATH_COUNTS);
+    options($("window"), WINDOWS, (v) => `${v} candles`);
+    options($("neighbors"), NEIGHBOR_COUNTS);
+    const syncScoreHorizon = segmented($("scoreHorizon"), SCORECARD_HORIZONS.map(h => ({ key: String(h.sessions), label: h.label })), () => String(state.scoreSessions),
+      (k) => { state.scoreSessions = Number(k); saveSettings(); syncScoreHorizon(); renderScorecard(); });
+    const syncUniverse = segmented($("scoreUniverse"), UNIVERSES, () => state.scoreUniverse,
+      (k) => { state.scoreUniverse = k; saveSettings(); syncUniverse(); renderScorecard(); });
+    const syncBenchmark = segmented($("benchmark"), BENCHMARKS, () => state.benchmark, (k) => {
+      state.benchmark = k;
+      saveSettings();
+      syncBenchmark();
+      renderScorecard();
+      if (state.model === FITTED_MODEL.key) runSimulation();
+      scheduleBacktest();
+    });
+
+    $("likelyToggle").addEventListener("click", () => { state.showLikely = !state.showLikely; saveSettings(); syncControls(); draw(); });
+
+    function syncControls() {
+      const crypto = isCrypto(state.symbol);
+      if (data && !modelAvailable(state.model)) state.model = "analog";
+      syncModel(); syncView(); syncScoreHorizon(); syncUniverse(); syncBenchmark();
+      $("likelyToggle").classList.toggle("active", state.showLikely);
+      $("likelyToggle").setAttribute("aria-pressed", String(state.showLikely));
+      $("legendLikely").hidden = !state.showLikely;
+      $("model").querySelectorAll("button").forEach(b => {
+        if (b.dataset.key !== ENGINE_MODEL.key && b.dataset.key !== FITTED_MODEL.key) return;
+        b.disabled = crypto || !!(data && !modelAvailable(b.dataset.key));
+        b.title = crypto ? "Stocks only: it reads the app's scoring engine"
+          : b.disabled && b.dataset.key === FITTED_MODEL.key ? "Individual stocks only: the model ranks stocks against each other" : "";
+      });
+      syncTimeframe();
+      $("timeframe").querySelectorAll("button").forEach(b => { b.disabled = !crypto && b.dataset.key !== "1d"; });
+      $("symbol").value = state.symbol;
+      $("horizon").value = state.horizon;
+      $("paths").value = state.paths;
+      $("window").value = state.window;
+      $("neighbors").value = state.neighbors;
+      $("fee").value = state.costs[assetClass()].fee;
+      $("spread").value = state.costs[assetClass()].spread;
+      if (!crypto) $("spreadHint").textContent = "typical large cap";
+    }
+
+    for (const [id, key] of [["horizon", "horizon"], ["paths", "paths"], ["window", "window"], ["neighbors", "neighbors"]]) {
+      $(id).addEventListener("change", () => {
+        state[key] = Number($(id).value);
+        saveSettings();
+        updateReplayRange();
+        runSimulation();
+        if (key !== "paths") scheduleBacktest();
+      });
+    }
+    for (const id of ["fee", "spread"]) {
+      $(id).addEventListener("change", () => {
+        const cls = assetClass(), v = Number($(id).value);
+        state.costs = { ...state.costs, [cls]: { ...state.costs[cls], [id]: Number.isFinite(v) && v >= 0 ? Math.min(v, 300) : DEFAULT_COSTS[cls][id] } };
+        $(id).value = state.costs[cls][id];
+        saveSettings();
+        scheduleBacktest();
+        if (cls === "stock") renderScorecard();
+      });
+    }
+    $("symbol").addEventListener("change", () => { state.symbol = $("symbol").value; state.replay = 0; saveSettings(); syncControls(); load(); });
+    $("reset").addEventListener("click", () => {
+      const { symbol, timeframe: tf, scoreSessions } = state;
+      Object.assign(state, defaults, { symbol, timeframe: tf, scoreSessions, replay: 0 });
+      pickBest = true;
+      saveSettings();
+      syncControls();
+      updateReplayRange();
+      runSimulation();
+      scheduleBacktest();
+    });
+    /** Moves the forecast origin to `candles` ago, clamped to what the data allows. */
+    function setReplay(candles) {
+      const max = Number($("replay").max);
+      state.replay = Math.max(0, Math.min(max, Math.round(Number.isFinite(candles) ? candles : 0)));
+      $("replay").value = state.replay;
+      $("replayNum").value = state.replay;
+      runSimulation();
+    }
+    $("replay").addEventListener("input", () => setReplay(Number($("replay").value)));
+    $("replayNum").addEventListener("change", () => setReplay(Number($("replayNum").value)));
+    document.querySelectorAll(".step-btn").forEach(btn => btn.addEventListener("click", () => {
+      const step = btn.dataset.step;
+      const size = step.endsWith("horizon") ? state.horizon : 1;
+      // Buttons point along the time axis: left is further back (more candles ago).
+      setReplay(state.replay + (step.startsWith("-") ? size : -size));
+    }));
+
+    // ---------- data ----------
+    async function loadStocks() {
+      try {
+        const res = await fetch("data/market.json", { cache: "no-cache" });
+        if (!res.ok) throw new Error(res.status);
+        stocks = (await res.json()).stocks ?? {};
+      } catch {
+        stocks = {};
+      }
+      renderSymbolOptions();
+    }
+
+    /** Crypto plus every stock with history in market.json or replay.json (re-run once the replay file arrives). */
+    function renderSymbolOptions() {
+      const tickers = new Set([
+        ...Object.values(stocks).filter(s => (s.historicalSeries ?? []).length >= 60).map(s => s.ticker),
+        ...Object.keys(replayData?.tickers ?? {})
+      ]);
+      const option = (t) => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`;
+      const research = (t) => !!replayData?.tickers[t]?.research;
+      const tracked = [...tickers].filter(t => !research(t)).sort();
+      const extra = [...tickers].filter(research).sort();
+      $("symbol").innerHTML = (tracked.length ? `<optgroup label="Stocks (app list)">${tracked.map(option).join("")}</optgroup>` : "")
+        + (extra.length ? `<optgroup label="Stocks (research list, prices only)">${extra.map(option).join("")}</optgroup>` : "")
+        + `<optgroup label="Crypto (live, Coinbase)">${CRYPTO_PRODUCTS.map(p => `<option value="${p}">${p}</option>`).join("")}</optgroup>`;
+      if (!isCrypto(state.symbol) && !tickers.has(state.symbol) && !replayData) return;
+      if (!isCrypto(state.symbol) && !tickers.has(state.symbol)) state.symbol = defaults.symbol;
+      $("symbol").value = state.symbol;
+    }
+
+    /** data/replay.json and the engine's replayed readings; the page works without them, minus stock history and the scorecard. */
+    const replayReady = fetch("data/replay.json", { cache: "no-cache" })
+      .then(res => { if (!res.ok) throw new Error(`replay.json: ${res.status}`); return res.json(); })
+      .then(json => {
+        replayData = decodeReplay(json);
+        engineStates = replayStates(replayData);
+        replayPreps = new Map(Object.entries(replayData.tickers).map(([t, s]) => [t, prepare(s.candles)]));
+      })
+      .catch(err => {
+        replayData = engineStates = replayPreps = null;
+        $("scoreVerdict").textContent = `Replay data isn't available (${err.message}). It is written by the data build (scripts/build_market_data.py).`;
+      });
+
+    function setStatus(text) {
+      $("chartStatus").hidden = !text;
+      $("chartStatus").textContent = text ?? "";
+    }
+
+    async function load() {
+      const token = ++loadToken;
+      clearInterval(pollTimer);
+      const symbol = state.symbol, crypto = isCrypto(symbol), tf = timeframe();
+      setStatus(crypto ? `Loading ${CRYPTO_HISTORY.toLocaleString()} ${tf.label} candles from Coinbase…` : "Loading…");
+      $("freshness").textContent = "Loading…";
+      try {
+        if (crypto) {
+          const candles = await coinbaseCandles(symbol, tf.seconds, CRYPTO_HISTORY);
+          if (token !== loadToken) return;
+          data = { key: `${symbol}|${tf.key}`, kind: "crypto", seconds: tf.seconds, candles, prep: prepare(candles), fromReplay: false };
+          $("spreadHint").textContent = "";
+          coinbaseSpreadBps(symbol).then(bps => {
+            if (token === loadToken) $("spreadHint").textContent = `live quote ${bps < 0.01 ? "<0.01" : bps < 1 ? bps.toFixed(2) : bps.toFixed(1)}`;
+          }).catch(() => {});
+        } else {
+          await replayReady;
+          if (token !== loadToken) return;
+          const replayed = replayData?.tickers[symbol];
+          const candles = replayed ? replayed.candles : marketJsonCandles(stocks[symbol]);
+          const prep = replayed ? replayPreps.get(symbol) : prepare(candles);
+          data = { key: `${symbol}|1d`, kind: "stock", seconds: 86400, candles, prep, fromReplay: !!replayed && prep.n === candles.length };
+        }
+        syncControls();
+      } catch (err) {
+        if (token !== loadToken) return;
+        data = null;
+        setStatus(`Could not load ${symbol}: ${err.message}`);
+        $("freshness").textContent = "No data";
+        return;
+      }
+      setStatus(null);
+      renderFreshness();
+      updateReplayRange();
+      runSimulation();
+      scheduleBacktest();
+      if (crypto) pollTimer = setInterval(() => poll(token), Math.min(Math.max(tf.seconds * 250, 15000), 300000));
+    }
+
+    /** Pulls the latest page of candles and re-simulates when a new one has closed. */
+    async function poll(token) {
+      if (document.hidden || !data || data.kind !== "crypto") return;
+      const [symbol] = data.key.split("|");
+      let fresh;
+      try { fresh = await coinbaseCandles(symbol, data.seconds, 300); } catch { return; }
+      if (token !== loadToken || !fresh.length || fresh.at(-1).t <= data.candles.at(-1).t) return;
+      const merged = new Map(data.candles.map(k => [k.t, k]));
+      for (const k of fresh) merged.set(k.t, k);
+      data.candles = [...merged.values()].sort((a, b) => a.t - b.t).slice(-CRYPTO_HISTORY);
+      data.prep = prepare(data.candles);
+      renderFreshness();
+      updateReplayRange();
+      runSimulation();
+      scheduleBacktest();
+    }
+
+    function renderFreshness() {
+      const { prep, kind } = data;
+      const last = prep.candles.at(-1);
+      $("freshness").innerHTML = kind === "crypto"
+        ? `Coinbase · <strong>${prep.n.toLocaleString()}</strong> ${escapeHtml(timeframe().label)} candles · last closed <strong>${escapeHtml(fmtTime(last.t))}</strong> · updates live`
+        : `Site data build · <strong>${prep.n.toLocaleString()}</strong> daily ${data.fromReplay ? "candles" : "closes"} through <strong>${escapeHtml(fmtTime(last.t))}</strong>`;
+    }
+
+    // ---------- simulation ----------
+    const minHistory = () => Math.max(state.window + state.horizon + 20, 40);
+
+    function updateReplayRange() {
+      if (!data) return;
+      const max = Math.max(0, Math.min(data.prep.n - 1 - minHistory(), 1000));
+      $("replay").max = max;
+      $("replayNum").max = max;
+      state.replay = Math.min(state.replay, max);
+      $("replay").value = state.replay;
+      $("replayNum").value = state.replay;
+    }
+
+    function runSimulation() {
+      if (!data) return;
+      const { prep } = data;
+      const origin = prep.n - 1 - state.replay;
+      const engine = state.model === ENGINE_MODEL.key && engineReady();
+      const fitted = state.model === FITTED_MODEL.key && modelAvailable(FITTED_MODEL.key) ? fittedAt(origin) : null;
+      const extra = engine ? engineAt(origin) : fitted ?? {};
+      const sim = simulate(prep, { model: state.model, origin, horizon: state.horizon, paths: state.paths, window: state.window, neighbors: state.neighbors, seed: 1, ...extra });
+      const analogs = engine ? extra.matches : state.model === "analog" ? sim.analogs : findAnalogs(prep, { origin, window: state.window, horizon: state.horizon, count: state.neighbors });
+      view = { sim, fan: fan(sim, [0.01, 0.05, 0.25, 0.5, 0.75, 0.95, 0.99]), origin, analogs, engine, edge: fitted?.edge, likely: likelyPath(sim), density: null };
+      $("replayOut").textContent = state.replay ? fmtTime(prep.candles[origin].t) : "now";
+      $("legendReal").hidden = !state.replay;
+      renderStats();
+      renderFanTable();
+      renderPatterns();
+      draw();
+    }
+
+    function renderStats() {
+      const { prep } = data;
+      const { sim, fan: rows, origin } = view;
+      const last = prep.candles[origin], end = rows.at(-1);
+      const sigma = origin + 1 < prep.n ? prep.sigma[origin + 1] : prep.nextSigma;
+      const perYear = data.kind === "stock" ? 252 : 365 * 86400 / data.seconds;
+      const change = (v) => 100 * (v / sim.start - 1);
+      $("statLast").textContent = fmtPrice(last.c);
+      $("statLastSub").textContent = state.replay ? `${fmtTime(last.t)} (rewound)` : fmtTime(last.t);
+      $("statVol").textContent = `${(100 * sigma).toFixed(2)}% / candle`;
+      $("statVolSub").textContent = `≈ ${Math.round(100 * sigma * Math.sqrt(perYear))}% annualized`;
+      $("statMedianLabel").textContent = `Median in ${candleSpan(state.horizon)}`;
+      $("statMedian").textContent = fmtPrice(end.q[0.5]);
+      $("statMedianSub").textContent = fmtPct(change(end.q[0.5]));
+      $("statRange").textContent = `${fmtPrice(end.q[0.05])} – ${fmtPrice(end.q[0.95])}`;
+      $("statRangeSub").textContent = `${fmtPct(change(end.q[0.05]), 1)} to ${fmtPct(change(end.q[0.95]), 1)}`;
+      $("statUp").textContent = fmtShare(end.pUp);
+      $("statUpSub").textContent = `of ${sim.paths} ${modelLabel(state.model).toLowerCase()} paths`;
+      $("chartTitle").textContent = `${state.symbol} · ${modelLabel(state.model)}`;
+      const tilt = state.model === FITTED_MODEL.key
+        ? view.edge === null || view.edge === undefined ? " · no fitted view yet (too little history before this date)"
+          : ` · tilted ${fmtPct(100 * view.edge)} a month vs ${state.benchmark === "beta" ? "risk-adjusted SPY" : "SPY"}`
+        : "";
+      $("chartSub").textContent = `${sim.paths} paths · ${state.horizon} candles ahead (${candleSpan(state.horizon)})${tilt}`;
+
+      // Options vs model: only for a stock with an options quote, at the latest candle (the quote is today's).
+      const option = data.kind === "stock" && !state.replay ? stocks[state.symbol]?.options : null;
+      const iv = option?.impliedVolatility;
+      $("statIvTile").hidden = !(iv > 0);
+      if (iv > 0) {
+        const ends = closesAt(sim, sim.horizon - 1).map(v => Math.log(v / sim.start));
+        const mean = ends.reduce((a, b) => a + b, 0) / ends.length;
+        const modelVol = Math.sqrt(ends.reduce((a, b) => a + (b - mean) ** 2, 0) / (ends.length - 1)) * Math.sqrt(252 / sim.horizon);
+        const ratio = iv / modelVol;
+        $("statIv").textContent = `${Math.round(100 * iv)}% vs ${Math.round(100 * modelVol)}%`;
+        $("statIvSub").textContent = ratio >= 1.15 ? "options price bigger moves than the model"
+          : ratio <= 0.87 ? "options price smaller moves than the model" : "options and model roughly agree";
+      }
+    }
+
+    function renderFanTable() {
+      const { fan: rows, sim } = view;
+      const likelyClose = (step) => sim.candles[(view.likely * sim.horizon + step - 1) * 4 + 3];
+      const picks = [...new Set([1, ...[0.25, 0.5, 0.75, 1].map(f => Math.max(1, Math.round(f * state.horizon)))])];
+      $("fanBody").innerHTML = picks.map(step => {
+        const r = rows[step - 1];
+        return `<tr><td>${step} (${escapeHtml(candleSpan(step))})</td>${[0.05, 0.25, 0.5, 0.75, 0.95].map(q => `<td>${fmtPrice(r.q[q])}</td>`).join("")}<td>${fmtPrice(likelyClose(step))}</td><td>${fmtShare(r.pUp)}</td></tr>`;
+      }).join("");
+    }
+
+    // ---------- backtest ----------
+    function scheduleBacktest() {
+      clearTimeout(testTimer);
+      $("verdict").textContent = "Running the backtest…";
+      testTimer = setTimeout(() => {
+        if (!data) return;
+        const t0 = performance.now();
+        const result = backtest(data.prep, {
+          models: activeModels().map(m => m.key), horizon: state.horizon, window: state.window, neighbors: state.neighbors,
+          costBps: roundTripBps(),
+          external: {
+            ...(modelAvailable(ENGINE_MODEL.key) ? { [ENGINE_MODEL.key]: engineAt } : {}),
+            ...(modelAvailable(FITTED_MODEL.key) ? { [FITTED_MODEL.key]: fittedAt } : {})
+          }
+        });
+        renderBacktest(result, performance.now() - t0);
+      }, 60);
+    }
+
+    /**
+     * After a reset, shows the model whose forecasts scored best (lowest CRPS) in this backtest. Without enough tests to
+     * judge, falls back to the bootstrap: real candle texture and no directional opinion.
+     * Returns a sentence saying what it picked, or "" when no reset is pending.
+     */
+    function applyBestModel(results, n) {
+      if (!pickBest) return "";
+      pickBest = false;
+      const models = activeModels().filter(m => results[m.key]);
+      const best = n >= 10 ? models.reduce((a, b) => results[b.key].crps < results[a.key].crps ? b : a) : MODELS.find(m => m.key === "bootstrap");
+      if (best.key !== state.model) {
+        state.model = best.key;
+        saveSettings();
+        syncControls();
+        runSimulation();
+      }
+      return n >= 10
+        ? ` Showing <strong>${escapeHtml(best.label)}</strong>, the model whose past forecasts here came closest.`
+        : ` Too few tests to rank the models, so showing <strong>${escapeHtml(best.label)}</strong>.`;
+    }
+
+    function renderBacktest(result, ms) {
+      const { results, origins } = result;
+      const n = origins.length;
+      const prep = data.prep;
+      const picked = applyBestModel(results, n);
+      if (n < 10) {
+        $("verdict").innerHTML = (n
+          ? `Only ${n} past forecast${n === 1 ? "" : "s"} fit in this history at this horizon, too few to score the models. Try a shorter horizon or pattern length.`
+          : "Not enough history to test this horizon and pattern length.") + picked;
+        $("testSub").textContent = `${n} past forecast${n === 1 ? "" : "s"}`;
+        $("scoreBody").innerHTML = "";
+        $("testNote").textContent = "";
+        $("testWarn").textContent = "";
+        return;
+      }
+      const skillCell = (r) => {
+        if (r.skill === null) return `<td class="tone-muted">${results.gaussian === r ? "baseline" : "—"}</td>`;
+        const tone = r.skill - 2 * r.skillSE > 0 ? "pos" : r.skill + 2 * r.skillSE < 0 ? "neg" : "muted";
+        return `<td class="tone-${tone}">${fmtPct(100 * r.skill, 1)} <span class="target">± ${(100 * r.skillSE).toFixed(1)}</span></td>`;
+      };
+      const bandCell = (v, target) => {
+        const off = Math.abs(v - target), tone = off <= 0.07 ? "" : off <= 0.15 ? "tone-warn" : "tone-neg";
+        return `<td class="${tone}">${fmtShare(v)}<span class="target">/ ${fmtShare(target)}</span></td>`;
+      };
+      const models = activeModels().filter(m => results[m.key]);
+      $("scoreBody").innerHTML = models.map(m => {
+        const r = results[m.key];
+        const calls = r.trades ? `${r.trades} · ${fmtShare(r.hitRate)} right` : "none";
+        const net = r.netPerTrade === null ? `<td class="tone-muted">—</td>` : `<td class="tone-${r.netPerTrade > 0 ? "pos" : "neg"}">${fmtPct(r.netPerTrade)}</td>`;
+        return `<tr class="${m.key === state.model ? "current" : ""}"><td>${escapeHtml(m.label)}</td>${skillCell(r)}${bandCell(r.coverage90, 0.9)}${bandCell(r.coverage50, 0.5)}<td>${calls}</td>${net}</tr>`;
+      }).join("");
+
+      const outcomes = { better: [], worse: [], even: [] };
+      for (const m of models.filter(m => m.key !== "gaussian")) {
+        const r = results[m.key];
+        outcomes[r.skill - 2 * r.skillSE > 0 ? "better" : r.skill + 2 * r.skillSE < 0 ? "worse" : "even"].push(`<strong>${escapeHtml(m.label)}</strong>`);
+      }
+      const phrase = (names, verb) => names.length ? `${listWords(names)} ${verb}` : null;
+      $("verdict").innerHTML = [
+        phrase(outcomes.better, "beat the random walk by more than the noise"),
+        phrase(outcomes.worse, "did worse than the random walk"),
+        phrase(outcomes.even, "showed no clear edge over the random walk")
+      ].filter(Boolean).join("; ") + "." + picked;
+
+      let hold = 0;
+      for (const t of origins) hold += Math.log(prep.candles[t + state.horizon].c / prep.candles[t].c);
+      hold = 100 * hold / n;
+      $("testSub").textContent = `${n} past forecasts · ${Math.round(ms)} ms`;
+      $("testNote").textContent = `Each test forecast ${state.horizon} candles ahead using only data before it; test windows don't overlap. `
+        + `Simply holding through each window averaged ${fmtPct(hold)} before costs, so a call's average only means something compared with that. `
+        + `Costs: ${+roundTripBps().toFixed(1)} bps per round trip (${state.costs[assetClass()].fee} bps fee each side + ${state.costs[assetClass()].spread} bps spread and slippage).`;
+      $("testWarn").textContent = n < 30 ? `Only ${n} independent tests: these numbers are mostly noise. Shorter horizons or more history give more tests.` : "";
+      $("testWarn").className = n < 30 ? "footnote tone-warn" : "footnote";
+    }
+
+    // ---------- patterns ----------
+    function renderPatterns() {
+      const { analogs, origin, engine } = view;
+      const { candles } = data.prep;
+      const sourceOf = (m) => m.ticker ? replayData.tickers[m.ticker].candles : candles;
+      $("patternTitle").textContent = engine ? "Closest engine readings" : "Closest past patterns";
+      $("patternSub").textContent = engine ? "same engine reading, any stock" : `last ${state.window} candles vs history`;
+      if (!analogs.length) {
+        $("patternSummary").textContent = engine ? "No earlier engine reading to compare with yet." : "Not enough history to search for patterns.";
+        $("patterns").innerHTML = "";
+        return;
+      }
+      const outcome = (m) => sourceOf(m)[m.end + state.horizon].c / sourceOf(m)[m.end].c - 1;
+      const weighted = analogs.map(m => ({ r: outcome(m), w: m.weight })).sort((a, b) => a.r - b.r);
+      const up = weighted.reduce((s, x) => s + (x.r > 0 ? x.w : 0), 0);
+      let acc = 0;
+      const median = weighted.find(x => (acc += x.w) >= 0.5)?.r ?? weighted.at(-1).r;
+      const across = engine ? ` across ${new Set(analogs.map(m => m.ticker)).size} stocks` : "";
+      $("patternSummary").innerHTML = `${analogs.length} closest matches${across}, weighted by similarity: <strong>${fmtShare(up)}</strong> were higher ${escapeHtml(candleSpan(state.horizon))} later, median move <strong>${fmtPct(100 * median)}</strong>.`;
+
+      const shown = [{ end: origin, current: true }, ...analogs.slice(0, 7)];
+      $("patterns").innerHTML = shown.map((m, i) => {
+        const cap = m.current
+          ? `<span>Now</span><span>${state.replay ? escapeHtml(fmtTime(candles[origin].t)) : "latest"}</span>`
+          : `<span>${m.ticker ? `${escapeHtml(m.ticker)} · ` : ""}${escapeHtml(fmtTime(sourceOf(m)[m.end].t))}</span><strong class="tone-${outcome(m) >= 0 ? "pos" : "neg"}">${fmtPct(100 * outcome(m), 1)}</strong>`;
+        return `<div class="pattern" title="${m.current ? "The pattern being matched" : `Match #${i}: ${(100 * m.weight).toFixed(1)}% weight`}"><canvas data-i="${i}"></canvas><div class="cap">${cap}</div></div>`;
+      }).join("");
+      $("patterns").querySelectorAll("canvas").forEach(cv => { const m = shown[Number(cv.dataset.i)]; drawPattern(cv, m, sourceOf(m)); });
+    }
+
+    /** One pattern card: the matched candles on the left, the closes that followed (in the forecast hue) on the right. */
+    function drawPattern(cv, m, candles) {
+      const dpr = devicePixelRatio || 1, w = cv.clientWidth, h = cv.clientHeight;
+      cv.width = w * dpr; cv.height = h * dpr;
+      const ctx = cv.getContext("2d");
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      const from = m.end - state.window + 1;
+      const future = m.current ? 0 : state.horizon;
+      const split = Math.round(w * 0.45);
+      let lo = Infinity, hi = -Infinity;
+      for (let i = from; i <= m.end + future; i++) { lo = Math.min(lo, candles[i].l); hi = Math.max(hi, candles[i].h); }
+      const pad = (hi - lo) * 0.08 || hi * 0.001;
+      const y = (v) => 3 + (h - 6) * (1 - (v - lo + pad) / (hi - lo + 2 * pad));
+      const sw = split / state.window;
+      for (let k = 0; k < state.window; k++) drawCandle(ctx, candles[from + k], (k + 0.5) * sw, Math.max(1, sw * 0.6), y, 1);
+      if (future) {
+        const fw = (w - split) / future;
+        ctx.strokeStyle = C.sim;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(split - sw / 2, y(candles[m.end].c));
+        for (let k = 1; k <= future; k++) ctx.lineTo(split + (k - 0.5) * fw, y(candles[m.end + k].c));
+        ctx.stroke();
+      }
+      ctx.strokeStyle = C.borderStrong;
+      ctx.setLineDash([2, 3]);
+      ctx.beginPath();
+      ctx.moveTo(split + 0.5, 0);
+      ctx.lineTo(split + 0.5, h);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    // ---------- engine scorecard ----------
+    const seCell = (stat, digits = 2, scale = 100) => {
+      if (!Number.isFinite(stat?.mean)) return `<td class="tone-muted">—</td>`;
+      const se = stat.se ?? Infinity;
+      const tone = stat.mean - 2 * se > 0 ? "tone-pos" : stat.mean + 2 * se < 0 ? "tone-neg" : "";
+      const value = scale === 100 ? fmtPct(scale * stat.mean, digits) : stat.mean.toFixed(digits);
+      return `<td class="${tone}">${value}${Number.isFinite(se) ? ` <span class="target">± ${(scale * se).toFixed(digits)}</span>` : ""}</td>`;
+    };
+
+    /** Walk-forward tests are the slow part (a refit per test date), so each combination is computed once. */
+    const scoreCache = new Map();
+    function scoreResults() {
+      const key = `${state.scoreSessions}|${state.scoreUniverse}|${state.benchmark}`;
+      if (!scoreCache.has(key)) {
+        const include = UNIVERSES.find(u => u.key === state.scoreUniverse).include(replayData);
+        const panel = buildPanel(replayData, engineStates, { sessions: state.scoreSessions, include, benchmark: state.benchmark });
+        scoreCache.set(key, { include, signals: signalStats(panel), fitted: walkForward(panel) });
+      }
+      return scoreCache.get(key);
+    }
+
+    const verdictWord = (stat) => !Number.isFinite(stat?.mean) || !Number.isFinite(stat?.se) ? "none"
+      : stat.mean - 2 * stat.se > 0 ? "right" : stat.mean + 2 * stat.se < 0 ? "backwards" : "none";
+
+    function renderScorecard() {
+      if (!replayData || !engineStates) return;
+      const sessions = state.scoreSessions;
+      const horizonLabel = SCORECARD_HORIZONS.find(h => h.sessions === sessions).label;
+      const benchName = state.benchmark === "beta" ? "risk-adjusted SPY" : "SPY";
+      const { include, signals, fitted } = scoreResults();
+      const card = scorecard(replayData, engineStates, { sessions, costBps: roundTripBps("stock"), include, benchmark: state.benchmark });
+      const stocksCount = Object.entries(replayData.tickers).filter(([t, v]) => !v.etf && include(t)).length;
+      $("scoreSub").textContent = `${stocksCount} stocks · ${card.dates} independent dates`;
+      document.querySelectorAll(".vsHead").forEach(th => { th.textContent = state.benchmark === "beta" ? "vs SPY (risk-adj.)" : "vs SPY"; });
+
+      $("bucketBody").innerHTML = BUCKETS.map(({ key, label }) => {
+        const b = card.buckets[key];
+        return `<tr><td>${escapeHtml(label)}</td><td>${b.n.toLocaleString()}</td>${seCell(b.excess)}<td>${fmtShare(b.hitRate)}</td><td>${fmtPct(100 * b.net)}</td></tr>`;
+      }).join("");
+
+      const signalRow = (label, stat, cls = "") => `<tr class="${cls}"><td>${escapeHtml(label)}</td>${seCell(stat.ic, 3, 1)}${seCell(stat.spread)}</tr>`;
+      const groups = [...new Set(SIGNALS.map(sig => sig.group))];
+      $("icBody").innerHTML = signalRow(`Fitted model (walk-forward, ${fitted.tested} tests)`, fitted, "headline")
+        + groups.map(g => `<tr class="group"><td colspan="3">${escapeHtml(g)}</td></tr>`
+          + SIGNALS.filter(sig => sig.group === g).map(sig => signalRow(sig.label, signals[sig.key])).join("")).join("");
+      $("weightBody").innerHTML = fitted.final.weights.map(w =>
+        `<tr><td>${escapeHtml(w.label)}</td><td class="${w.effect > 0 ? "tone-pos" : "tone-neg"}">${fmtPct(100 * w.effect)} <span class="target">over ${escapeHtml(horizonLabel)}</span></td></tr>`).join("");
+
+      const buy = card.buckets.buy.excess;
+      const buyWord = !Number.isFinite(buy.mean) ? "had no readings"
+        : buy.mean - 2 * buy.se > 0 ? `beat ${benchName} by ${fmtPct(100 * buy.mean)} on average, more than the noise`
+        : buy.mean + 2 * buy.se < 0 ? `trailed ${benchName} by ${fmtPct(-100 * buy.mean)} on average, more than the noise`
+        : `were within noise of ${benchName} (${fmtPct(100 * buy.mean)} ± ${(100 * buy.se).toFixed(2)})`;
+      const fittedWord = { right: "ranked stocks the right way, by more than the noise", backwards: "ranked stocks backwards", none: "did no better than chance" }[verdictWord(fitted.ic)];
+      const sorted = { right: [], backwards: [] };
+      for (const sig of SIGNALS) {
+        const w = verdictWord(signals[sig.key].ic);
+        if (w !== "none") sorted[w].push(`<strong>${escapeHtml(sig.label)}</strong>`);
+      }
+      $("scoreVerdict").innerHTML = `Over the ${horizonLabel.toLowerCase()} after each reading, replayed Buy-zone stocks ${buyWord}. `
+        + `The <strong>fitted model</strong>, tested walk-forward, ${fittedWord}`
+        + (Number.isFinite(fitted.spread.mean) ? ` (top fifth minus bottom fifth ${fmtPct(100 * fitted.spread.mean)} ± ${(100 * fitted.spread.se).toFixed(2)})` : "") + ". "
+        + [sorted.right.length ? `${listWords(sorted.right)} ranked stocks the right way` : null,
+           sorted.backwards.length ? `${listWords(sorted.backwards)} ranked them backwards` : null].filter(Boolean).join("; ")
+        + (sorted.right.length || sorted.backwards.length ? "; everything else was within noise." : "No single signal stood out from the noise.");
+      $("scoreNote").textContent = `Readings at the end of each week from ${new Date(engineStates[0].t).toISOString().slice(0, 10)}, tested every ${Math.max(1, Math.ceil(sessions / 5))} week${Math.ceil(sessions / 5) > 1 ? "s" : ""} so windows never overlap. `
+        + `After costs is the raw return less ${+roundTripBps("stock").toFixed(1)} bps for one round trip. Green or red means more than two standard errors from zero.`;
+      renderLiveRecord();
+    }
+
+    let snapshotsLoading = null;
+    function renderLiveRecord() {
+      if (!snapshots) {
+        snapshotsLoading ??= firestoreSnapshots(firebaseConfig)
+          .then(list => { snapshots = list; renderLiveRecord(); })
+          .catch(err => { $("liveVerdict").textContent = `Couldn't read published snapshots (${err.message}).`; });
+        return;
+      }
+      const sessions = state.scoreSessions;
+      const live = liveRecord(replayData, snapshots, { sessions, benchmark: state.benchmark });
+      const days = [...new Set(snapshots.map(s => s.day))].sort();
+      if (!live.days) {
+        $("liveVerdict").textContent = days.length
+          ? `${days.length} market days of published verdicts so far (from ${days[0]}), and none is ${sessions} sessions old yet. This section fills in as builds age.`
+          : "No published snapshots yet.";
+        $("liveTable").hidden = true;
+        return;
+      }
+      $("liveVerdict").textContent = `${live.eligibleDays} of ${days.length} published market days are at least ${sessions} sessions old, `
+        + `${live.days} of them far enough apart to count as separate tests. These are the app's full verdicts (fundamentals included), but that is far too few to judge yet.`;
+      $("liveTable").hidden = false;
+      $("liveBody").innerHTML = BUCKETS.map(({ key, label }) => {
+        const b = live.buckets[key];
+        return `<tr><td>${escapeHtml(label)}</td><td>${b.n}</td>${seCell(b.excess)}<td>${fmtShare(b.hitRate)}</td></tr>`;
+      }).join("");
+    }
+
+    // ---------- chart ----------
+    function drawCandle(ctx, k, x, bodyW, y, alpha, colorOverride) {
+      const up = k.c >= k.o;
+      const col = colorOverride ?? (up ? C.pos : C.neg);
+      ctx.globalAlpha = alpha;
+      ctx.strokeStyle = col;
+      ctx.fillStyle = col;
+      ctx.lineWidth = 1;
+      const xi = Math.round(x) + 0.5;
+      const top = y(Math.max(k.o, k.c)), bottom = y(Math.min(k.o, k.c));
+      ctx.beginPath();
+      ctx.moveTo(xi, y(k.h)); ctx.lineTo(xi, top);
+      ctx.moveTo(xi, bottom); ctx.lineTo(xi, y(k.l));
+      ctx.stroke();
+      const bh = Math.max(1, bottom - top);
+      if (up && bodyW >= 3) ctx.strokeRect(Math.round(x - bodyW / 2) + 0.5, Math.round(top) + 0.5, Math.round(bodyW) - 1, Math.max(1, Math.round(bh) - 1));
+      else ctx.fillRect(Math.round(x - bodyW / 2), Math.round(top), Math.max(1, Math.round(bodyW)), Math.max(1, Math.round(bh)));
+      ctx.globalAlpha = 1;
+    }
+
+    function niceTicks(lo, hi, count) {
+      const raw = (hi - lo) / count, p = 10 ** Math.floor(Math.log10(raw)), m = raw / p;
+      const step = (m < 1.5 ? 1 : m < 3 ? 2 : m < 7 ? 5 : 10) * p;
+      const out = [];
+      for (let v = Math.ceil(lo / step) * step; v <= hi; v += step) out.push(v);
+      return out;
+    }
+
+    /** Geometry shared by the chart and its hover layer. */
+    let geo = null;
+
+    function layout() {
+      const cv = $("chart"), w = cv.clientWidth, h = cv.clientHeight;
+      const narrow = w < 640;
+      const axisW = narrow ? 56 : 72, histW = narrow ? 56 : Math.min(120, w * 0.1), padT = 18, padB = 26;
+      const plotR = w - axisW - histW;
+      const { origin, fan: rows, sim } = view;
+      const { candles } = data.prep;
+      const histCount = Math.min(origin + 1, Math.max(40, Math.min(160, Math.round(state.horizon * 1.8))));
+      const first = origin - histCount + 1;
+      const realized = Math.min(state.replay, state.horizon);
+      const slotW = plotR / (histCount + state.horizon);
+      let lo = Infinity, hi = -Infinity;
+      for (let i = first; i <= origin + realized; i++) { lo = Math.min(lo, candles[i].l); hi = Math.max(hi, candles[i].h); }
+      for (const r of rows) { lo = Math.min(lo, r.q[0.01]); hi = Math.max(hi, r.q[0.99]); }
+      const pad = (hi - lo) * 0.05;
+      lo -= pad; hi += pad;
+      const plotH = h - padT - padB;
+      return {
+        w, h, axisW, histW, padT, padB, plotR, plotH, histCount, first, origin, realized, slotW, lo, hi, sim,
+        x: (i) => (i - first + 0.5) * slotW,
+        xStep: (k) => (histCount + k - 0.5) * slotW,
+        y: (v) => padT + plotH * (1 - (v - lo) / (hi - lo)),
+        price: (py) => lo + (hi - lo) * (1 - (py - padT) / plotH)
+      };
+    }
+
+    /** Where simulated price traded at each step: each simulated candle spreads one unit across its low–high range. */
+    function densityImage(g) {
+      const { sim } = view, H = sim.horizon, rows = 220;
+      const grid = new Float32Array(H * rows);
+      const rowOf = (v) => (g.hi - v) / (g.hi - g.lo) * rows;
+      for (let p = 0; p < sim.paths; p++) {
+        for (let k = 0; k < H; k++) {
+          const at = (p * H + k) * 4;
+          const top = Math.max(0, Math.floor(rowOf(sim.candles[at + 1]))), bottom = Math.min(rows - 1, Math.floor(rowOf(sim.candles[at + 2])));
+          if (bottom < 0 || top >= rows) continue;
+          const share = 1 / (bottom - top + 1);
+          for (let r = top; r <= bottom; r++) grid[r * H + k] += share;
+        }
+      }
+      const blurred = new Float32Array(grid.length);
+      let max = 0;
+      for (let r = 0; r < rows; r++) for (let k = 0; k < H; k++) {
+        let s = 0, wsum = 0;
+        for (let d = -3; d <= 3; d++) {
+          const rr = r + d;
+          if (rr < 0 || rr >= rows) continue;
+          const wgt = 4 - Math.abs(d);
+          s += grid[rr * H + k] * wgt; wsum += wgt;
+        }
+        blurred[r * H + k] = s / wsum;
+        max = Math.max(max, blurred[r * H + k]);
+      }
+      const off = document.createElement("canvas");
+      off.width = H; off.height = rows;
+      const octx = off.getContext("2d");
+      const img = octx.createImageData(H, rows);
+      for (let i = 0; i < blurred.length; i++) {
+        img.data[4 * i] = SIM_RGB[0]; img.data[4 * i + 1] = SIM_RGB[1]; img.data[4 * i + 2] = SIM_RGB[2];
+        img.data[4 * i + 3] = Math.round(255 * Math.min(1, (blurred[i] / max) ** 0.55));
+      }
+      octx.putImageData(img, 0, 0);
+      return off;
+    }
+
+    function draw() {
+      if (!data || !view) return;
+      const cv = $("chart"), ctx = cv.getContext("2d");
+      const dpr = devicePixelRatio || 1;
+      cv.width = cv.clientWidth * dpr; cv.height = cv.clientHeight * dpr;
+      $("overlay").width = cv.width; $("overlay").height = cv.height;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      const g = geo = layout();
+      const { candles } = data.prep;
+      const { sim, fan: rows } = view;
+      ctx.clearRect(0, 0, g.w, g.h);
+
+      // grid and price axis
+      ctx.font = `11px ${css.getPropertyValue("--font-mono")}`;
+      ctx.textBaseline = "middle";
+      for (const v of niceTicks(g.lo, g.hi, Math.max(3, Math.round(g.plotH / 70)))) {
+        const yy = Math.round(g.y(v)) + 0.5;
+        ctx.strokeStyle = C.border; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(0, yy); ctx.lineTo(g.plotR, yy); ctx.stroke();
+        ctx.fillStyle = C.text3; ctx.textAlign = "left";
+        ctx.fillText(fmtPrice(v), g.plotR + g.histW + 8, yy);
+      }
+
+      // time labels
+      ctx.textAlign = "center"; ctx.textBaseline = "alphabetic"; ctx.fillStyle = C.text3;
+      const labelEvery = Math.max(1, Math.ceil(90 / g.slotW));
+      let lastDay = null;
+      for (let i = g.origin - Math.floor((g.histCount - 1) / labelEvery) * labelEvery; i <= g.origin; i += labelEvery) {
+        if (i < g.first) continue;
+        const day = new Date(candles[i].t).toDateString();
+        ctx.fillText(fmtTime(candles[i].t, day !== lastDay), g.x(i), g.h - 8);
+        lastDay = day;
+      }
+      ctx.fillText(`+${state.horizon}`, g.xStep(state.horizon), g.h - 8);
+
+      // forecast, clipped to the plot so extreme runs cannot draw over the labels
+      const fx0 = g.xStep(1) - g.slotW / 2, fx1 = g.xStep(state.horizon) + g.slotW / 2;
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(0, g.padT, g.plotR, g.plotH);
+      ctx.clip();
+      if (state.view === "density") {
+        if (!view.density) view.density = densityImage(g);
+        ctx.imageSmoothingEnabled = true;
+        ctx.drawImage(view.density, fx0, g.padT, fx1 - fx0, g.plotH);
+      }
+      if (state.view === "runs") {
+        const shown = Math.min(sim.paths, 80);
+        const bodyW = Math.max(1, g.slotW * 0.55);
+        for (let p = 0; p < shown; p++) {
+          for (let k = 0; k < sim.horizon; k++) {
+            const at = (p * sim.horizon + k) * 4;
+            const c = { o: sim.candles[at], h: sim.candles[at + 1], l: sim.candles[at + 2], c: sim.candles[at + 3] };
+            drawCandle(ctx, c, g.xStep(k + 1), bodyW, g.y, 0.28);
+          }
+        }
+      }
+      const band = (a, b, alpha) => {
+        ctx.globalAlpha = alpha; ctx.fillStyle = C.sim;
+        ctx.beginPath();
+        ctx.moveTo(g.x(g.origin), g.y(sim.start));
+        rows.forEach((r, k) => ctx.lineTo(g.xStep(k + 1), g.y(r.q[b])));
+        for (let k = rows.length - 1; k >= 0; k--) ctx.lineTo(g.xStep(k + 1), g.y(rows[k].q[a]));
+        ctx.closePath(); ctx.fill();
+        ctx.globalAlpha = 1;
+      };
+      const line = (q, width, dash, alpha) => {
+        ctx.globalAlpha = alpha; ctx.strokeStyle = C.sim; ctx.lineWidth = width; ctx.setLineDash(dash);
+        ctx.beginPath();
+        ctx.moveTo(g.x(g.origin), g.y(sim.start));
+        rows.forEach((r, k) => ctx.lineTo(g.xStep(k + 1), g.y(r.q[q])));
+        ctx.stroke();
+        ctx.setLineDash([]); ctx.globalAlpha = 1;
+      };
+      if (state.view === "bands") {
+        band(0.05, 0.95, 0.16);
+        band(0.25, 0.75, 0.3);
+        line(0.5, 2, [], 1);
+      } else {
+        line(0.05, 1, [3, 4], 0.8);
+        line(0.95, 1, [3, 4], 0.8);
+        line(0.5, 1.5, [], 0.9);
+      }
+
+      if (state.showLikely) {
+        const at = (k) => (view.likely * sim.horizon + k) * 4;
+        ctx.strokeStyle = C.simStrong; ctx.lineWidth = 1.5; ctx.globalAlpha = 0.6;
+        ctx.beginPath();
+        ctx.moveTo(g.x(g.origin), g.y(sim.start));
+        for (let k = 0; k < sim.horizon; k++) ctx.lineTo(g.xStep(k + 1), g.y(sim.candles[at(k) + 3]));
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+        const likelyW = Math.max(1, g.slotW * 0.62);
+        for (let k = 0; k < sim.horizon; k++) {
+          const i = at(k);
+          drawCandle(ctx, { o: sim.candles[i], h: sim.candles[i + 1], l: sim.candles[i + 2], c: sim.candles[i + 3] }, g.xStep(k + 1), likelyW, g.y, 1, C.simStrong);
+        }
+      }
+      ctx.restore();
+
+      // start price and the "now" divider
+      ctx.strokeStyle = C.text3; ctx.lineWidth = 1; ctx.setLineDash([2, 4]);
+      ctx.beginPath(); ctx.moveTo(g.x(g.origin), Math.round(g.y(sim.start)) + 0.5); ctx.lineTo(g.plotR + g.histW, Math.round(g.y(sim.start)) + 0.5); ctx.stroke();
+      const divX = Math.round(fx0) + 0.5;
+      ctx.strokeStyle = C.borderStrong;
+      ctx.beginPath(); ctx.moveTo(divX, g.padT - 6); ctx.lineTo(divX, g.h - g.padB); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = C.text2; ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
+      ctx.fillText(state.replay ? "forecast made here" : "now", divX + 6, g.padT - 4);
+
+      // history candles
+      const bodyW = Math.max(1, g.slotW * 0.62);
+      for (let i = g.first; i <= g.origin; i++) drawCandle(ctx, candles[i], g.x(i), bodyW, g.y, 1);
+
+      // what actually followed, when rewound
+      for (let k = 1; k <= g.realized; k++) drawCandle(ctx, candles[g.origin + k], g.xStep(k), bodyW, g.y, 1, C.text);
+
+      // end-of-horizon histogram
+      const hx0 = g.plotR + 10, hw = g.histW - 18;
+      const bins = Math.max(24, Math.round(g.plotH / 6));
+      const counts = new Float64Array(bins);
+      const ends = closesAt(sim, sim.horizon - 1);
+      for (const v of ends) {
+        const b = Math.floor((g.hi - v) / (g.hi - g.lo) * bins);
+        if (b >= 0 && b < bins) counts[b]++;
+      }
+      const maxCount = Math.max(...counts);
+      const binH = g.plotH / bins;
+      for (let b = 0; b < bins; b++) {
+        if (!counts[b]) continue;
+        const mid = g.hi - (b + 0.5) / bins * (g.hi - g.lo);
+        ctx.fillStyle = mid >= sim.start ? C.pos : C.neg;
+        ctx.globalAlpha = 0.85;
+        ctx.fillRect(hx0, g.padT + b * binH + 1, Math.max(1, hw * counts[b] / maxCount), Math.max(1, binH - 2));
+      }
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = C.text3; ctx.textAlign = "left";
+      ctx.fillText(`end · ${fmtShare(rows.at(-1).pUp)} up`, hx0, g.padT - 4);
+
+      // last price tag on the axis
+      const ty = g.y(sim.start);
+      ctx.fillStyle = C.text; ctx.fillRect(g.plotR + g.histW + 2, ty - 9, g.axisW - 4, 18);
+      ctx.fillStyle = C.bg; ctx.textBaseline = "middle"; ctx.font = `600 11px ${css.getPropertyValue("--font-mono")}`;
+      ctx.fillText(fmtPrice(sim.start), g.plotR + g.histW + 8, ty);
+    }
+
+    // ---------- hover ----------
+    function hover(e) {
+      if (!geo || !view) return;
+      const ov = $("overlay"), ctx = ov.getContext("2d");
+      const dpr = devicePixelRatio || 1;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, geo.w, geo.h);
+      const rect = ov.getBoundingClientRect();
+      const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+      const tip = $("tooltip");
+      if (mx < 0 || mx > geo.plotR || my < geo.padT || my > geo.h - geo.padB) { tip.hidden = true; return; }
+      const slot = Math.floor(mx / geo.slotW);
+      const { candles } = data.prep;
+      let html, cx;
+      const row = (label, value, cls = "") => `<div class="tt-row"><span>${label}</span><span class="${cls}">${value}</span></div>`;
+      if (slot < geo.histCount) {
+        const i = geo.first + slot, k = candles[i], prev = candles[i - 1];
+        cx = geo.x(i);
+        html = `<div class="tt-title">${escapeHtml(fmtTime(k.t))}${data.kind === "stock" ? " (approx.)" : ""}</div>`
+          + (data.kind === "crypto" ? row("Open", fmtPrice(k.o)) + row("High", fmtPrice(k.h)) + row("Low", fmtPrice(k.l)) : "")
+          + row("Close", fmtPrice(k.c))
+          + (prev ? row("Change", fmtPct(100 * (k.c / prev.c - 1)), k.c >= prev.c ? "tone-pos" : "tone-neg") : "");
+      } else {
+        const step = Math.min(state.horizon, slot - geo.histCount + 1), r = view.fan[step - 1];
+        cx = geo.xStep(step);
+        html = `<div class="tt-title">+${step} candle${step === 1 ? "" : "s"} (${escapeHtml(candleSpan(step))})</div>`
+          + row("95%", fmtPrice(r.q[0.95])) + row("75%", fmtPrice(r.q[0.75])) + row("Median", fmtPrice(r.q[0.5]))
+          + row("25%", fmtPrice(r.q[0.25])) + row("5%", fmtPrice(r.q[0.05]))
+          + row("Paths higher", fmtShare(r.pUp))
+          + (state.showLikely ? row("Likely path", fmtPrice(view.sim.candles[(view.likely * view.sim.horizon + step - 1) * 4 + 3])) : "");
+        if (step <= geo.realized) {
+          const actual = candles[geo.origin + step].c;
+          const sorted = closesAt(view.sim, step - 1);
+          let below = 0;
+          for (const v of sorted) if (v < actual) below++;
+          html += row("Actual", `${fmtPrice(actual)} (${Math.round(100 * below / sorted.length)}th pct)`);
+        }
+      }
+      ctx.strokeStyle = C.text3; ctx.lineWidth = 1; ctx.setLineDash([3, 3]);
+      ctx.beginPath(); ctx.moveTo(Math.round(cx) + 0.5, geo.padT); ctx.lineTo(Math.round(cx) + 0.5, geo.h - geo.padB);
+      ctx.moveTo(0, Math.round(my) + 0.5); ctx.lineTo(geo.plotR, Math.round(my) + 0.5); ctx.stroke();
+      ctx.setLineDash([]);
+      html += `<div class="tt-row" style="margin-top:4px"><span>Cursor</span><span>${fmtPrice(geo.price(my))}</span></div>`;
+      tip.innerHTML = html;
+      tip.hidden = false;
+      const tw = tip.offsetWidth, th = tip.offsetHeight;
+      tip.style.left = `${mx + 16 + tw > geo.w ? mx - tw - 16 : mx + 16}px`;
+      tip.style.top = `${Math.max(4, Math.min(my - th / 2, geo.h - th - 4))}px`;
+    }
+    $("overlay").addEventListener("mousemove", hover);
+    $("overlay").addEventListener("mouseleave", () => {
+      $("tooltip").hidden = true;
+      const ov = $("overlay");
+      ov.getContext("2d").clearRect(0, 0, ov.width, ov.height);
+    });
+
+    let resizeFrame = null;
+    new ResizeObserver(() => {
+      cancelAnimationFrame(resizeFrame);
+      resizeFrame = requestAnimationFrame(() => { if (view) { view.density = null; draw(); renderPatterns(); } });
+    }).observe($("chartWrap"));
+
+    await loadStocks();
+    syncControls();
+    load();
+    replayReady.then(() => { renderSymbolOptions(); renderScorecard(); });
+  </script>
+</body>
+</html>

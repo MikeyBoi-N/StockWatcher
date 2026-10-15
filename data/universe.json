@@ -10,6 +10,13 @@
     "WMT", "PG", "KO", "PEP", "HD", "MCD", "NKE", "DIS",
     "CVX", "CAT", "GE", "LMT", "BA"
   ],
+  "research": [
+    "ABT", "ACN", "AIG", "AMGN", "AMT", "AXP", "BKNG", "BLK", "BMY", "C", "CHTR", "CL", "CMCSA", "COF",
+    "COP", "CSCO", "CVS", "DE", "DHR", "DUK", "EMR", "F", "FDX", "GD", "GILD", "GM", "HON", "IBM",
+    "INTU", "ISRG", "LIN", "LOW", "MDLZ", "MDT", "MET", "MMM", "MO", "MS", "NEE", "NOW", "PFE", "PM",
+    "PYPL", "RTX", "SBUX", "SCHW", "SO", "SPG", "T", "TGT", "TMO", "TMUS", "TXN", "UNP", "UPS", "USB",
+    "VZ", "WFC"
+  ],
   "sectorEtfs": {
     "Technology": "XLK", "Telecommunications": "XLC", "Finance": "XLF", "Health Care": "XLV",
     "Consumer Discretionary": "XLY", "Consumer Staples": "XLP", "Energy": "XLE", "Industrials": "XLI",

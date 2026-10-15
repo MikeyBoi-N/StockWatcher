@@ -19,13 +19,17 @@ from pathlib import Path
 
 from market_data.http_client import FetchError, HttpClient
 from market_data.indicators import technicals
-from market_data.snapshot import build_stock_record, failed_checks
+from market_data.replay import FIELDS as REPLAY_FIELDS, replay
+from market_data.snapshot import build_stock_record, failed_checks, price_history
 from market_data.sources import CboeOptions, NasdaqAnalyst, NasdaqHistory, Providers, SecEdgar, YahooChart, YahooNews
 
 ROOT = Path(__file__).resolve().parent.parent
 UNIVERSE_FILE = ROOT / "data" / "universe.json"
 SYMBOLS_FILE = ROOT / "data" / "symbols.json"
 OUTPUT_FILE = ROOT / "data" / "market.json"
+# Weekly point-in-time technicals and five years of daily candles for the simulator page's backtests. A separate file
+# because it is several times the size of market.json and only that page reads it.
+REPLAY_FILE = ROOT / "data" / "replay.json"
 FIREBASE_CONFIG_FILE = ROOT / "firebase-config.js"
 
 REGIME_TICKERS = ("SPY", "QQQ")
@@ -116,8 +120,11 @@ def main():
     as_of = datetime.now(timezone.utc).date()
     print(f"Building {len(tickers)} tickers ({len(requested)} user-requested) as of {as_of}")
 
+    bars_by_ticker = {}
+
     def build(ticker):
-        return ticker, *build_stock_record(ticker, directory[ticker], providers, as_of)
+        return ticker, *build_stock_record(ticker, directory[ticker], providers, as_of,
+                                           on_bars=lambda bars: bars_by_ticker.__setitem__(ticker, bars))
 
     stocks, failures = {}, {}
     with ThreadPoolExecutor(max_workers=WORKERS) as pool:
@@ -152,6 +159,31 @@ def main():
     }
     OUTPUT_FILE.write_text(json.dumps(payload, separators=(",", ":")), encoding="utf-8")
     print(f"Wrote {len(stocks)} stocks to {OUTPUT_FILE} ({OUTPUT_FILE.stat().st_size // 1024} KB); {len(failures)} failed")
+
+    replays = {
+        t: {"etf": stocks[t]["etf"], "sector": stocks[t]["sector"], "research": False, **replay(bars_by_ticker[t])}
+        for t in stocks if t in bars_by_ticker
+    }
+
+    # The research list: a rule-based set of large caps (roughly the S&P 100), priced only, so the simulator's
+    # backtests are not limited to the hand-picked tracked list. They never appear in market.json or the API.
+    research = [] if args.only else [t for t in universe.get("research", []) if t in directory and t not in replays]
+
+    def research_replay(ticker):
+        errors = []
+        bars = price_history(ticker, directory[ticker]["etf"], providers, as_of, errors)
+        return ticker, (replay(bars) if bars else None), errors
+
+    with ThreadPoolExecutor(max_workers=WORKERS) as pool:
+        for ticker, entry, errors in pool.map(research_replay, research):
+            if entry is None:
+                print(f"  research {ticker}: {'; '.join(errors)}")
+                continue
+            replays[ticker] = {"etf": directory[ticker]["etf"], "sector": None, "research": True, **entry}
+    REPLAY_FILE.write_text(json.dumps({"generatedAt": payload["generatedAt"], "fields": REPLAY_FIELDS, "tickers": replays},
+                                      separators=(",", ":")), encoding="utf-8")
+    print(f"Wrote replay history for {len(replays)} stocks ({sum(r['research'] for r in replays.values())} research-only) "
+          f"to {REPLAY_FILE} ({REPLAY_FILE.stat().st_size // 1024} KB)")
 
 
 if __name__ == "__main__":

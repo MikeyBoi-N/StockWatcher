@@ -32,19 +32,28 @@ def _attempt(errors, label, fn):
     return None
 
 
-def build_stock_record(symbol, meta, providers, as_of):
+def price_history(symbol, is_etf, providers, as_of, errors):
+    """Daily bars from the primary price source, falling back to Nasdaq; None (reasons appended to `errors`) if both fail."""
+    bars = _attempt(errors, "prices (Yahoo)", lambda: providers.prices.price_history(symbol))
+    if bars is None:
+        bars = _attempt(errors, "prices (Nasdaq fallback)", lambda: providers.prices_fallback.price_history(symbol, is_etf, as_of))
+    return bars
+
+
+def build_stock_record(symbol, meta, providers, as_of, on_bars=None):
     """
     meta: {"name", "exchange", "etf"} from the symbol directory. providers: sources.Providers.
+    on_bars: optional callable given the stock's PriceHistory, so the caller can reuse the bars without fetching twice.
     Returns (record | None, errors). A record requires price history; every other source is optional.
     """
     errors = []
     is_etf = bool(meta.get("etf"))
 
-    bars = _attempt(errors, "prices (Yahoo)", lambda: providers.prices.price_history(symbol))
-    if bars is None:
-        bars = _attempt(errors, "prices (Nasdaq fallback)", lambda: providers.prices_fallback.price_history(symbol, is_etf, as_of))
+    bars = price_history(symbol, is_etf, providers, as_of, errors)
     if bars is None:
         return None, errors
+    if on_bars:
+        on_bars(bars)
 
     tech = technicals(bars)
     price = tech["price"]
