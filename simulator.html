@@ -169,7 +169,14 @@
     .card-body { padding: 12px 16px; }
 
     .chart-wrap { position: relative; height: 460px; }
-    @media (max-width: 700px) { .chart-wrap { height: 340px; } }
+    .chart-wrap.with-panel { height: 580px; }
+    @media (max-width: 700px) { .chart-wrap { height: 340px; } .chart-wrap.with-panel { height: 440px; } }
+    .indicator-row { margin-top: -4px; }
+    .legend-ind { display: inline-flex; flex-wrap: wrap; gap: 6px 16px; }
+    .legend-ind span { display: inline-flex; align-items: center; gap: 6px; }
+    .swatch.ln { height: 0; border-top: 2px solid; border-radius: 0; width: 14px; }
+    .profile-note { padding: 10px 16px; border-top: 1px solid var(--border); font-size: 12px; color: var(--text-2); }
+    .profile-note strong { color: var(--text); font-weight: 600; }
     .chart-wrap canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
     #overlay { cursor: crosshair; }
     .chart-status {
@@ -202,15 +209,16 @@
     .chart-foot {
       display: flex;
       justify-content: space-between;
-      align-items: center;
-      flex-wrap: wrap;
+      align-items: flex-start;
       gap: 10px 20px;
       padding: 10px 16px;
       border-top: 1px solid var(--border);
       font-size: 12px;
       color: var(--text-2);
     }
-    .legend { display: flex; flex-wrap: wrap; gap: 6px 16px; }
+    /* The legend grows and shrinks (rewinding adds "What actually happened", indicators add their keys), so it wraps
+       inside its own box and the replay control keeps its place on the right. */
+    .legend { display: flex; flex-wrap: wrap; gap: 6px 16px; flex: 1 1 0; min-width: 0; padding-top: 6px; }
     .legend span { display: inline-flex; align-items: center; gap: 6px; }
     .swatch { width: 10px; height: 10px; border-radius: 2px; flex: none; }
     .swatch.hollow { border: 1.5px solid var(--pos); }
@@ -218,7 +226,7 @@
     .swatch.sim { background: var(--sim); }
     .swatch.real { border: 1.5px solid var(--text); }
     .swatch.likely { border: 1.5px solid var(--sim-strong); }
-    .replay { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; }
+    .replay { display: flex; align-items: center; gap: 6px 8px; flex: none; margin-left: auto; }
     /* Right is now and left is further back, the same way the chart and the arrow buttons run. */
     .replay input[type=range] {
       -webkit-appearance: none; appearance: none; direction: rtl;
@@ -231,6 +239,12 @@
     .step-btn { padding: 3px 8px; font-size: 12px; font-weight: 600; min-width: 28px; justify-content: center; }
     .replay-num { margin-left: 18px; }
     .replay .num-input { width: 56px; padding: 4px 8px; text-align: center; font-weight: 600; }
+
+    @media (max-width: 900px) {
+      .chart-foot { flex-wrap: wrap; }
+      .legend { flex-basis: 100%; padding-top: 0; }
+      .replay { order: -1; }
+    }
 
     .chart-actions { display: flex; justify-content: flex-end; align-items: center; flex-wrap: wrap; gap: 8px 10px; margin-top: -4px; }
     .fit-note { flex: 1 1 320px; font-size: 12px; color: var(--text-2); text-align: right; }
@@ -364,6 +378,7 @@
       .segmented { flex-wrap: wrap; max-width: 100%; }
       .replay input[type=range] { width: 140px; }
       .replay-num { margin-left: 0; }
+      .replay { flex: 1 1 100%; flex-wrap: wrap; margin-left: 0; }
       .fit-note { text-align: left; }
     }
   </style>
@@ -373,6 +388,7 @@
     <a class="brand" href="./">StockWatcher</a>
     <div class="header-actions">
       <a class="btn-secondary" href="./">Overview</a>
+      <a class="btn-secondary" href="portfolio.html">Portfolio</a>
     </div>
   </header>
 
@@ -418,6 +434,12 @@
       <div class="field"><span>View</span><div class="segmented" id="view"></div>
         <div class="segmented"><button class="filter-btn" id="likelyToggle" aria-pressed="true" title="Highlight the simulated run that stays in the densest part of the cloud">Likely path</button></div></div>
     </div>
+    <div class="toolbar indicator-row">
+      <div class="field"><span>Indicators</span><div class="segmented" id="indicators"></div></div>
+      <label class="field" id="vwapAnchorField" title="Where the volume-weighted average price starts counting: the first candle shown, or the window's lowest low or highest high (the average buyer since a turning point)"><span>VWAP from</span>
+        <select id="vwapAnchor" class="select"><option value="start">Window start</option><option value="low">Lowest low</option><option value="high">Highest high</option></select></label>
+      <div class="field"><span>Lower panel</span><div class="segmented" id="panel"></div></div>
+    </div>
 
     <section class="card">
       <div class="card-head">
@@ -430,6 +452,7 @@
         <div class="chart-status" id="chartStatus">Loading candles…</div>
         <div class="tooltip" id="tooltip" hidden></div>
       </div>
+      <div class="profile-note" id="profileNote" hidden></div>
       <div class="chart-foot">
         <div class="legend">
           <span><i class="swatch hollow"></i>Up candle</span>
@@ -437,6 +460,7 @@
           <span><i class="swatch sim"></i>Simulated</span>
           <span id="legendLikely"><i class="swatch likely"></i>Most likely path</span>
           <span id="legendReal" hidden><i class="swatch real"></i>What actually happened</span>
+          <span id="legendIndicators" class="legend-ind"></span>
         </div>
         <div class="replay" title="Move the forecast back in time, up to 30 candles, and reveal what really followed">
           <button class="btn-secondary step-btn" data-step="-horizon" title="One horizon further back">&lt;&lt;</button>
@@ -597,6 +621,47 @@
       </div>
     </section>
 
+    <section class="card" id="volume-rules">
+      <div class="card-head">
+        <h2>Do the video's volume rules hold?</h2>
+        <div class="sub" id="vrSub"></div>
+      </div>
+      <div class="card-body score-body">
+        <div class="score-headline" id="vrVerdict">Testing the rules on five years of daily candles…</div>
+        <div class="score-charts">
+          <div class="viz">
+            <h3>Rules about what price does next</h3>
+            <div class="forest" id="vrReturns"></div>
+          </div>
+          <div class="viz">
+            <h3>Rules about price levels</h3>
+            <div class="forest" id="vrLevels"></div>
+          </div>
+        </div>
+        <details class="fine-print">
+          <summary>Each rule, in numbers</summary>
+          <div class="table-wrap">
+            <table class="bench paper">
+              <thead><tr>
+                <th>Rule and how it was tested</th>
+                <th>Groups</th>
+                <th title="First group minus the second, ± one standard error, signed so positive is the direction the video predicts">Difference</th>
+                <th title="Difference divided by its standard error, signed so positive is the video's direction">z</th>
+                <th>Verdict</th>
+              </tr></thead>
+              <tbody id="vrBody"></tbody>
+            </table>
+          </div>
+        </details>
+        <details class="fine-print">
+          <summary>How this is measured</summary>
+          <div class="footnote">Every stock in the replay (the app's list and the S&amp;P 100 research list), five years of daily candles. Each rule is compared with a control: the same kind of moment without the rule's trigger, or a level just as far away on the other side. Returns are over SPY. A rule holds when the difference is at least 2 standard errors in the direction the video predicts, and is contradicted at 2 the other way.</div>
+          <div class="footnote">Events are spaced so one stock's windows never overlap, but stocks on the same date share the market's moves, so the standard errors are somewhat understated: treat a z near 2 as weaker than it looks. With nine rules, one passing by luck is not unusual. Daily candles spread each day's volume across its range, so the profiles are approximate, and the video's intraday re-entry rule is tested on the prior five sessions' value area. All the stocks exist today (survivors).</div>
+        </details>
+        <div class="tooltip viz-tip" id="vrTip" hidden></div>
+      </div>
+    </section>
+
     <section class="card">
       <div class="card-head">
         <h2>Paper record (pre-registered)</h2>
@@ -728,6 +793,26 @@
             <li>Validation on 2,510 replay forecasts: mean realized ÷ forecast variance 0.993 (unbiased), QLIKE 0.22 against 0.42 for 21-day realized volatility, which under-forecasts variance by about 40%. It is used by the engine's options-vehicle rule (IV ÷ forecast: ≤ 0.9 cheap, ≥ 1.3 expensive) and by the Strategy's expected value. Whether it beats implied volatility is untested until enough IV history accumulates.</li>
           </ul>
 
+          <h4>Chart indicators (<code>js/indicators.js</code>)</h4>
+          <ul>
+            <li>All causal (the value at candle i uses candles 0..i). EMA &alpha; = 2/(n+1), seeded with the first n-value SMA; Bollinger = SMA(20) &plusmn; 2 population SD; RSI = Wilder's 14; MACD = EMA12 &minus; EMA26 with an EMA9 signal; anchored VWAP = &Sigma; v&middot;(h+l+c)/3 &divide; &Sigma; v from the anchor (first shown candle, or its lowest low or highest high).</li>
+            <li>Volume profile of the shown candles in 120 rows: each candle's volume spread evenly over its low&ndash;high (daily candles, so approximate). POC = busiest row; value area grown from the POC one row at a time toward the busier neighbour until 70% of volume; HVN/LVN = local peaks/troughs of a 5-row triangular smooth at &ge; 1.3&times; / &le; 0.6&times; the median row. Shape: thin if the value area spans &gt; 62% of the range, else P if the POC sits above 62% of it, b below 38%, otherwise D.</li>
+            <li>Volume readings (lower panel): ratio = volume &divide; the previous 20 candles' mean; absorption = ratio &ge; 2 with range &le; 0.6&times; the previous 20 candles' mean range; no supply = ratio &le; 0.6 with range &ge; that mean.</li>
+          </ul>
+
+          <h4>Volume rules ("Do the video's volume rules hold?", <code>js/volumerules.js</code>)</h4>
+          <ul>
+            <li>Nine claims from the volume-profile video, each against a control, on every non-ETF replayed stock (screened picks excluded), returns over SPY, events thinned per stock so its outcome windows never overlap. Verdict at |z| &ge; 2 in the claimed direction ("Holds") or against it; otherwise within noise. Same-date events across stocks share the market's move, so z is somewhat overstated, and with nine tests one false pass is unremarkable.</li>
+            <li>Divergence: 21-session return after a 20-day closing high (low) on volume &lt; 0.8&times; vs &gt; 1.2&times; average. Absorption, big candle + volume (range and volume &ge; 1.5&times;) and no supply: 5-session return against (with) the candle's direction vs any candle. POC magnet: outside the 60-session value area (sampled weekly), P(touch the POC within 10 sessions) vs P(touch the mirror level). Shape: 21-session return after a P- vs b-shaped 60-session profile. Edge reversal: a hammer (shooting star) through the 60-session VAL (VAH) that closes back inside on more volume than the prior candle; 10-session return in the trade's direction vs any candle's in its own.</li>
+            <li>Re-entry (the "80% rule") on the prior five sessions' value area, a daily stand-in for the prior session's: open outside, close inside in the outer third on the entry side; P(touch the far edge within 5 sessions) vs days that opened inside and closed in the same outer third moving the same way. The chart's profile note flags this setup on the latest candle with the measured rates.</li>
+          </ul>
+
+          <h4>Weekly screen (<code>scripts/screen_universe.py</code>)</h4>
+          <ul>
+            <li>Tier one: Nasdaq screener, US-domiciled common stock, price &ge; $5, market value &ge; $300M, not on the tracked or research lists, the 1,500 largest. Tier two: two years of Yahoo daily bars; gates close &gt; SMA200 and median 20-day dollar volume &ge; $10M; score = mean percentile of 12-1 momentum (adjusted closes, t&minus;252 to t&minus;21) and close &divide; 52-week high; top 50, at most 6 per sector.</li>
+            <li>Picks are analysed like tracked stocks but excluded from market breadth, the signal ranks (so they have no <code>signal</code>), the backtest set of <code>replay.json</code> (they are stored under <code>screened</code>, used only for charts and the volatility forecast) and the volume-rule tests. In <code>screen.json</code>, <code>record</code> gives each earlier week's picks' mean return since the pick against SPY; picks with no price today count in <code>picks</code> but not <code>priced</code>.</li>
+          </ul>
+
           <h4>Limitations an agent must not ignore</h4>
           <ul>
             <li>Survivorship bias in both universes; price-only replay; costs are assumptions (stocks 0 bps fee + 2 bps spread per round trip by default, crypto 60 bps per side + 5 bps); market holidays are not modelled in weekday counts; CRPS and Brier score terminal outcomes only, not paths; the rewind control reaches 30 candles, so a rewound chart is one test, not evidence.</li>
@@ -745,6 +830,8 @@
     import { BENCHMARKS, BUCKETS, ENGINE_MODEL, SCORECARD_HORIZONS, UNIVERSES, decodeReplay, engineMatches, liveRecord, replayStates, scorecard } from "./js/replay.js";
     import { FITTED_MODEL, SIGNALS, buildPanel, makePredictor, signalStats, walkForward } from "./js/signals.js";
     import { scorePaper } from "./js/paper.js";
+    import { reentryAt, testVolumeRules } from "./js/volumerules.js";
+    import { SHAPE_NOTES, anchoredVwap, bollinger, ema, macd, rsi, sma, volumeProfile, volumeReadings } from "./js/indicators.js";
     import { firebaseConfig } from "./firebase-config.js";
 
     const VIEWS = [
@@ -775,7 +862,7 @@
     const modelLabel = (key) => ALL_MODELS.find(m => m.key === key).label;
     /** Round-trip trading costs per asset class: fee per side and spread + slippage, in basis points. */
     const DEFAULT_COSTS = { crypto: { fee: 60, spread: 5 }, stock: { fee: 0, spread: 2 } };
-    const defaults = { symbol: "SPY", timeframe: "1h", model: "analog", view: "density", horizon: 30, paths: 500, window: 12, neighbors: 150, costs: DEFAULT_COSTS, scoreSessions: 21, scoreUniverse: "broad", benchmark: "beta", showLikely: true, scoreView: "charts", fitFor: "range" };
+    const defaults = { symbol: "SPY", timeframe: "1h", model: "analog", view: "density", horizon: 30, paths: 500, window: 12, neighbors: 150, costs: DEFAULT_COSTS, scoreSessions: 21, scoreUniverse: "broad", benchmark: "beta", showLikely: true, scoreView: "charts", fitFor: "range", indicators: [], vwapAnchor: "start", panel: "none" };
     const state = { ...defaults, replay: 0 };
     try {
       const saved = JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}");
@@ -786,6 +873,7 @@
     };
 
     let stocks = {};
+    let screenedSet = new Set();  // market.json's picks from the weekly screen
     let replayData = null;    // decoded data/replay.json, once loaded
     let engineStates = null;  // replayStates(replayData)
     let replayPreps = null;   // prepare() per replayed ticker, for engine analogs
@@ -841,6 +929,7 @@
     const fmtPrice = (v) => !Number.isFinite(v) ? "—" : v.toLocaleString("en-US", { minimumFractionDigits: v >= 1000 ? 0 : 2, maximumFractionDigits: v >= 1000 ? 0 : 2 });
     const fmtPct = (v, digits = 2) => !Number.isFinite(v) ? "—" : `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(v).toFixed(digits)}%`;
     const listWords = (names) => names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names.at(-1)}` : names[0];
+    const fmtCompact = (v) => !Number.isFinite(v) ? "—" : new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 }).format(v);
     const fmtShare = (v) => !Number.isFinite(v) ? "—" : `${Math.round(v * 100)}%`;
     const candleSpan = (count) => {
       const s = data.seconds * count;
@@ -899,6 +988,50 @@
 
     $("likelyToggle").addEventListener("click", () => { state.showLikely = !state.showLikely; saveSettings(); syncControls(); draw(); });
 
+    // ---------- indicators ----------
+    /** Chart overlays, each toggled on its own; `volume` marks the ones that need volume data. */
+    const INDICATORS = [
+      { key: "profile", label: "Volume profile", volume: true, title: "Volume traded at each price over the candles shown, with the point of control (POC) and the 70% value area. Daily candles spread each day's volume across its range, so stock profiles are approximate." },
+      { key: "vwap", label: "VWAP", volume: true, title: "Anchored volume-weighted average price: what the average buyer since the anchor paid" },
+      { key: "bands", label: "Bollinger", title: "20-candle average ± 2 standard deviations" },
+      { key: "emas", label: "EMA 9/21", title: "Exponential moving averages over 9 and 21 candles" }
+    ];
+    const PANELS = [
+      { key: "none", label: "None" },
+      { key: "volume", label: "Volume", volume: true },
+      { key: "rsi", label: "RSI" },
+      { key: "macd", label: "MACD" }
+    ];
+    /** Indicator colours: distinct from the candles (green/red) and the simulations (purple). */
+    const IND = { ema9: "#e6c45a", ema21: "#5aa9e6", vwap: "#3fc1c9", bands: "#a3a3a8", poc: "#d6a73a", absorb: "#d6a73a", signal: "#d6a73a" };
+    $("indicators").innerHTML = INDICATORS.map(i => `<button class="filter-btn" data-key="${i.key}" title="${escapeHtml(i.title)}">${escapeHtml(i.label)}</button>`).join("");
+    $("indicators").addEventListener("click", (e) => {
+      const b = e.target.closest("button");
+      if (!b || b.disabled) return;
+      const on = new Set(state.indicators);
+      on.has(b.dataset.key) ? on.delete(b.dataset.key) : on.add(b.dataset.key);
+      state.indicators = [...on];
+      saveSettings(); syncControls(); draw();
+    });
+    const syncPanel = segmented($("panel"), PANELS, () => state.panel, (k) => { state.panel = k; saveSettings(); syncControls(); draw(); });
+    $("vwapAnchor").addEventListener("change", () => { state.vwapAnchor = $("vwapAnchor").value; saveSettings(); draw(); });
+    const hasVolume = () => !!data?.prep.candles.some(k => k.v > 0);
+    const indicatorOn = (key) => state.indicators.includes(key) && (!INDICATORS.find(i => i.key === key).volume || hasVolume());
+    const panelOn = () => state.panel !== "none" && (!PANELS.find(p => p.key === state.panel)?.volume || hasVolume());
+
+    /** Indicator series over the whole series, computed once per data load (every value uses only earlier candles). */
+    function indicatorSeries() {
+      const { candles } = data.prep;
+      if (data.ind?.n === candles.length && data.ind?.last === candles.at(-1).t) return data.ind;
+      const closes = candles.map(k => k.c);
+      data.ind = {
+        n: candles.length, last: candles.at(-1).t,
+        ema9: ema(closes, 9), ema21: ema(closes, 21), bands: bollinger(closes, 20, 2),
+        rsi: rsi(closes, 14), macd: macd(closes), volumes: volumeReadings(candles), volAvg: sma(candles.map(k => k.v ?? 0), 20)
+      };
+      return data.ind;
+    }
+
     function syncControls() {
       const crypto = isCrypto(state.symbol);
       if (data && !modelAvailable(state.model)) state.model = "analog";
@@ -924,6 +1057,18 @@
       $("spread").value = state.costs[assetClass()].spread;
       if (!crypto) $("spreadHint").textContent = "typical large cap";
       $("replayUnit").textContent = crypto ? "candles ago" : "days ago";
+      const volumeOk = !data || hasVolume();
+      $("indicators").querySelectorAll("button").forEach(b => {
+        const ind = INDICATORS.find(i => i.key === b.dataset.key);
+        b.disabled = ind.volume && !volumeOk;
+        b.classList.toggle("active", state.indicators.includes(b.dataset.key) && !b.disabled);
+        b.setAttribute("aria-pressed", String(b.classList.contains("active")));
+      });
+      syncPanel();
+      $("panel").querySelectorAll("button").forEach(b => { b.disabled = !!PANELS.find(p => p.key === b.dataset.key).volume && !volumeOk; });
+      $("vwapAnchor").value = state.vwapAnchor;
+      $("vwapAnchorField").hidden = !state.indicators.includes("vwap");
+      $("chartWrap").classList.toggle("with-panel", state.panel !== "none");
       $("fitFor").value = state.fitFor;
       paintLeaderboard();
     }
@@ -1002,7 +1147,9 @@
       try {
         const res = await fetch("data/market.json", { cache: "no-cache" });
         if (!res.ok) throw new Error(res.status);
-        stocks = (await res.json()).stocks ?? {};
+        const market = await res.json();
+        stocks = market.stocks ?? {};
+        screenedSet = new Set(market.screened ?? []);
       } catch {
         stocks = {};
       }
@@ -1013,13 +1160,17 @@
     function renderSymbolOptions() {
       const tickers = new Set([
         ...Object.values(stocks).filter(s => (s.historicalSeries ?? []).length >= 60).map(s => s.ticker),
-        ...Object.keys(replayData?.tickers ?? {})
+        ...Object.keys(replayData?.tickers ?? {}),
+        ...Object.keys(replayData?.screened ?? {})
       ]);
       const option = (t) => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`;
       const research = (t) => !!replayData?.tickers[t]?.research;
-      const tracked = [...tickers].filter(t => !research(t)).sort();
+      const screened = (t) => screenedSet.has(t) || !!replayData?.screened?.[t];
+      const tracked = [...tickers].filter(t => !research(t) && !screened(t)).sort();
       const extra = [...tickers].filter(research).sort();
+      const picks = [...tickers].filter(screened).sort();
       $("symbol").innerHTML = (tracked.length ? `<optgroup label="Stocks (app list)">${tracked.map(option).join("")}</optgroup>` : "")
+        + (picks.length ? `<optgroup label="Stocks (weekly screen)">${picks.map(option).join("")}</optgroup>` : "")
         + (extra.length ? `<optgroup label="Stocks (research list, prices only)">${extra.map(option).join("")}</optgroup>` : "")
         + `<optgroup label="Crypto (live, Coinbase)">${CRYPTO_PRODUCTS.map(p => `<option value="${p}">${p}</option>`).join("")}</optgroup>`;
       if (!isCrypto(state.symbol) && !tickers.has(state.symbol) && !replayData) return;
@@ -1064,8 +1215,9 @@
         } else {
           await replayReady;
           if (token !== loadToken) return;
-          const replayed = replayData?.tickers[symbol];
-          const candles = replayed ? replayed.candles : marketJsonCandles(stocks[symbol]);
+          // Screened picks have candles but stay out of the engine-based models, which are backtests.
+          const replayed = replayData?.tickers[symbol], picked = replayData?.screened?.[symbol];
+          const candles = replayed ? replayed.candles : picked ? picked.candles : marketJsonCandles(stocks[symbol]);
           const prep = replayed ? replayPreps.get(symbol) : prepare(candles);
           data = { key: `${symbol}|1d`, kind: "stock", seconds: 86400, candles, prep, fromReplay: !!replayed && prep.n === candles.length };
         }
@@ -1587,7 +1739,7 @@
      * standard errors, a zero line for the benchmark. Bars instead of whiskers when `bars` is set (no uncertainty).
      * rows: [{ label, mean, se, z, emph, ghost: { mean, se, z }, tip: [lines] }]; values are fractions.
      */
-    function forest(el, rows, { fmt = (v) => fmtPct(100 * v), bars = false, ends = null } = {}) {
+    function forest(el, rows, { fmt = (v) => fmtPct(100 * v), bars = false, ends = null, tipEl = $("vizTip") } = {}) {
       const lo0 = Math.min(0, ...rows.flatMap(r => [r.mean - (r.z ?? 0) * (r.se ?? 0), r.ghost ? r.ghost.mean - r.ghost.z * r.ghost.se : 0]).filter(Number.isFinite));
       const hi0 = Math.max(0, ...rows.flatMap(r => [r.mean + (r.z ?? 0) * (r.se ?? 0), r.ghost ? r.ghost.mean + r.ghost.z * r.ghost.se : 0]).filter(Number.isFinite));
       const pad = (hi0 - lo0) * 0.08 || 0.001;
@@ -1624,10 +1776,10 @@
         + (ends ? `<div class="fr-row fr-ends"><div></div><div class="fr-plot" style="--zero:${x(0)}%"><span class="left">← ${escapeHtml(ends[0])}</span><span class="right">${escapeHtml(ends[1])} →</span></div><div></div></div>` : "");
       const show = (row) => {
         const r = rows[Number(row.dataset.i)];
-        const tip = $("vizTip");
+        const tip = tipEl;
         tip.replaceChildren();
         const line = (text, cls) => { const d = document.createElement("div"); d.className = cls; d.textContent = text; tip.append(d); };
-        line(Number.isFinite(r.mean) ? `${fmt(r.mean)}${Number.isFinite(r.se) && !bars ? ` ± ${(100 * r.se).toFixed(2)}` : ""}` : "No data", "tt-value");
+        line(Number.isFinite(r.mean) ? `${fmt(r.mean)}${Number.isFinite(r.se) && !bars ? ` ± ${fmt(r.se).replace(/^[+−-]/, "")}` : ""}` : "No data", "tt-value");
         line(r.label, "tt-title");
         for (const t of r.tip ?? []) line(t, "tt-line");
         if (!bars && Number.isFinite(r.mean) && r.se > 0) line(`${Math.abs(r.mean / r.se).toFixed(1)} standard errors from zero; ${r.z} needed to clear the noise`, "tt-line");
@@ -1639,8 +1791,8 @@
       el.querySelectorAll(".fr-row[data-i]").forEach(row => {
         row.addEventListener("pointerenter", () => show(row));
         row.addEventListener("focus", () => show(row));
-        row.addEventListener("pointerleave", () => { $("vizTip").hidden = true; });
-        row.addEventListener("blur", () => { $("vizTip").hidden = true; });
+        row.addEventListener("pointerleave", () => { tipEl.hidden = true; });
+        row.addEventListener("blur", () => { tipEl.hidden = true; });
       });
     }
 
@@ -1810,6 +1962,45 @@
       forest($("weightChart"), fitted.final.weights.map(w => ({ label: w.label, mean: w.effect, tip: [`over ${windowWords}, everything else equal`] })), { bars: true, ends: ["favors low values", "favors high values"] });
     }
 
+    // ---------- volume rules ----------
+    let volumeRules = null;   // testVolumeRules(replayData), computed once after the scorecard
+
+    const fmtPts = (v) => `${v >= 0 ? "+" : "−"}${Math.abs(100 * v).toFixed(1)} pts`;
+    const fmtRule = (r, v) => r.unit === "share" ? fmtShare(v) : fmtPct(100 * v);
+    const fmtRuleDiff = (r, v) => r.unit === "share" ? fmtPts(v) : fmtPct(100 * v);
+    const RULE_VERDICT = { supports: ["Holds", "tone-pos"], contradicts: ["Goes against it", "tone-neg"], inconclusive: ["Within noise", "tone-muted"], "too few": ["Too few cases", "tone-muted"] };
+
+    function renderVolumeRules() {
+      if (!replayData) return;
+      volumeRules ??= testVolumeRules(replayData);
+      if (!volumeRules.length) { $("vrVerdict").textContent = "The replay has no SPY history to measure against."; return; }
+      const held = volumeRules.filter(r => r.verdict === "supports"), against = volumeRules.filter(r => r.verdict === "contradicts");
+      const noise = volumeRules.filter(r => r.verdict === "inconclusive" || r.verdict === "too few");
+      const stocks = Object.values(replayData.tickers).filter(t => !t.etf).length;
+      $("vrSub").textContent = `${volumeRules.length} rules · ${stocks} stocks · daily candles`;
+      const re = volumeRules.find(r => r.key === "reentry");
+      $("vrVerdict").textContent = `${held.length} of ${volumeRules.length} rules held up${against.length ? `, ${against.length} went against the video` : ""}. `
+        + (re?.verdict === "supports"
+          ? `Value-area re-entry reached the far edge within a week ${fmtShare(re.groups[0].value)} of the time, against ${fmtShare(re.groups[1].value)} from the same spot without it: real, but far from the video's "vast majority". `
+          : "")
+        + (noise.length ? `The other ${noise.length === 1 ? "one was" : `${noise.length} were`} within noise.` : "");
+      const row = (r) => ({
+        label: r.label, mean: r.want * r.diff, se: r.se, z: 2, emph: r.verdict === "supports",
+        tip: [r.claim, ...r.groups.map(g => `${g.label}: ${fmtRule(r, g.value)} (${g.n.toLocaleString()} cases)`), RULE_VERDICT[r.verdict][0]]
+      });
+      const ends = ["against the video", "as the video says"];
+      forest($("vrReturns"), volumeRules.filter(r => r.unit === "return").map(row), { ends, tipEl: $("vrTip") });
+      forest($("vrLevels"), volumeRules.filter(r => r.unit === "share").map(row), { ends, tipEl: $("vrTip"), fmt: fmtPts });
+      $("vrBody").innerHTML = volumeRules.map(r => {
+        const [word, tone] = RULE_VERDICT[r.verdict];
+        const groups = r.groups.map(g => `${escapeHtml(g.label)}: ${escapeHtml(fmtRule(r, g.value))} <span class="target">n ${g.n.toLocaleString()}</span>`).join("<br>");
+        const diff = Number.isFinite(r.diff) ? `${escapeHtml(fmtRuleDiff(r, r.want * r.diff))} <span class="target">± ${escapeHtml(fmtRuleDiff(r, r.se).replace(/^[+−]/, ""))}</span>` : "—";
+        return `<tr><td>${escapeHtml(r.label)}: ${escapeHtml(r.claim)}<span class="measures">${escapeHtml(r.test)}${r.want < 0 ? " The video predicts a negative difference, so the sign is flipped here." : ""}</span></td>`
+          + `<td>${groups}</td><td>${diff}</td><td>${Number.isFinite(r.z) ? (r.want * r.z).toFixed(2) : "—"}</td><td class="${tone}">${word}</td></tr>`;
+      }).join("");
+      if (view) draw();
+    }
+
     // ---------- paper record ----------
     const registryReady = fetch("data/paper/registry.json", { cache: "no-cache" })
       .then(res => res.ok ? res.json() : { entries: [] })
@@ -1935,9 +2126,19 @@
       for (const r of rows) { lo = Math.min(lo, r.q[0.01]); hi = Math.max(hi, r.q[0.99]); }
       const pad = (hi - lo) * 0.05;
       lo -= pad; hi += pad;
-      const plotH = h - padT - padB;
+      // Overlays shown on the price chart widen its range so they are never cut off.
+      if (data.ind) {
+        const shown = [];
+        if (indicatorOn("bands")) shown.push(data.ind.bands.upper, data.ind.bands.lower);
+        if (indicatorOn("emas")) shown.push(data.ind.ema9, data.ind.ema21);
+        for (const arr of shown) for (let i = first; i <= origin + realized; i++) if (Number.isFinite(arr[i])) { lo = Math.min(lo, arr[i]); hi = Math.max(hi, arr[i]); }
+      }
+      const panelGap = panelOn() ? 14 : 0;
+      const panelH = panelOn() ? Math.round((h - padT - padB) * 0.24) : 0;
+      const plotH = h - padT - padB - panelH - panelGap;
       return {
-        w, h, axisW, histW, padT, padB, plotR, plotH, histCount, first, origin, realized, slotW, lo, hi, sim,
+        w, h, axisW, histW, padT, padB, plotR, plotH, panelH, panelTop: padT + plotH + panelGap, histCount, first, origin, realized, slotW, lo, hi, sim,
+        xAt: (i) => i <= origin ? (i - first + 0.5) * slotW : (histCount + (i - origin) - 0.5) * slotW,
         x: (i) => (i - first + 0.5) * slotW,
         xStep: (k) => (histCount + k - 0.5) * slotW,
         y: (v) => padT + plotH * (1 - (v - lo) / (hi - lo)),
@@ -1991,10 +2192,14 @@
       cv.width = cv.clientWidth * dpr; cv.height = cv.clientHeight * dpr;
       $("overlay").width = cv.width; $("overlay").height = cv.height;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      const ind = indicatorSeries();
       const g = geo = layout();
       const { candles } = data.prep;
       const { sim, fan: rows } = view;
       ctx.clearRect(0, 0, g.w, g.h);
+      const lastShown = g.origin + g.realized;
+      const profile = indicatorOn("profile") ? volumeProfile(candles, g.first, g.origin, Math.min(200, Math.max(60, Math.round(g.plotH / 2)))) : null;
+      view.profile = profile;
 
       // grid and price axis
       ctx.font = `11px ${css.getPropertyValue("--font-mono")}`;
@@ -2094,6 +2299,70 @@
       ctx.fillStyle = C.text2; ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
       ctx.fillText(state.replay ? (g.w < 640 ? "from here" : "forecast made here") : "now", divX + 6, g.padT - 4);
 
+      // volume profile behind the candles: bars from the left edge, the value area a step stronger, the POC in amber
+      if (profile) {
+        const histWidth = g.histCount * g.slotW, maxVol = Math.max(...profile.rows.map(r => r.volume));
+        for (const r of profile.rows) {
+          if (!r.volume) continue;
+          const y0 = g.y(r.hi), y1 = g.y(r.lo);
+          const inValue = r.lo >= profile.val - 1e-9 && r.hi <= profile.vah + 1e-9;
+          ctx.fillStyle = r.lo <= profile.poc && profile.poc < r.hi ? IND.poc : inValue ? "rgba(150, 160, 185, 0.30)" : "rgba(150, 160, 185, 0.16)";
+          ctx.globalAlpha = r.lo <= profile.poc && profile.poc < r.hi ? 0.55 : 1;
+          ctx.fillRect(0, y0, 0.28 * histWidth * r.volume / maxVol, Math.max(1, y1 - y0 - 0.5));
+        }
+        ctx.globalAlpha = 1;
+        const level = (v, label, alpha, dash) => {
+          const yy = Math.round(g.y(v)) + 0.5;
+          ctx.strokeStyle = IND.poc; ctx.globalAlpha = alpha; ctx.lineWidth = 1; ctx.setLineDash(dash);
+          ctx.beginPath(); ctx.moveTo(0, yy); ctx.lineTo(g.plotR, yy); ctx.stroke();
+          ctx.setLineDash([]); ctx.globalAlpha = 1;
+          ctx.fillStyle = IND.poc; ctx.font = `10px ${css.getPropertyValue("--font-mono")}`; ctx.textAlign = "left"; ctx.textBaseline = "bottom";
+          ctx.fillText(`${label} ${fmtPrice(v)}`, 4, yy - 2);
+        };
+        level(profile.poc, "POC", 0.9, []);
+        level(profile.vah, "VAH", 0.55, [4, 4]);
+        level(profile.val, "VAL", 0.55, [4, 4]);
+        ctx.font = `11px ${css.getPropertyValue("--font-mono")}`; ctx.textBaseline = "alphabetic";
+      }
+
+      // line overlays: Bollinger bands (filled), EMAs, anchored VWAP
+      const series = (arr, color, width, dash = [], from = g.first) => {
+        ctx.strokeStyle = color; ctx.lineWidth = width; ctx.setLineDash(dash);
+        ctx.beginPath();
+        let started = false;
+        for (let i = from; i <= lastShown; i++) {
+          if (!Number.isFinite(arr[i])) { started = false; continue; }
+          const xx = g.xAt(i), yy = g.y(arr[i]);
+          started ? ctx.lineTo(xx, yy) : ctx.moveTo(xx, yy);
+          started = true;
+        }
+        ctx.stroke(); ctx.setLineDash([]);
+      };
+      ctx.save();
+      ctx.beginPath(); ctx.rect(0, g.padT, g.plotR, g.plotH); ctx.clip();
+      if (indicatorOn("bands")) {
+        const { upper, lower, mid } = ind.bands;
+        ctx.beginPath();
+        let any = false;
+        for (let i = g.first; i <= lastShown; i++) if (Number.isFinite(upper[i])) { any ? ctx.lineTo(g.xAt(i), g.y(upper[i])) : ctx.moveTo(g.xAt(i), g.y(upper[i])); any = true; }
+        for (let i = lastShown; i >= g.first; i--) if (Number.isFinite(lower[i])) ctx.lineTo(g.xAt(i), g.y(lower[i]));
+        if (any) { ctx.fillStyle = "rgba(163, 163, 168, 0.07)"; ctx.fill(); }
+        series(upper, IND.bands, 1); series(lower, IND.bands, 1); series(mid, IND.bands, 1, [3, 4]);
+      }
+      if (indicatorOn("emas")) { series(ind.ema9, IND.ema9, 1.5); series(ind.ema21, IND.ema21, 1.5); }
+      if (indicatorOn("vwap")) {
+        let anchor = g.first;
+        if (state.vwapAnchor !== "start") {
+          for (let i = g.first; i <= g.origin; i++) {
+            if (state.vwapAnchor === "low" ? candles[i].l < candles[anchor].l : candles[i].h > candles[anchor].h) anchor = i;
+          }
+        }
+        view.vwapAnchor = anchor;
+        view.vwap = anchoredVwap(candles, anchor);
+        series(view.vwap, IND.vwap, 2, [], anchor);
+      } else view.vwap = null;
+      ctx.restore();
+
       // history candles
       const bodyW = Math.max(1, g.slotW * 0.62);
       for (let i = g.first; i <= g.origin; i++) drawCandle(ctx, candles[i], g.x(i), bodyW, g.y, 1);
@@ -2123,11 +2392,114 @@
       ctx.fillStyle = C.text3; ctx.textAlign = "left";
       ctx.fillText(`end · ${fmtShare(rows.at(-1).pUp)} up`, hx0, g.padT - 4);
 
+      // lower panel: volume, RSI or MACD on the same time axis
+      if (panelOn()) {
+        const top = g.panelTop, ph = g.panelH, bottom = top + ph;
+        ctx.strokeStyle = C.border; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(0, top - 6.5); ctx.lineTo(g.plotR, top - 6.5); ctx.stroke();
+        const label = (text) => { ctx.fillStyle = C.text3; ctx.font = `10px ${css.getPropertyValue("--font-mono")}`; ctx.textAlign = "left"; ctx.textBaseline = "top"; ctx.fillText(text, 4, top); };
+        const axis = (v, py) => { ctx.fillStyle = C.text3; ctx.font = `10px ${css.getPropertyValue("--font-mono")}`; ctx.textAlign = "left"; ctx.textBaseline = "middle"; ctx.fillText(v, g.plotR + g.histW + 8, py); };
+        const pane = (arr, color, width, scale) => {
+          ctx.strokeStyle = color; ctx.lineWidth = width; ctx.beginPath();
+          let started = false;
+          for (let i = g.first; i <= lastShown; i++) {
+            if (!Number.isFinite(arr[i])) { started = false; continue; }
+            started ? ctx.lineTo(g.xAt(i), scale(arr[i])) : ctx.moveTo(g.xAt(i), scale(arr[i]));
+            started = true;
+          }
+          ctx.stroke();
+        };
+        const barW = Math.max(1, g.slotW * 0.62);
+        if (state.panel === "volume") {
+          let max = 0;
+          for (let i = g.first; i <= lastShown; i++) max = Math.max(max, candles[i].v ?? 0);
+          const scale = (v) => bottom - (ph - 12) * v / (max || 1);
+          for (let i = g.first; i <= lastShown; i++) {
+            const k = candles[i], v = k.v ?? 0, yy = scale(v);
+            ctx.fillStyle = i > g.origin ? C.text : k.c >= k.o ? C.pos : C.neg;
+            ctx.globalAlpha = 0.55;
+            ctx.fillRect(g.xAt(i) - barW / 2, yy, barW, bottom - yy);
+            ctx.globalAlpha = 1;
+            if (ind.volumes[i]?.absorption) {
+              ctx.fillStyle = IND.absorb;
+              ctx.beginPath(); ctx.arc(g.xAt(i), yy - 5, 2.5, 0, 2 * Math.PI); ctx.fill();
+            }
+          }
+          pane(ind.volAvg, C.text3, 1, scale);
+          label("VOLUME · 20 avg · ● absorption (2× volume, small range)");
+          axis(fmtCompact(max), top + 6);
+        } else if (state.panel === "rsi") {
+          const scale = (v) => bottom - (ph - 4) * v / 100;
+          for (const lvl of [30, 70]) { ctx.strokeStyle = C.border; ctx.setLineDash([3, 4]); ctx.beginPath(); ctx.moveTo(0, scale(lvl) + 0.5); ctx.lineTo(g.plotR, scale(lvl) + 0.5); ctx.stroke(); ctx.setLineDash([]); axis(String(lvl), scale(lvl)); }
+          pane(ind.rsi, C.text, 1.5, scale);
+          label("RSI 14");
+        } else if (state.panel === "macd") {
+          let m = 0;
+          for (let i = g.first; i <= lastShown; i++) for (const v of [ind.macd.line[i], ind.macd.signal[i], ind.macd.hist[i]]) if (Number.isFinite(v)) m = Math.max(m, Math.abs(v));
+          const mid = top + ph / 2, scale = (v) => mid - (ph / 2 - 4) * v / (m || 1);
+          ctx.strokeStyle = C.border; ctx.beginPath(); ctx.moveTo(0, mid + 0.5); ctx.lineTo(g.plotR, mid + 0.5); ctx.stroke();
+          for (let i = g.first; i <= lastShown; i++) {
+            const v = ind.macd.hist[i];
+            if (!Number.isFinite(v)) continue;
+            ctx.fillStyle = v >= 0 ? C.pos : C.neg; ctx.globalAlpha = 0.5;
+            ctx.fillRect(g.xAt(i) - barW / 2, Math.min(mid, scale(v)), barW, Math.abs(scale(v) - mid));
+            ctx.globalAlpha = 1;
+          }
+          pane(ind.macd.line, C.text, 1.5, scale);
+          pane(ind.macd.signal, IND.signal, 1.5, scale);
+          label("MACD 12/26/9 · signal in amber");
+        }
+        ctx.font = `11px ${css.getPropertyValue("--font-mono")}`; ctx.textBaseline = "alphabetic";
+      }
+
+      renderIndicatorNotes(profile);
+
       // last price tag on the axis
       const ty = g.y(sim.start);
       ctx.fillStyle = C.text; ctx.fillRect(g.plotR + g.histW + 2, ty - 9, g.axisW - 4, 18);
       ctx.fillStyle = C.bg; ctx.textBaseline = "middle"; ctx.font = `600 11px ${css.getPropertyValue("--font-mono")}`;
       ctx.fillText(fmtPrice(sim.start), g.plotR + g.histW + 8, ty);
+    }
+
+    /** The legend entries for the overlays shown, and one line reading the volume profile. */
+    function renderIndicatorNotes(profile) {
+      const key = (color, label, dash = false) => `<span><i class="swatch ln" style="border-top-color:${color};${dash ? "border-top-style:dashed;" : ""}"></i>${escapeHtml(label)}</span>`;
+      const parts = [];
+      if (profile) parts.push(key(IND.poc, "POC"), key(IND.poc, "Value area", true));
+      if (indicatorOn("vwap")) parts.push(key(IND.vwap, `VWAP from ${fmtTime(data.prep.candles[view.vwapAnchor].t)}`));
+      if (indicatorOn("bands")) parts.push(key(IND.bands, "Bollinger 20, 2σ"));
+      if (indicatorOn("emas")) parts.push(key(IND.ema9, "EMA 9"), key(IND.ema21, "EMA 21"));
+      $("legendIndicators").innerHTML = parts.join("");
+      if (!profile) { $("profileNote").hidden = true; return; }
+      const price = data.prep.candles[view.origin].c;
+      const where = price > profile.vah ? `above the value area (VAH ${fmtPrice(profile.vah)}): out of balance to the upside`
+        : price < profile.val ? `below the value area (VAL ${fmtPrice(profile.val)}): out of balance to the downside`
+        : `inside the value area (${fmtPrice(profile.val)}–${fmtPrice(profile.vah)}): balanced`;
+      $("profileNote").hidden = false;
+      $("profileNote").innerHTML = `<strong>Volume profile</strong> of the candles shown${data.kind === "stock" ? " (daily, so approximate)" : ""}: ${escapeHtml(SHAPE_NOTES[profile.shape])} `
+        + `Price is ${escapeHtml(where)}. POC ${escapeHtml(fmtPrice(profile.poc))}`
+        + (profile.lvn.length ? `; thin (low-volume) prices near ${escapeHtml(profile.lvn.slice(0, 3).map(fmtPrice).join(", "))}` : "")
+        + ". " + reentryNote() + volumeRulesNote();
+    }
+
+    /** The video's re-entry setup on the latest daily candle, with its tested odds once the volume rules have run. */
+    function reentryNote() {
+      if (data.kind !== "stock") return "";
+      const re = reentryAt(data.prep.candles, view.origin);
+      if (!re) return "";
+      const test = volumeRules?.find(r => r.key === "reentry");
+      const odds = test?.verdict === "supports"
+        ? ` In the replay the far edge was reached within 5 sessions ${fmtShare(test.groups[0].value)} of the time, against ${fmtShare(test.groups[1].value)} from the same spot without a re-entry.`
+        : "";
+      return `<strong>Re-entry:</strong> this candle opened ${re.from} the prior five sessions' value area (${escapeHtml(fmtPrice(re.val))}–${escapeHtml(fmtPrice(re.vah))}) and closed back inside, the video's setup for a move to ${escapeHtml(fmtPrice(re.target))}.${escapeHtml(odds)} `;
+    }
+
+    function volumeRulesNote() {
+      if (!volumeRules?.length) return "These are readings from the video's playbook; see the volume rules test below.";
+      const held = volumeRules.filter(r => r.verdict === "supports").map(r => /^[A-Z][a-z]/.test(r.label) ? r.label[0].toLowerCase() + r.label.slice(1) : r.label);
+      const shape = volumeRules.find(r => r.key === "shape");
+      return `Of the video's ${volumeRules.length} rules, ${held.length ? `only ${listWords(held)} held up` : "none held up"} in the replay`
+        + (shape && shape.verdict !== "supports" ? ", so read the shape as a description, not a forecast" : "") + " (see the volume rules test below).";
     }
 
     // ---------- hover ----------
@@ -2151,7 +2523,8 @@
         html = `<div class="tt-title">${escapeHtml(fmtTime(k.t))}${data.kind === "stock" ? " (approx.)" : ""}</div>`
           + (data.kind === "crypto" ? row("Open", fmtPrice(k.o)) + row("High", fmtPrice(k.h)) + row("Low", fmtPrice(k.l)) : "")
           + row("Close", fmtPrice(k.c))
-          + (prev ? row("Change", fmtPct(100 * (k.c / prev.c - 1)), k.c >= prev.c ? "tone-pos" : "tone-neg") : "");
+          + (prev ? row("Change", fmtPct(100 * (k.c / prev.c - 1)), k.c >= prev.c ? "tone-pos" : "tone-neg") : "")
+          + indicatorRows(i, row);
       } else {
         const step = Math.min(state.horizon, slot - geo.histCount + 1), r = view.fan[step - 1];
         cx = geo.xStep(step);
@@ -2172,12 +2545,26 @@
       ctx.beginPath(); ctx.moveTo(Math.round(cx) + 0.5, geo.padT); ctx.lineTo(Math.round(cx) + 0.5, geo.h - geo.padB);
       ctx.moveTo(0, Math.round(my) + 0.5); ctx.lineTo(geo.plotR, Math.round(my) + 0.5); ctx.stroke();
       ctx.setLineDash([]);
-      html += `<div class="tt-row" style="margin-top:4px"><span>Cursor</span><span>${fmtPrice(geo.price(my))}</span></div>`;
+      if (my <= geo.padT + geo.plotH) html += `<div class="tt-row" style="margin-top:4px"><span>Cursor</span><span>${fmtPrice(geo.price(my))}</span></div>`;
       tip.innerHTML = html;
       tip.hidden = false;
       const tw = tip.offsetWidth, th = tip.offsetHeight;
       tip.style.left = `${mx + 16 + tw > geo.w ? mx - tw - 16 : mx + 16}px`;
       tip.style.top = `${Math.max(4, Math.min(my - th / 2, geo.h - th - 4))}px`;
+    }
+    /** The enabled indicators' values at candle i, for the hover tooltip. */
+    function indicatorRows(i, row) {
+      const ind = data.ind;
+      if (!ind) return "";
+      const f = (v) => Number.isFinite(v) ? fmtPrice(v) : "—";
+      let out = "";
+      if (indicatorOn("emas")) out += row("EMA 9 / 21", `${f(ind.ema9[i])} / ${f(ind.ema21[i])}`);
+      if (indicatorOn("bands")) out += row("Bollinger", `${f(ind.bands.lower[i])} – ${f(ind.bands.upper[i])}`);
+      if (indicatorOn("vwap") && view.vwap && Number.isFinite(view.vwap[i])) out += row("VWAP", f(view.vwap[i]));
+      if (panelOn() && state.panel === "volume" && ind.volumes[i]?.ratio) out += row("Volume", `${ind.volumes[i].ratio.toFixed(2)}× avg${ind.volumes[i].absorption ? " · absorption" : ind.volumes[i].noSupply ? " · no supply" : ""}`);
+      if (panelOn() && state.panel === "rsi" && Number.isFinite(ind.rsi[i])) out += row("RSI", ind.rsi[i].toFixed(1));
+      if (panelOn() && state.panel === "macd" && Number.isFinite(ind.macd.line[i])) out += row("MACD / signal", `${ind.macd.line[i].toFixed(2)} / ${Number.isFinite(ind.macd.signal[i]) ? ind.macd.signal[i].toFixed(2) : "—"}`);
+      return out ? `<div style="margin-top:4px"></div>${out}` : "";
     }
     $("overlay").addEventListener("mousemove", hover);
     $("overlay").addEventListener("mouseleave", () => {
@@ -2200,7 +2587,7 @@
     await loadStocks();
     syncControls();
     load();
-    replayReady.then(() => { renderSymbolOptions(); renderScorecard(); });
+    replayReady.then(() => { renderSymbolOptions(); renderScorecard(); setTimeout(renderVolumeRules, 50); });
   </script>
 </body>
 </html>

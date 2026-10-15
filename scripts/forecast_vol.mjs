@@ -11,10 +11,14 @@
  *                earnings release inside it as one of the stock's typical earnings-day moves; null without options
  * Stocks without five months of candles, and ETFs' earnings, are left without the parts they can't support.
  *
+ * It also adds `beta`: the stock's one-year beta to SPY from daily total returns, shrunk a third toward 1 (trailingBeta
+ * in js/replay.js, the same measure the scorecard uses). The Portfolio page splits risk into market and stock-specific
+ * parts with it. Null with fewer than 120 shared days.
+ *
  * Usage: node scripts/forecast_vol.mjs [market.json] [replay.json]
  */
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { decodeReplay } from "../js/replay.js";
+import { decodeReplay, trailingBeta } from "../js/replay.js";
 import { earningsEvents, forecastVolatility, prepare } from "../js/simulator.js";
 
 const marketFile = process.argv[2] ?? new URL("../data/market.json", import.meta.url);
@@ -27,12 +31,17 @@ if (!existsSync(replayFile)) {
 const market = JSON.parse(readFileSync(marketFile, "utf8"));
 const replay = decodeReplay(JSON.parse(readFileSync(replayFile, "utf8")));
 const calendarToSessions = (days) => Math.max(1, Math.round(days * 252 / 365));
+const spy = replay.tickers.SPY?.candles ?? [];
+const spyIndex = new Map(spy.map((k, i) => [k.t, i]));
 
 let written = 0;
 for (const [ticker, record] of Object.entries(market.stocks)) {
   delete record.volForecast;
-  const source = replay.tickers[ticker];
+  delete record.beta;
+  const source = replay.tickers[ticker] ?? replay.screened[ticker];
   if (!source) continue;
+  const beta = spy.length ? trailingBeta(source.candles, source.candles.length - 1, spy, spyIndex) : null;
+  if (Number.isFinite(beta)) record.beta = Math.round(beta * 1000) / 1000;
   const prep = prepare(source.candles);
   // The next release may be newer than the filings history; the build's own earnings date fills it in.
   const history = source.earnings && record.catalysts?.nextEarningsDate && !source.earnings.dates.includes(record.catalysts.nextEarningsDate)
@@ -54,4 +63,4 @@ for (const [ticker, record] of Object.entries(market.stocks)) {
   written++;
 }
 writeFileSync(marketFile, JSON.stringify(market));
-console.log(`Wrote volatility forecasts for ${written} of ${Object.keys(market.stocks).length} stocks.`);
+console.log(`Wrote volatility forecasts for ${written} of ${Object.keys(market.stocks).length} stocks, and betas.`);

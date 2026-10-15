@@ -85,6 +85,8 @@ test("a sample keeps the volatility forecast, which can't be rebuilt for past da
   const sample = sampleFromEvaluation(evaluateAsset(records[0], ctx), ctx.spy);
   assert.equal(sample.inputs.volForecast21, 0.3123);
   assert.equal(sample.inputs.volForecastToExpiry, 0.3345);
+  const withBeta = sampleFromEvaluation(evaluateAsset({ ...records[0], beta: 1.234 }, ctx), ctx.spy);
+  assert.equal(withBeta.inputs.beta, 1.234);
 });
 
 test("a build is keyed by its own timestamp, so recording it twice cannot count it twice", () => {

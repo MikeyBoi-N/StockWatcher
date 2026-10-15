@@ -28,6 +28,9 @@ from market_data.sources import CboeOptions, NasdaqAnalyst, NasdaqHistory, Provi
 
 ROOT = Path(__file__).resolve().parent.parent
 UNIVERSE_FILE = ROOT / "data" / "universe.json"
+# Picks from the weekly two-tier screen (scripts/screen_universe.py), analysed like any tracked stock.
+SCREEN_FILE = ROOT / "data" / "screen.json"
+SCREEN_MAX_AGE_DAYS = 14
 SYMBOLS_FILE = ROOT / "data" / "symbols.json"
 OUTPUT_FILE = ROOT / "data" / "market.json"
 # Weekly point-in-time technicals and five years of daily candles for the simulator page's backtests. A separate file
@@ -47,6 +50,19 @@ WORKERS = 4
 def load_symbol_directory():
     data = json.loads(SYMBOLS_FILE.read_text(encoding="utf-8"))
     return {s: {"name": n, "exchange": ex, "etf": bool(etf)} for s, n, ex, etf in data["symbols"]}
+
+
+def screened_tickers(directory):
+    """The screen's picks, if data/screen.json exists and is under SCREEN_MAX_AGE_DAYS old; else []."""
+    try:
+        screen = json.loads(SCREEN_FILE.read_text(encoding="utf-8"))
+        made = datetime.fromisoformat(screen["generatedAt"])
+    except (OSError, ValueError, KeyError, TypeError):
+        return []
+    if (datetime.now(timezone.utc) - made).days > SCREEN_MAX_AGE_DAYS:
+        print(f"WARNING: {SCREEN_FILE.name} is from {screen['generatedAt']}; skipping its picks")
+        return []
+    return [p["ticker"] for p in screen.get("picks", []) if p.get("ticker") in directory]
 
 
 def requested_tickers(http, directory):
@@ -136,7 +152,9 @@ def main():
         except (FetchError, AttributeError) as err:
             print(f"WARNING: could not read requested tickers from Firestore ({err}); building core universe only")
 
-    tickers = args.only.upper().split(",") if args.only else list(dict.fromkeys(core + requested))[:MAX_TICKERS]
+    # Screened picks come last, so the cap trims them before anything a user asked for.
+    screened = [] if args.only else [t for t in screened_tickers(directory) if t not in core and t not in requested]
+    tickers = args.only.upper().split(",") if args.only else list(dict.fromkeys(core + requested + screened))[:MAX_TICKERS]
     unknown = [t for t in tickers if t not in directory]
     if unknown:
         sys.exit(f"Not in data/symbols.json: {', '.join(unknown)}")
@@ -154,7 +172,7 @@ def main():
     )
 
     as_of = datetime.now(timezone.utc).date()
-    print(f"Building {len(tickers)} tickers ({len(requested)} user-requested) as of {as_of}")
+    print(f"Building {len(tickers)} tickers ({len(requested)} user-requested, {len(screened)} screened) as of {as_of}")
 
     bars_by_ticker = {}
 
@@ -189,6 +207,7 @@ def main():
         "generatedAt": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "universe": universe,
         "requested": [t for t in requested if t in stocks],
+        "screened": [t for t in screened if t in stocks],
         "sectors": sectors,
         "stocks": stocks,
         "failures": failures,
@@ -196,8 +215,12 @@ def main():
     OUTPUT_FILE.write_text(json.dumps(payload, separators=(",", ":")), encoding="utf-8")
     print(f"Wrote {len(stocks)} stocks to {OUTPUT_FILE} ({OUTPUT_FILE.stat().st_size // 1024} KB); {len(failures)} failed")
 
+    # Screened picks are flagged so every backtest leaves them out: they were chosen on their past year, so testing
+    # them on that year would be hindsight. Their candles still serve the volatility forecast and the Forecaster chart.
+    screened_set = set(payload["screened"])
     replays = {
-        t: {"etf": stocks[t]["etf"], "sector": stocks[t]["sector"], "research": False, **replay(bars_by_ticker[t])}
+        t: {"etf": stocks[t]["etf"], "sector": stocks[t]["sector"], "research": False, **({"screened": True} if t in screened_set else {}),
+            **replay(bars_by_ticker[t])}
         for t in stocks if t in bars_by_ticker
     }
 

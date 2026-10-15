@@ -44,7 +44,7 @@ test("limits fill from defaults and clamp to their range", () => {
 });
 
 test("a buy-zone stock gets an order sized so the stop loses no more than the risk budget", () => {
-  const { e, s } = plan(base(), { budget: 10000, riskPct: 1, instruments: "shares" });
+  const { e, s } = plan(base(), { budget: 10000, riskPct: 1, instruments: "shares", fractional: false });
   assert.equal(e.bucket, "buy");
   assert.equal(s.status, "act");
   assert.equal(s.vehicle, "shares");
@@ -122,13 +122,13 @@ test("a strong asset that isn't a buy yet gets a planned order at the preferred 
   assert.ok(!/-\d+ days/.test(event.detail));
 });
 
-test("avoid verdicts and budgets too small for one share get no trade", () => {
+test("avoid verdicts, and whole-share budgets too small for one share, get no trade", () => {
   const broken = { ...base(), price: 80, sma50: 95, sma200: 100, return3m: -0.2, return12m: -0.3, rsi14: 30 };
   const { e, s } = plan(broken);
   assert.equal(e.bucket, "avoid");
   assert.equal(s.status, "pass");
   assert.equal(s.risk, null);
-  assert.equal(plan(base(), { budget: 100, riskPct: 0.1, instruments: "shares" }).s.status, "pass");
+  assert.equal(plan(base(), { budget: 100, riskPct: 0.1, instruments: "shares", fractional: false }).s.status, "pass");
 });
 
 test("the risk score is 0-100, the sum of its factors, and rises with leverage", () => {
@@ -206,4 +206,29 @@ test("without a forecast the volatility part is unknown, not zero", () => {
   assert.equal(s.ev.volatility, null);
   const text = strategyText(s, plan(withOptions({ ivHvRatio: 0.8 })).e, context(base()), {});
   assert.match(text, /Expected value: [−+]\$/);
+});
+
+test("fractional shares let a small budget trade, sliced to 0.0001 of a share with a $1 minimum order", () => {
+  const { s } = plan(base(), { budget: 40, riskPct: 2, instruments: "shares" });
+  assert.equal(s.status, "act");
+  assert.ok(s.qty > 0 && s.qty < 1, `qty ${s.qty}`);
+  assert.equal(Math.round(s.qty * 1e4) / 1e4, s.qty, "cut to 0.0001 of a share");
+  assert.ok(s.cost <= 40 && s.lossAtStop <= 0.8 + 1e-9);
+  assert.match(orderLine(s, "TEST"), /^Buy 0\.\d+ TEST shares \(\$\d+\.\d{2}\)$/);
+
+  const whole = plan(base(), { budget: 40, riskPct: 2, instruments: "shares", fractional: false }).s;
+  assert.equal(whole.status, "pass");
+  assert.match(whole.reason, /fractional/);
+
+  // $1 budget at 0.1% risk can only lose $0.001 at a $1.50 stop distance: a tenth of a cent of stock, under $1.
+  const tiny = plan(base(), { budget: 1, riskPct: 0.1, instruments: "shares" }).s;
+  assert.equal(tiny.status, "pass");
+  assert.equal(tiny.code, "too-small");
+});
+
+test("fractional is on unless switched off, and survives the string the limits bar sends", () => {
+  assert.equal(normalizeStrategyPrefs({}).fractional, true);
+  assert.equal(normalizeStrategyPrefs({ fractional: "false" }).fractional, false);
+  assert.equal(normalizeStrategyPrefs({ fractional: false }).fractional, false);
+  assert.equal(normalizeStrategyPrefs({ fractional: "true" }).fractional, true);
 });

@@ -55,9 +55,9 @@ class YahooChart:
     def __init__(self, http):
         self.http = http
 
-    def price_history(self, symbol):
+    def price_history(self, symbol, years=HISTORY_YEARS):
         url = (f"https://query1.finance.yahoo.com/v8/finance/chart/{quote(symbol.replace('.', '-'))}"
-               f"?range={HISTORY_YEARS}y&interval=1d&includePrePost=false")
+               f"?range={years}y&interval=1d&includePrePost=false")
         result = (self.http.get_json(url).get("chart") or {}).get("result")
         if not result or not result[0].get("timestamp"):
             raise FetchError(f"Yahoo returned no chart data for {symbol}")

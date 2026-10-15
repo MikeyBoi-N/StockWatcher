@@ -152,3 +152,12 @@ test("beta is shrunk a third of the way to 1", () => {
   assert.ok(Math.abs(trailingBeta(stock, 299, spy, spyIndex) - (0.67 * 2 + 0.33)) < 1e-9);
   assert.equal(trailingBeta(stock, 50, spy, spyIndex), null, "needs 120 shared days");
 });
+
+test("decodeReplay keeps screened picks out of `tickers`, so no backtest can see them", () => {
+  const json = fakeReplay(["SPY", "AAA", "PICK"]);
+  json.tickers.PICK.screened = true;
+  const replay = decodeReplay(json);
+  assert.deepEqual(Object.keys(replay.tickers), ["SPY", "AAA"]);
+  assert.deepEqual(Object.keys(replay.screened), ["PICK"]);
+  assert.equal(replay.screened.PICK.candles.length, replay.tickers.AAA.candles.length, "their candles still decode, for charts");
+});

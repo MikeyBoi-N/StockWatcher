@@ -21,8 +21,8 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-    # Builds take about 3 minutes; a hung step is killed instead of blocking the queue behind it.
-    timeout-minutes: 30
+    # Builds take about 3 minutes, plus about 5 for the weekly screen; a hung step is killed instead of blocking the queue.
+    timeout-minutes: 40
     # One build at a time, never cancelled midway: each one records history and sends alerts.
     concurrency:
       group: data-build
@@ -58,11 +58,19 @@ jobs:
         run: |
           curl -fsSL "${SITE_URL}data/market.json" -o "$RUNNER_TEMP/previous-market.json" || echo "no previous market.json"
           curl -fsSL "${SITE_URL}data/earnings.json" -o "$RUNNER_TEMP/previous-earnings.json" || echo "no previous earnings.json"
+          curl -fsSL "${SITE_URL}data/screen.json" -o "$RUNNER_TEMP/previous-screen.json" || echo "no previous screen.json"
 
       - name: Refresh US-Listed Symbol Directory
         # Falls back to the committed data/symbols.json if Nasdaq Trader is unreachable.
         continue-on-error: true
         run: python scripts/fetch_symbols.py
+
+      - name: Weekly Universe Screen
+        # Screens about 1,500 US stocks outside the app's list and keeps 50 picks for the build below. Reuses the
+        # deployed screen while it is under 6 days old, so it only fetches once a week; each new screen carries the
+        # earlier picks forward and scores them against SPY. On failure the build uses the previous picks (or none).
+        continue-on-error: true
+        run: python scripts/screen_universe.py --previous "$RUNNER_TEMP/previous-screen.json"
 
       - name: Build Market Data
         # The script refuses to overwrite data/market.json unless SPY, QQQ and 80% of the core universe succeed;

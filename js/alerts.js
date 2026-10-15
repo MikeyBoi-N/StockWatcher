@@ -4,7 +4,7 @@
  * Alerts fire on transitions between two consecutive data builds: a stock that stays actionable is reported
  * once, and a failed build loses nothing because the next build is compared against the last deployed one.
  */
-import { SCORE_LABELS, buildMarketContext, evaluateAsset } from "./engine.js";
+import { SCORE_LABELS, buildMarketContext, evaluateAsset, excludeScreened } from "./engine.js";
 
 export const ALERT_TRIGGERS = [
   { id: "actionable", label: "Enters the buy zone", hint: "Quality, Trend, Entry and Trade all clear their bars, chase risk isn't high, no earnings inside 14 days" },
@@ -46,7 +46,7 @@ export function normalizeAlertPrefs(raw) {
 /** Scores a data/market.json payload into the fields alerts compare. */
 export function summarizeSnapshot(market) {
   const records = Object.values(market.stocks);
-  const context = buildMarketContext(records, market.sectors);
+  const context = buildMarketContext(excludeScreened(records, market), market.sectors);
   const evaluations = records.map(item => evaluateAsset(item, context));
   return {
     generatedAt: market.generatedAt,

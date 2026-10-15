@@ -13,7 +13,7 @@
  * The README's Developer API section documents every field. Within v1 fields may be added; renaming or removing one
  * needs a v2 path.
  */
-import { SCORE_KEYS, buildMarketContext, classifyEvaluations, evaluateAsset } from "./engine.js";
+import { SCORE_KEYS, buildMarketContext, classifyEvaluations, evaluateAsset, excludeScreened } from "./engine.js";
 import { PEER_METRICS, rankPeers } from "./benchmarks.js";
 import { filingActions } from "./developments.js";
 import { HORIZONS, horizonReading } from "./grades.js";
@@ -130,6 +130,7 @@ function stockDocument(e, context, peerRanks, meta, edge) {
     industry: item.industry ?? null,
     etf: Boolean(item.etf),
     primary: Boolean(item.isPrimary),
+    screened: Boolean(item.isScreened),
     asOf: item.asOf ?? null,
     verdict: { bucket: e.bucket, label: e.verdict },
     overall: e.overall,
@@ -174,19 +175,19 @@ function stockDocument(e, context, peerRanks, meta, edge) {
  * @returns {{index: object, stocks: Map<string, object>}} the stocks.json body, and each stock's document by ticker
  */
 export function apiDocuments(market, { model = null } = {}) {
-  const primary = new Set(market.universe?.primary ?? []);
+  const primary = new Set(market.universe?.primary ?? []), screened = new Set(market.screened ?? []);
   // Tickers become file names, so anything that could escape api/v1/stocks/ is dropped rather than written.
   const records = Object.values(market.stocks ?? {})
     .filter(r => TICKER_PATTERN.test(r.ticker ?? ""))
-    .map(r => ({ ...r, isPrimary: primary.has(r.ticker) }));
-  const context = buildMarketContext(records, market.sectors);
+    .map(r => ({ ...r, isPrimary: primary.has(r.ticker), isScreened: screened.has(r.ticker) }));
+  const context = buildMarketContext(excludeScreened(records, market), market.sectors);
   const evaluations = records.map(item => evaluateAsset(item, context));
   const { sorted, best } = classifyEvaluations(evaluations);
   const ranks = rankPeers(evaluations);
   const meta = { apiVersion: API_VERSION, generatedAt: market.generatedAt, docs: API_DOCS_URL, disclaimer: API_DISCLAIMER };
 
   const stocks = new Map();
-  const signals = signalReadings(records, context, model);
+  const signals = signalReadings(excludeScreened(records, market), context, model);
   const edgeFor = (ticker) => signals.has(ticker) ? { ...signals.get(ticker), sessions: model.sessions, label: model.label } : null;
   for (const e of sorted) stocks.set(e.item.ticker, stockDocument(e, context, ranks.get(e.item.ticker), meta, edgeFor(e.item.ticker)));
 
@@ -206,6 +207,7 @@ export function apiDocuments(market, { model = null } = {}) {
       sector: e.item.sector ?? null,
       etf: Boolean(e.item.etf),
       primary: Boolean(e.item.isPrimary),
+      screened: Boolean(e.item.isScreened),
       verdict: { bucket: e.bucket, label: e.verdict },
       overall: e.overall,
       scores: Object.fromEntries(SCORE_KEYS.map(k => [k, e.scores[k].score])),

@@ -7,6 +7,7 @@ The dashboard at https://mikeyboi-n.github.io/StockWatcher/ renders its table wi
 ## Read before interpreting
 
 - [Technical reference](https://mikeyboi-n.github.io/StockWatcher/simulator.html#technical-reference): read this before describing, summarizing or acting on any score, verdict, signal, forecast, backtest or strategy from this site. It defines every model, statistic, benchmark and test exactly, along with the known biases.
+- [Portfolio plan rules](https://mikeyboi-n.github.io/StockWatcher/portfolio.html#technical-reference): how the Portfolio page allocates an account (index core, capped risk-weighted stocks) and picks each holding's entry method. The plan relies on diversification; its stock picks are unproven tilts.
 
 Rules for agents, which the reference explains:
 
@@ -15,11 +16,16 @@ Rules for agents, which the reference explains:
 - The forecaster draws distributions of possible prices. It does not forecast direction, and its "most likely path" is a typical simulated run, not a prediction.
 - In `strategy`, the expected value's signal part comes from an unproven frozen model, and its volatility part has not yet been tested against implied volatility. Present both as estimates.
 - Do not fill in missing fields from general market knowledge. A null field means the input was unavailable.
+- Stocks with `screened: true` come from a weekly momentum screen of about 1,500 US stocks. They are candidates, not recommendations: the screen is untested (its forward record is in `data/screen.json`), and they have no `signal`.
+- The Forecaster's chart indicators (volume profile, VWAP, Bollinger bands, EMAs, RSI, MACD) are descriptive. Of nine volume-profile rules tested on the replay, only value-area re-entry held up, and modestly; do not present profile shapes, the POC or volume divergence as predictive.
+
 
 ## Data
 
 - [stocks.json](https://mikeyboi-n.github.io/StockWatcher/api/v1/stocks.json): build time, market regime and one summary row per tracked stock (verdict, Overall and the four scores), in ranking order
 - [stocks/{TICKER}.json](https://mikeyboi-n.github.io/StockWatcher/api/v1/stocks/MSFT.json): one stock's full reading, with every score factor's points, trading levels, entry diagnostics, peer ranks, SEC fundamentals, recent 8-K filings, a `signal` (a frozen model's expected return relative to the other stocks), and a `strategy` (status, vehicle, entry, stop, exit rules, per-dollar loss, gain and expected value, and a 0-100 risk score) that you size with your own budget. Use any ticker listed in stocks.json, uppercase, e.g. stocks/BRK.B.json
+
+- [screen.json](https://mikeyboi-n.github.io/StockWatcher/data/screen.json): the weekly screen's method, counts, current picks (momentum, 52-week-high distance, dollar volume, score) and its forward track record against SPY
 
 ## Docs
 

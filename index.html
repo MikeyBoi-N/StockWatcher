@@ -227,6 +227,8 @@
     .filter-btn.active { background: var(--surface-3); color: var(--text); }
     .toolbar-right { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
     .toolbar-right label { font-size: 12px; color: var(--text-3); }
+    /* Actions on the table itself, kept apart from the filters by a hairline */
+    .table-actions { display: inline-flex; gap: 6px; padding-left: 10px; margin-left: 2px; border-left: 1px solid var(--border); }
     .select, .search-input {
       background: var(--surface);
       border: 1px solid var(--border);
@@ -525,6 +527,8 @@
     .history-empty { padding: 28px 24px; text-align: center; color: var(--text-3); font-size: 13px; }
 
     .table-note { font-size: 12px; color: var(--text-3); }
+    .screen-note { font-size: 13px; line-height: 1.5; color: var(--text-2); background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px; margin-bottom: 12px; }
+    .screen-note strong { color: var(--text); font-weight: 600; }
 
     @media (max-width: 640px) {
       .topbar { position: static; padding: 8px 16px; flex-wrap: wrap; }
@@ -823,8 +827,7 @@
       <button class="btn-secondary" id="btnManageWatchlist" title="Choose which stocks you track">
         <span id="headerWlCountText">Watchlist</span>
       </button>
-      <button class="btn-secondary" id="btnExportJournal" title="Copy the current table as a markdown report">Copy report</button>
-      <button class="btn-secondary" id="btnDownloadCsv" title="Download the current view, in its current sort, as a CSV file">Download CSV</button>
+      <a class="btn-secondary" href="portfolio.html" title="A diversified plan for your whole account: index core, capped stock positions, and how to buy each">Portfolio</a>
       <a class="btn-secondary" href="simulator.html" title="Forecast a range of possible futures for a stock or crypto">Forecaster</a>
       <a class="btn-secondary" href="https://github.com/MikeyBoi-N/StockWatcher#developer-api" target="_blank" rel="noopener" title="Free JSON API with every stock's scores and verdict, for developers">API</a>
       <div id="authPillContainer"></div>
@@ -874,7 +877,7 @@
       </div>
       <label class="limit-field" title="The most money one trade may use: the cost of shares or option premium, or the cash set aside for a cash-secured put.">
         <span class="limit-label">Budget per trade <i class="info">i</i></span>
-        <span class="limit-input"><span>$</span><input type="number" id="limBudget" min="100" step="100" inputmode="decimal"></span>
+        <span class="limit-input"><span>$</span><input type="number" id="limBudget" min="1" step="1" inputmode="decimal"></span>
       </label>
       <label class="limit-field" title="How much of the budget you accept losing if the stock closes below the stop and you exit. Positions are sized so a stop-out loses no more than this. A gap through the stop can lose more; the Strategy shows that worst case.">
         <span class="limit-label">Risk per trade <i class="info">i</i></span>
@@ -893,6 +896,13 @@
         <span class="limit-label">Instruments <i class="info">i</i></span>
         <select id="limInstruments" class="select"></select>
       </label>
+      <label class="limit-field" title="Most retail brokers (Robinhood, Fidelity, Schwab and others) sell slices of a share, so a $40 budget can still hold part of a $400 stock. Orders are cut to 0.0001 of a share, with a $1 minimum. Options are always whole contracts.">
+        <span class="limit-label">Fractional shares <i class="info">i</i></span>
+        <select id="limFractional" class="select">
+          <option value="true">Allowed</option>
+          <option value="false">Whole shares only</option>
+        </select>
+      </label>
       <span class="limits-status" id="limStatus"></span>
     </section>
 
@@ -901,6 +911,7 @@
         <button class="filter-btn active" data-filter="my_watchlist">Watchlist</button>
         <button class="filter-btn" data-filter="all">All</button>
         <button class="filter-btn" data-filter="primary">Primary</button>
+        <button class="filter-btn" data-filter="screened" title="This week's picks from a screen of about 1,500 US stocks outside the app's list: momentum and closeness to the 52-week high, at most 6 per sector. Not tested; the live record will judge them.">Screened</button>
         <button class="filter-btn" data-filter="alerts">Alerts</button>
         <button class="filter-btn" data-filter="historical">Historical</button>
       </div>
@@ -931,9 +942,14 @@
           <label for="historyDays">Days</label>
           <select id="historyDays" class="select"></select>
         </span>
+        <span class="table-actions" aria-label="Export this table">
+          <button class="btn-secondary" id="btnDownloadCsv" title="Download the current view, in its current sort and filter, as a CSV file">Download CSV</button>
+          <button class="btn-secondary baseline-only" id="btnExportJournal" title="Copy the current view as a markdown report">Copy report</button>
+        </span>
       </div>
     </section>
 
+    <div class="screen-note" id="screenNote" hidden></div>
     <div class="table-wrap">
       <table class="bench" id="benchTable">
         <thead></thead>
@@ -1281,7 +1297,7 @@
     import { getFirestore, doc, getDoc, setDoc, updateDoc, serverTimestamp, collection, getDocs, limit, orderBy, query as fsQuery, where } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
     import { firebaseConfig } from "./firebase-config.js";
     import {
-      RULES, SCORE_KEYS, SCORE_LABELS, applyScenario as simulateScenario, buildMarketContext, classifyEvaluations, evaluateAsset, optionsPricing, valuationLabel
+      RULES, SCORE_KEYS, SCORE_LABELS, applyScenario as simulateScenario, buildMarketContext, classifyEvaluations, evaluateAsset, excludeScreened, optionsPricing, valuationLabel
     } from "./js/engine.js";
     import { frozenModel, signalReadings } from "./js/edge.js";
     import { ALERT_SCORE_KEYS, ALERT_TRIGGERS, normalizeAlertPrefs } from "./js/alerts.js";
@@ -1555,8 +1571,8 @@
       }
 
       records() {
-        const primary = new Set(this.universe.primary);
-        return Object.values(this.data?.stocks ?? {}).map(r => ({ ...r, isPrimary: primary.has(r.ticker) }));
+        const primary = new Set(this.universe.primary), screened = new Set(this.data?.screened ?? []);
+        return Object.values(this.data?.stocks ?? {}).map(r => ({ ...r, isPrimary: primary.has(r.ticker), isScreened: screened.has(r.ticker) }));
       }
 
       has(ticker) {
@@ -1836,7 +1852,8 @@
           riskPct: document.getElementById("limRiskPct"),
           horizonDays: document.getElementById("limHorizon"),
           maxSpreadPct: document.getElementById("limSpread"),
-          instruments: document.getElementById("limInstruments")
+          instruments: document.getElementById("limInstruments"),
+          fractional: document.getElementById("limFractional")
         };
         this.limitInputs.instruments.innerHTML = INSTRUMENTS.map(i => `<option value="${i.key}">${escapeHtml(i.label)}</option>`).join("");
         this.limitStatus = document.getElementById("limStatus");
@@ -2434,13 +2451,13 @@
 
       rescore() {
         if (!this.marketData.data) return;
-        this.marketContext = buildMarketContext(this.dataset, this.marketData.data.sectors);
+        this.marketContext = buildMarketContext(excludeScreened(this.dataset, this.marketData.data), this.marketData.data.sectors);
         this.marketRegime = this.marketContext.regime;
         this.marketRegimeDesc = this.marketContext.regimeDescription;
         this.currentEvaluations = this.dataset.map(item => evaluateAsset(item, this.marketContext));
         // Peer ranks always compare against every tracked stock, whichever view is showing.
         this.peerRanks = rankPeers(this.currentEvaluations);
-        this.signals = signalReadings(this.dataset, this.marketContext, this.signalModel);
+        this.signals = signalReadings(excludeScreened(this.dataset, this.marketData.data), this.marketContext, this.signalModel);
         this.spy = this.marketContext.spy;
         this.renderOutput();
       }
@@ -2451,6 +2468,7 @@
           return this.currentEvaluations.filter(e => watchlist.has(e.item.ticker));
         }
         if (filter === "primary") return this.currentEvaluations.filter(e => e.item.isPrimary);
+        if (filter === "screened") return this.currentEvaluations.filter(e => e.item.isScreened);
         if (filter === "alerts") {
           return this.currentEvaluations.filter(e => e.bucket === "buy" || e.earningsWarning || e.scores.entry.score >= RULES.buyZone.entry);
         }
@@ -2534,7 +2552,7 @@
           { key: "rank", label: "#", cls: "sticky-rank", sort: r => r.rank, cell: r => r.rank ?? dash },
           {
             key: "ticker", label: "Ticker", cls: "sticky-ticker", sort: r => r.ticker,
-            cell: r => `<span class="ticker">${escapeHtml(r.ticker)}</span>${r.isBest ? '<span class="tag">Best</span>' : ""}<span class="company" title="${escapeHtml(r.name)}">${escapeHtml(r.name)}</span>`
+            cell: r => `<span class="ticker">${escapeHtml(r.ticker)}</span>${r.isBest ? '<span class="tag">Best</span>' : ""}${r.e?.item.isScreened ? '<span class="tag" title="From this week’s screen of about 1,500 US stocks; not tested">Screened</span>' : ""}<span class="company" title="${escapeHtml(r.name)}">${escapeHtml(r.name)}</span>`
           },
           {
             key: "verdict", label: "Verdict", csv: r => r.e ? r.e.verdict : VERDICTS[r.bucket].label, sort: r => VERDICTS[r.bucket].order,
@@ -2709,11 +2727,37 @@
         ];
       }
 
+      /** Under the Screened filter: how this week's picks were chosen, and how earlier weeks' picks have done since. */
+      renderScreenNote() {
+        const el = document.getElementById("screenNote");
+        el.hidden = this.currentFilter !== "screened";
+        if (el.hidden) return;
+        if (!this.screenData) {
+          el.textContent = "Loading this week's screen…";
+          this.screenLoading ??= fetch("data/screen.json", { cache: "no-cache" })
+            .then(r => r.ok ? r.json() : null).catch(() => null)
+            .then(d => { this.screenData = d ?? {}; this.renderScreenNote(); });
+          return;
+        }
+        const s = this.screenData, n = this.marketData.data?.screened?.length ?? 0;
+        if (!s.picks?.length) { el.textContent = "No screen has run yet. It runs weekly with the data build."; return; }
+        const pct = (v) => `${v >= 0 ? "+" : "−"}${Math.abs(100 * v).toFixed(1)}%`;
+        const record = s.record ?? [];
+        const latest = record[0];
+        el.innerHTML = `<strong>Screened ${escapeHtml(s.generatedAt.slice(0, 10))}:</strong> ${n} picks with full readings, from ${(s.counts?.pool ?? 0).toLocaleString()} of ${(s.counts?.listings ?? 0).toLocaleString()} US listings outside the app's list. `
+          + `Ranked on 12-month momentum (skipping the last month) and closeness to the 52-week high, among liquid stocks above their 200-day average, at most 6 per sector. `
+          + `Neither signal has cleared the noise in this app's backtests, so these are candidates to research, not recommendations. They are kept out of market breadth, the signal ranks and every backtest. `
+          + (latest
+            ? `<strong>Track record:</strong> picks from ${escapeHtml(latest.date)} are ${escapeHtml(pct(latest.return))} since, against SPY's ${escapeHtml(pct(latest.spy))} (${latest.priced} of ${latest.picks} still priced); ${record.length} week${record.length === 1 ? "" : "s"} measured so far, and overlapping weeks share their moves, so it takes months to mean much.`
+            : `<strong>Track record:</strong> starts once this week's picks are a week old.`);
+      }
+
       renderOutput() {
         if (!this.marketData.data) return;
         const { sorted, best, buy, strong, watch, avoid } = classifyEvaluations(this.getFilteredEvaluations());
         this.renderOverview(best, { buy, strong, watch, avoid });
         this.renderFilterCounts();
+        this.renderScreenNote();
 
         // The overview always describes today; only the table below it changes between the two views.
         const historical = this.currentFilter === "historical";
@@ -2756,7 +2800,7 @@
       }
 
       renderFilterCounts() {
-        const labels = { my_watchlist: "Watchlist", all: "All", primary: "Primary", alerts: "Alerts" };
+        const labels = { my_watchlist: "Watchlist", all: "All", primary: "Primary", screened: "Screened", alerts: "Alerts" };
         document.querySelectorAll(".filter-btn").forEach(btn => {
           const filter = btn.dataset.filter;
           if (filter === "historical") {
@@ -3208,7 +3252,7 @@
           <div class="strategy-foot">
             <button type="button" class="btn-secondary" data-copy-strategy title="Copies the order, every figure, the risk factors and the context as plain text, ready to paste into an AI agent or a note.">Copy as text</button>
           </div>`;
-        const limitsLine = (p) => `Your limits: ${money(p.budget)} budget, ${p.riskPct}% risk (${money(p.budget * p.riskPct / 100)}), ${p.horizonDays}-day hold, ${p.maxSpreadPct}% max option spread, ${INSTRUMENTS.find(i => i.key === p.instruments).label.toLowerCase()}.`;
+        const limitsLine = (p) => `Your limits: ${money(p.budget)} budget, ${p.riskPct}% risk (${money(p.budget * p.riskPct / 100)}), ${p.horizonDays}-day hold, ${p.maxSpreadPct}% max option spread, ${INSTRUMENTS.find(i => i.key === p.instruments).label.toLowerCase()}, ${p.fractional ? "fractional shares" : "whole shares only"}.`;
         if (s.status === "pass") {
           return `
             <div class="strategy">

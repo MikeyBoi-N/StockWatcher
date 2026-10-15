@@ -32,9 +32,12 @@ const MIN_HOLD_DAYS = 3;
 const NEGATIVE_FILING_DAYS = 30;
 /** Cost of trading shares, each way: about half a large-cap spread plus slippage at a commission-free broker. */
 const SHARE_COST_PER_SIDE = 0.0005;
+/** Fractional share orders: the smallest slice and the smallest order most brokers that offer them accept. */
+const SHARE_STEP = 0.0001;
+const MIN_FRACTIONAL_ORDER = 1;
 
 export const STRATEGY_FIELDS = {
-  budget: { min: 100, max: 1e8, default: 10000 },
+  budget: { min: 1, max: 1e8, default: 10000 },
   riskPct: { min: 0.1, max: 10, default: 1 },
   horizonDays: { min: 5, max: 120, default: 30 },
   maxSpreadPct: { min: 1, max: 25, default: RULES.maxSpreadPct }
@@ -53,6 +56,8 @@ export function normalizeStrategyPrefs(raw) {
   }
   prefs.horizonDays = Math.round(prefs.horizonDays);
   prefs.instruments = INSTRUMENTS.some(i => i.key === raw?.instruments) ? raw.instruments : "any";
+  // Fractional shares are on unless switched off: most retail brokers sell them, and they let small budgets trade.
+  prefs.fractional = !(raw?.fractional === false || raw?.fractional === "false");
   return prefs;
 }
 
@@ -85,7 +90,10 @@ export function touchProbability(price, stop, vol, sessions) {
 }
 
 /** Common listed strike spacing for a price. Real chains vary; the UI asks the user to check the strike. */
-const strikeStep = (price) => price < 25 ? 0.5 : price < 100 ? 1 : price < 500 ? 5 : 10;
+export const strikeStep = (price) => price < 25 ? 0.5 : price < 100 ? 1 : price < 500 ? 5 : 10;
+
+/** The highest price at which a long position from `stop` to `target` still offers the buy zone's reward/risk. */
+export const maxEntryPrice = (target, stop) => (target + RULES.buyZone.rewardRisk * stop) / (1 + RULES.buyZone.rewardRisk);
 
 /* ------------------------------------------------------------------ dates */
 
@@ -105,9 +113,15 @@ const isoDay = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2,
 
 /* ------------------------------------------------------------------ positions */
 
-/** Shares between entry and stop; worst case gaps one weekly move through the stop. */
-function sharesPosition({ entry, stop, target, gapStop, riskBudget, budget }) {
-  const qty = Math.floor(Math.min(riskBudget / (entry - stop), budget / entry));
+/**
+ * Shares between entry and stop; worst case gaps one weekly move through the stop. With `fractional`, the quantity is
+ * cut to SHARE_STEP and must come to at least MIN_FRACTIONAL_ORDER dollars; otherwise it is whole shares.
+ */
+function sharesPosition({ entry, stop, target, gapStop, riskBudget, budget, fractional }) {
+  const most = Math.min(riskBudget / (entry - stop), budget / entry);
+  let qty = fractional ? Math.floor(most / SHARE_STEP) * SHARE_STEP : Math.floor(most);
+  qty = Math.round(qty * 1e4) / 1e4;
+  if (fractional && qty * entry < MIN_FRACTIONAL_ORDER) qty = 0;
   return {
     vehicle: "shares", qty, unit: qty === 1 ? "share" : "shares", legs: [],
     cost: qty * entry, lossAtStop: qty * (entry - stop), worstLoss: qty * (entry - gapStop), gainAtTarget: qty * (target - entry), maxGain: null
@@ -375,7 +389,7 @@ export function buildStrategy(e, prefs, context, now = new Date(), edge = null) 
     optionsNote = "Shares only, as you set.";
   }
 
-  const inputs = { o, price: item.price, entry, entryZoneHigh: lv.zoneHigh, stop, target, gapStop, riskBudget, budget: p.budget,
+  const inputs = { o, price: item.price, entry, entryZoneHigh: lv.zoneHigh, stop, target, gapStop, riskBudget, budget: p.budget, fractional: p.fractional,
     relHalfSpread: isNum(spreadPct) ? spreadPct / 200 : 0 };
   let plan = null;
   if (vehicle !== "shares") {
@@ -399,7 +413,11 @@ export function buildStrategy(e, prefs, context, now = new Date(), edge = null) 
   }
   const { closeBy, closeByReason, holdDays } = exit;
   if (act && holdDays < MIN_HOLD_DAYS) return pass("exit-too-soon", `Exit would fall within ${MIN_HOLD_DAYS} days (${closeByReason}). Not worth opening.`, base);
-  if (plan.qty < 1) return pass("too-small", `Your budget and risk per trade don't cover one share at ${entry.toFixed(2)} with the stop at ${stop.toFixed(2)}.`, base);
+  if (!(plan.qty > 0)) {
+    return pass("too-small", p.fractional
+      ? `Your risk per trade buys less than $${MIN_FRACTIONAL_ORDER} of stock with the stop at ${stop.toFixed(2)}, below the usual minimum order.`
+      : `Your budget and risk per trade don't cover one whole share at ${entry.toFixed(2)} with the stop at ${stop.toFixed(2)}. Allowing fractional shares would.`, base);
+  }
 
   plan.spreadPct = spreadPct;
   plan.stopOdds = touchProbability(entry, stop, item.hv30, holdDays * 252 / 365);
@@ -426,9 +444,7 @@ export function buildStrategy(e, prefs, context, now = new Date(), edge = null) 
   const ageDays = (now - new Date(item.asOf)) / DAY_MS;
   if (ageDays > 3) notes.push(`These prices are ${Math.round(ageDays)} days old. Recheck the levels before ordering.`);
 
-  // The highest price at which shares still offer the buy zone's reward/risk.
-  const need = RULES.buyZone.rewardRisk;
-  const limit = act ? (target + need * stop) / (1 + need) : entry;
+  const limit = act ? maxEntryPrice(target, stop) : entry;
 
   const result = {
     status: act ? "act" : "plan", ...STATUS[act ? "act" : "plan"], ...base, ...plan,
@@ -460,7 +476,7 @@ export function orderLine(s, ticker) {
   const many = s.qty === 1 ? "" : "s";
   const [first, second] = s.legs;
   return {
-    shares: () => `Buy ${s.qty} ${ticker} share${many}`,
+    shares: () => Number.isInteger(s.qty) ? `Buy ${s.qty} ${ticker} share${many}` : `Buy ${+s.qty.toFixed(4)} ${ticker} shares (${usd(s.cost)})`,
     call: () => `Buy ${s.qty} ${ticker} ${expiryText(first.expiration)} ${strikeText(first.strike)} call${many}`,
     spread: () => `Buy ${s.qty} ${ticker} ${expiryText(first.expiration)} ${strikeText(first.strike)}/${strikeText(second.strike)} call spread${many}`,
     csp: () => `Sell ${s.qty} ${ticker} ${expiryText(first.expiration)} ${strikeText(first.strike)} put${many}, cash-secured`
@@ -485,7 +501,7 @@ export function strategyText(s, e, context, { generatedAt, url, model } = {}) {
     `Status: ${s.label}`,
     `Verdict: ${e.verdict}. Overall ${e.overall ?? "N/A"} (Quality ${e.scores.quality.score ?? "N/A"}, Trend ${e.scores.trend.score}, Entry ${e.scores.entry.score}, Trade ${e.scores.trade.score}). Market regime ${context.regime}. Chase risk ${e.diagnostics.chase}.`
   ];
-  const limits = `Limits: ${usd(p.budget)} budget per trade, ${p.riskPct}% risk per trade (${usd(s.riskBudget)}), ${p.horizonDays}-day holding period, ${p.maxSpreadPct}% max option spread, ${INSTRUMENTS.find(i => i.key === p.instruments).label.toLowerCase()}.`;
+  const limits = `Limits: ${usd(p.budget)} budget per trade, ${p.riskPct}% risk per trade (${usd(s.riskBudget)}), ${p.horizonDays}-day holding period, ${p.maxSpreadPct}% max option spread, ${INSTRUMENTS.find(i => i.key === p.instruments).label.toLowerCase()}, ${p.fractional ? "fractional shares allowed" : "whole shares only"}.`;
 
   if (s.status === "pass") {
     lines.push(`Order: No trade. ${s.reason}`, "", limits);

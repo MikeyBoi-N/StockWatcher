@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Portfolio · StockWatcher</title>
+  <meta name="description" content="A diversified portfolio plan for any account size: an index core plus capped, risk-weighted stock positions, each with an entry method (lump sum, limit, DCA, cash-secured put, covered call)." />
+  <style>
+    :root {
+      --bg: #0e0e0f;
+      --surface: #151517;
+      --surface-2: #1b1b1e;
+      --surface-3: #232327;
+      --border: #26262a;
+      --border-strong: #37373c;
+      --text: #ececec;
+      --text-2: #a3a3a8;
+      --text-3: #6f6f75;
+      --pos: #4fb069;
+      --warn: #d6a73a;
+      --neg: #e0605a;
+      /* Allocation: the index core, the stock positions, and cash. Two hues a colour-blind reader can tell apart, plus
+         a gray for cash; every segment is also labelled. */
+      --alloc-core: #3987e5;
+      --alloc-stocks: #d95926;
+      --alloc-cash: #45454d;
+      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+      --radius: 6px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    [hidden] { display: none !important; }
+    body { background: var(--bg); color: var(--text); font-family: var(--font-sans); font-size: 14px; line-height: 1.5; min-height: 100vh; padding-bottom: 48px; -webkit-font-smoothing: antialiased; }
+    button, input, select { font: inherit; color: inherit; }
+    a { color: var(--text); }
+
+    .topbar { position: sticky; top: 0; z-index: 100; background: var(--bg); border-bottom: 1px solid var(--border); padding: 10px 24px; display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+    .brand { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; color: var(--text); text-decoration: none; }
+    .header-actions { display: flex; align-items: center; gap: 8px; }
+    .btn-secondary { border-radius: var(--radius); padding: 6px 12px; font-size: 13px; font-weight: 500; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; text-decoration: none; background: var(--surface); border: 1px solid var(--border); color: var(--text); }
+    .btn-secondary:hover { background: var(--surface-2); border-color: var(--border-strong); }
+
+    .page { max-width: 1400px; margin: 0 auto; padding: 24px; display: flex; flex-direction: column; gap: 28px; }
+    .page-head { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px 16px; }
+    .page-head h1 { font-size: 20px; font-weight: 600; letter-spacing: -0.01em; }
+    .data-freshness { font-size: 12px; color: var(--text-3); }
+    .data-freshness strong { color: var(--text-2); font-weight: 500; }
+
+    .controls { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 14px 22px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); padding: 16px 18px; }
+    .control { display: flex; flex-direction: column; gap: 4px; }
+    .control > span { font-size: 12px; color: var(--text-3); }
+    .control-input { display: inline-flex; align-items: center; gap: 4px; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); padding: 0 8px; font-size: 12px; color: var(--text-3); }
+    .control-input:focus-within { border-color: var(--border-strong); }
+    .control-input input { width: 104px; background: transparent; border: none; padding: 6px 2px; font-size: 14px; color: var(--text); }
+    .control-input input:focus { outline: none; }
+    .select { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 6px 10px; font-size: 13px; }
+    .segmented { display: inline-flex; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+    .seg-btn { background: transparent; border: none; border-right: 1px solid var(--border); color: var(--text-2); font-size: 13px; padding: 6px 12px; cursor: pointer; }
+    .seg-btn:last-child { border-right: none; }
+    .seg-btn:hover { color: var(--text); background: var(--surface-2); }
+    .seg-btn.active { background: var(--surface-3); color: var(--text); }
+
+    .headline { font-size: 17px; font-weight: 600; line-height: 1.45; }
+    .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }
+    .kpi { border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); padding: 20px; display: flex; flex-direction: column; gap: 8px; }
+    .kpi-label { font-size: 14px; color: var(--text-2); }
+    .kpi-value { font-size: 34px; font-weight: 700; line-height: 1.1; letter-spacing: -0.02em; }
+    .kpi-value small { font-size: 16px; font-weight: 600; color: var(--text-2); margin-left: 4px; }
+    .kpi-sub { font-size: 13px; color: var(--text-2); }
+
+    .card { border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
+    .card-head { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 6px 16px; padding: 16px 20px; border-bottom: 1px solid var(--border); }
+    .card-head h2 { font-size: 17px; font-weight: 600; }
+    .card-head .sub { font-size: 12px; color: var(--text-3); }
+    .card-body { padding: 20px; }
+
+    /* Risk preference: index (left, core blue) to stocks (right, stock orange), matching the allocation bar. */
+    .risk { margin-bottom: 26px; }
+    .risk-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 12px; }
+    .risk-head label { font-size: 14px; color: var(--text-2); }
+    .risk-head strong { font-size: 15px; font-weight: 600; }
+    .risk input[type=range] {
+      -webkit-appearance: none; appearance: none; width: 100%; height: 6px; border-radius: 3px; cursor: pointer;
+      background: linear-gradient(90deg, var(--alloc-core), var(--alloc-stocks));
+    }
+    .risk input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%; background: var(--text); border: 3px solid var(--surface); box-shadow: 0 0 0 1px var(--border-strong); }
+    .risk input[type=range]::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: var(--text); border: 3px solid var(--surface); }
+    .risk input[type=range]:focus-visible { outline: 1px solid var(--border-strong); outline-offset: 6px; }
+    .risk-scale { position: relative; height: 34px; margin: 6px 9px 0; font-size: 11px; color: var(--text-3); }
+    .risk-scale button { position: absolute; top: 0; transform: translateX(-50%); background: none; border: none; color: var(--text-3); font-size: 11px; cursor: pointer; padding: 2px 4px; white-space: nowrap; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+    .risk-scale button::before { content: ""; width: 1px; height: 6px; background: var(--border-strong); }
+    .risk-scale button:hover, .risk-scale button.on { color: var(--text); }
+    .risk-scale button.end { transform: none; }
+    .risk-scale button.end::before { display: none; }
+    .risk-scale button.end.right { transform: translateX(-100%); }
+    .risk-sub { font-size: 13px; color: var(--text-2); }
+
+    .excluded { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--border); font-size: 13px; }
+    .excluded-label { color: var(--text-3); cursor: help; }
+    .excluded-list { display: inline-flex; flex-wrap: wrap; gap: 6px; }
+    .excluded-list .none { color: var(--text-3); }
+    .chip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--border-strong); border-radius: 999px; padding: 2px 4px 2px 10px; background: var(--surface-2); font-weight: 600; font-size: 12px; }
+    .chip button { background: none; border: none; color: var(--text-3); cursor: pointer; font-size: 14px; line-height: 1; padding: 0 4px; }
+    .chip button:hover { color: var(--text); }
+    .exclude-form input { width: 140px; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); padding: 4px 8px; font-size: 12px; color: var(--text); text-transform: uppercase; }
+    .exclude-form input::placeholder { text-transform: none; color: var(--text-3); }
+    .exclude-form input:focus { outline: none; border-color: var(--border-strong); }
+    /* Holdings as a spreadsheet: sticky header and first column, sortable headers, a totals row. */
+    .table-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin-bottom: 14px; }
+    .t-search { width: 190px; }
+    .t-count { font-size: 12px; color: var(--text-3); margin-left: 4px; }
+    .t-csv { margin-left: auto; }
+    .table-wrap { overflow: auto; max-height: 72vh; border: 1px solid var(--border); border-radius: var(--radius); }
+    .ptable { border-collapse: separate; border-spacing: 0; width: max-content; min-width: 100%; font-size: 13px; }
+    .ptable th, .ptable td { padding: 10px 12px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; background: var(--surface); }
+    .ptable thead th { position: sticky; top: 0; z-index: 2; font-size: 12px; font-weight: 500; color: var(--text-3); white-space: nowrap; cursor: pointer; user-select: none; background: var(--surface-2); }
+    .ptable thead th:hover { color: var(--text); }
+    .ptable thead th[aria-sort="ascending"]::after { content: " ↑"; color: var(--text); }
+    .ptable thead th[aria-sort="descending"]::after { content: " ↓"; color: var(--text); }
+    .ptable thead th.nosort { cursor: default; }
+    .ptable thead th.nosort:hover { color: var(--text-3); }
+    .ptable .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .ptable tbody tr:hover td { background: var(--surface-2); }
+    .ptable th:first-child, .ptable td:first-child { position: sticky; left: 0; z-index: 1; border-right: 1px solid var(--border); }
+    .ptable thead th:first-child { z-index: 3; }
+    .ptable tfoot td { position: sticky; bottom: 0; background: var(--surface-2); font-weight: 600; border-top: 1px solid var(--border-strong); border-bottom: none; }
+    .t-ticker { font-weight: 600; font-size: 14px; }
+    .t-name { font-size: 11px; color: var(--text-3); max-width: 170px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .t-tag { font-size: 11px; color: var(--text-2); border: 1px solid var(--border-strong); border-radius: 3px; padding: 1px 6px; white-space: nowrap; }
+    .t-weight { min-width: 110px; font-variant-numeric: tabular-nums; }
+    .t-holding { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; min-width: 200px; }
+    .t-bar { display: block; height: 6px; border-radius: 0 3px 3px 0; background: var(--alloc-stocks); margin-top: 6px; }
+    .t-bar.core { background: var(--alloc-core); }
+    .t-method { min-width: 280px; max-width: 420px; white-space: normal; }
+    .t-method strong { font-weight: 600; cursor: help; border-bottom: 1px dotted var(--text-3); }
+    .t-summary { color: var(--text); margin-top: 2px; }
+    .t-detail { color: var(--text-3); font-size: 12px; margin-top: 4px; line-height: 1.45; }
+    .t-overlay { margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--border); }
+    .t-note { color: var(--warn); font-size: 12px; margin-top: 6px; }
+    .t-exclude { background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--radius); color: var(--text-2); font-size: 12px; padding: 4px 10px; cursor: pointer; white-space: nowrap; }
+    .t-exclude:hover { color: var(--text); border-color: var(--neg); }
+    .t-empty { color: var(--text-3); text-align: center; padding: 24px; }
+
+    .alloc { display: flex; height: 14px; border-radius: 4px; overflow: hidden; gap: 2px; background: var(--surface); }
+    .alloc span { display: block; height: 100%; }
+    .alloc-legend { display: flex; flex-wrap: wrap; gap: 6px 22px; margin-top: 12px; font-size: 13px; color: var(--text-2); }
+    .alloc-legend span { display: inline-flex; align-items: center; gap: 8px; }
+    .alloc-legend i { width: 10px; height: 10px; border-radius: 2px; }
+    .alloc-legend b { color: var(--text); font-weight: 600; }
+
+    .split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 28px; }
+    @media (max-width: 900px) { .split { grid-template-columns: minmax(0, 1fr); } }
+    .sector-row { display: grid; grid-template-columns: 140px minmax(0, 1fr) 56px; align-items: center; gap: 12px; padding: 7px 0; font-size: 13px; }
+    .sector-row .bar { height: 8px; border-radius: 0 4px 4px 0; background: var(--text-3); }
+    .sector-row .bar.core { background: var(--alloc-core); }
+    .sector-row span:last-child { text-align: right; font-variant-numeric: tabular-nums; }
+    .notes-list { display: flex; flex-direction: column; gap: 10px; font-size: 13px; color: var(--text-2); }
+    .actions { display: flex; justify-content: flex-end; }
+
+    details.ref summary { cursor: pointer; padding: 16px 20px; font-size: 15px; font-weight: 600; list-style: none; }
+    details.ref summary::-webkit-details-marker { display: none; }
+    details.ref summary::before { content: "+ "; color: var(--text-3); }
+    details.ref[open] summary::before { content: "− "; }
+    details.ref .card-body { border-top: 1px solid var(--border); font-size: 13px; color: var(--text-2); display: grid; gap: 10px; max-width: 980px; }
+    details.ref h3 { font-size: 13px; font-weight: 600; color: var(--text); margin-top: 6px; }
+    details.ref ul { padding-left: 18px; display: grid; gap: 6px; }
+    details.ref strong { color: var(--text); font-weight: 600; }
+    details.ref code { font-family: var(--font-mono); font-size: 12px; color: var(--text); }
+
+    @media (max-width: 760px) {
+      .topbar, .page { padding-left: 16px; padding-right: 16px; }
+      .control-input input { width: 84px; }
+      .risk-head { flex-direction: column; gap: 2px; }
+      .risk-scale button.end { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="./">StockWatcher</a>
+    <div class="header-actions">
+      <a class="btn-secondary" href="./">Overview</a>
+      <a class="btn-secondary" href="simulator.html">Forecaster</a>
+    </div>
+  </header>
+
+  <main class="page">
+    <div class="page-head">
+      <h1>Portfolio</h1>
+      <div id="freshness" class="data-freshness">Loading…</div>
+    </div>
+
+    <section class="controls" aria-label="Plan settings">
+      <label class="control" title="Everything you want this plan to invest."><span>Account size</span>
+        <span class="control-input">$<input type="number" id="account" min="1" step="1" inputmode="decimal"></span></label>
+      <label class="control" title="How long you plan to hold before reviewing. Sets the DCA schedule, the limit-order fallback date and the risk range."><span>Holding period</span>
+        <span class="control-input"><input type="number" id="horizon" min="7" max="120" step="1" inputmode="numeric">days</span></label>
+      <label class="control" title="Most retail brokers sell slices of a share, down to 0.0001 here, with a $1 minimum order."><span>Fractional shares</span>
+        <select id="fractional" class="select"><option value="true">Allowed</option><option value="false">Whole shares only</option></select></label>
+      <label class="control" title="Cash-secured puts and covered calls. They need 100 shares (or the cash for 100) and only appear when options are expensive against the volatility forecast."><span>Options</span>
+        <select id="options" class="select"><option value="true">Allowed</option><option value="false">None</option></select></label>
+      <div class="control" title="Which tracked stocks the plan can pick from."><span>Stocks</span>
+        <div class="segmented" id="universe"></div></div>
+    </section>
+
+    <div class="headline" id="headline">Loading market data…</div>
+    <section class="kpis" id="kpis"></section>
+
+    <section class="card">
+      <div class="card-head"><h2>Allocation</h2><div class="sub" id="allocSub"></div></div>
+      <div class="card-body">
+        <div class="risk">
+          <div class="risk-head">
+            <label for="risk">Risk preference</label>
+            <strong id="riskLabel"></strong>
+          </div>
+          <input type="range" id="risk" min="0" max="90" step="5" aria-describedby="riskSub">
+          <div class="risk-scale" id="riskScale"></div>
+          <div class="risk-sub" id="riskSub"></div>
+        </div>
+        <div class="alloc" id="allocBar" role="img"></div>
+        <div class="alloc-legend" id="allocLegend"></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-head"><h2>Holdings and what to do</h2><div class="sub">Click a column to sort · hover a method for why it was chosen</div></div>
+      <div class="card-body">
+        <div class="table-tools">
+          <input type="search" id="tSearch" class="select t-search" placeholder="Filter ticker or name" autocomplete="off" spellcheck="false" aria-label="Filter holdings">
+          <select id="tSector" class="select" aria-label="Sector"></select>
+          <select id="tRating" class="select" aria-label="Rating"></select>
+          <select id="tMethod" class="select" aria-label="Method"></select>
+          <span class="t-count" id="tCount"></span>
+          <button type="button" class="btn-secondary t-csv" id="tCsv" title="Download the rows shown, in their current order, as a CSV file">Download CSV</button>
+        </div>
+        <div class="table-wrap">
+          <table class="ptable" id="holdings">
+            <thead></thead>
+            <tbody></tbody>
+            <tfoot></tfoot>
+          </table>
+        </div>
+        <div class="excluded">
+          <span class="excluded-label" title="Stocks the plan never picks. The next eligible stock takes the slot. Saved in this browser.">Excluded</span>
+          <span id="excludedList" class="excluded-list"></span>
+          <form id="excludeForm" class="exclude-form">
+            <input type="text" id="excludeInput" placeholder="Exclude a ticker" maxlength="10" autocomplete="off" spellcheck="false" aria-label="Ticker to exclude">
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <div class="split">
+      <section class="card">
+        <div class="card-head"><h2>Sector exposure</h2></div>
+        <div class="card-body" id="sectors"></div>
+      </section>
+      <section class="card">
+        <div class="card-head"><h2>Notes</h2></div>
+        <div class="card-body notes-list" id="notes"></div>
+      </section>
+    </div>
+
+    <div class="actions"><button class="btn-secondary" id="copy" title="Copies the whole plan, every holding's method and the risk figures as plain text, ready to paste into an AI agent or a note.">Copy as text</button></div>
+
+    <details class="card ref" id="how">
+      <summary>How the plan is built</summary>
+      <div class="card-body" id="technical-reference">
+        <p>Written for people and for AI agents; it states what every figure on this page is. Source of truth: <code>js/portfolio.js</code>, with <code>js/engine.js</code>, <code>js/edge.js</code> and <code>js/strategy.js</code>. Rule-based research, not investment advice. No stock pick on this page has a demonstrated edge: the paper record on the Forecaster page has not passed any hypothesis yet. The plan leans on diversification, not on the picks.</p>
+        <h3>Allocation</h3>
+        <ul>
+          <li><strong>Risk preference</strong>: the slider sets the share of the account in stocks, 0–90% in 5% steps; the rest is the core, SPY. The named stops are Conservative 20%, Balanced 40% (the default) and Active 70%. The most stocks and the cap per stock are interpolated between anchors (5% → 3 stocks, 3% each; 20% → 5, 5%; 40% → 8, 8%; 70% → 12, 12%; 90% → 15, 15%), and each sector is held to twice the per-stock cap.</li>
+          <li><strong>Exclusions</strong>: tickers you exclude are never picked; the next eligible stock takes the slot. The core can't be excluded. Kept in this browser.</li>
+          <li><strong>Stocks</strong>: tracked non-ETF stocks rated Buy zone, then Strong asset (Watch and Avoid are excluded). Each group is ordered by the frozen H2 signal model's expected return relative to the other stocks (unproven), then by Overall, up to the risk preference's number of names.</li>
+          <li><strong>Weights by risk</strong>: inverse annualized volatility (the build's GJR-GARCH 21-session forecast, else 30-day realized), so each stock carries similar risk. Water-filled under the per-stock cap, then each sector scaled to at most twice that. Weight the caps free goes back to the core, never to the remaining stocks, so a narrow list means more index, not more concentration.</li>
+          <li><strong>Shares</strong>: fractional shares are cut to 0.0001 with a $1 minimum order; with whole shares only, anything that can't buy one share goes to the core, and a core that can't buy one share stays in cash.</li>
+        </ul>
+        <h3>Methods (the first that applies wins)</h3>
+        <ul>
+          <li><strong>Cash-secured put</strong>: a Strong stock, options allowed, the at-the-money option liquid (open interest ≥ 500, spread ≤ 6%), implied volatility ≥ 1.3 × the GARCH forecast for the option's life, no earnings within 14 days, and the position's cash covering 100 × a strike at or below the top of the preferred entry zone. The premium is Black-Scholes at the 25-delta put IV.</li>
+          <li><strong>Lump sum</strong>: the core and Buy-zone stocks. Buy-zone holdings note the price above which reward/risk drops under 1.5 : 1. Lump sum has beaten spreading purchases out about two times in three historically, because markets tend to rise while cash waits.</li>
+          <li><strong>Limit at preferred entry</strong>: a Strong stock within 3% of the top of its preferred entry zone. Fill odds by distance were measured on the replay (12,000 stock-weeks, one-month window): within 3%, 77%; 3–7%, 50%; 7–15%, 21%; beyond 15%, 3%. Waiting and buying at once came out even there, so if the limit hasn't filled by the end of the holding period (at most 30 days) the plan buys at market.</li>
+          <li><strong>DCA schedule</strong>: other Strong stocks. Equal weekly slices on weekdays across the holding period (holding days ÷ 7, between 1 and 6 slices), reduced until each slice buys at least the minimum order.</li>
+          <li><strong>Covered call</strong> (an overlay): any holding of 100+ shares when options are expensive by the same test: sell one call per 100 shares at the strike at or above the engine's target, for the quoted expiration. It gives up gains above the strike.</li>
+        </ul>
+        <h3>Risk figures</h3>
+        <ul>
+          <li>Single-index model: each holding's variance is split into a market part β²σ²<sub>m</sub> and a stock-specific part σ² − β²σ²<sub>m</sub>, the specific parts uncorrelated. Portfolio variance σ²<sub>p</sub> = (Σ wβ)²σ²<sub>m</sub> + Σ w²(σ² − β²σ²<sub>m</sub>), with w the share of the account (cash has no risk). β is the build's one-year beta to SPY, shrunk a third toward 1; missing betas are taken as 1. σ<sub>m</sub> is SPY's forecast volatility.</li>
+          <li><strong>Diversification ratio</strong>: the weighted average of the holdings' volatilities ÷ the portfolio's. Above 1 means spreading out removed risk.</li>
+          <li><strong>90% range</strong>: ±1.645 σ<sub>p</sub> √(holding days ÷ 365) × account, a normal approximation; real returns have fatter tails.</li>
+          <li><strong>Expected edge over the market</strong>: Σ w × the H2 model's expected 21-session return relative to the other stocks, scaled to the holding period. It is unproven and usually a few hundredths of a percent; treat it as zero until H2 passes. Costs are 0.05% of the money invested, to buy in.</li>
+        </ul>
+        <h3>Limitations</h3>
+        <ul>
+          <li>No correlations beyond the market factor (two chip stocks move together more than this assumes; the sector caps limit that). No taxes, no rebalancing rule, no dividends in the figures. The tracked list leans to large US technology names, so the sector caps often send money back to the core. Option prices other than the at-the-money call are model estimates.</li>
+          <li>For machine use, the verdicts and levels behind this plan are in the JSON API (<code>api/v1/</code>); the Forecaster page's technical reference defines the engine, signals and tests.</li>
+        </ul>
+      </div>
+    </details>
+  </main>
+
+  <script type="module">
+    import { buildMarketContext, evaluateAsset, excludeScreened } from "./js/engine.js";
+    import { frozenModel, signalReadings } from "./js/edge.js";
+    import { MAX_STOCKS_SHARE, PORTFOLIO_UNIVERSES, STYLE_PRESETS, buildPortfolio, normalizePortfolioPrefs, portfolioText, styleFor } from "./js/portfolio.js";
+
+    const SETTINGS_KEY = "stockwatcher.portfolio";
+    const $ = (id) => document.getElementById(id);
+    const escapeHtml = (s) => String(s ?? "").replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+    const money = (v) => `$${v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    const pct = (v, d = 1) => `${(100 * v).toFixed(d)}%`;
+    const qty = (q) => Number.isInteger(q) ? q.toLocaleString("en-US") : String(+q.toFixed(4));
+
+    let prefs;
+    try { prefs = normalizePortfolioPrefs(JSON.parse(localStorage.getItem(SETTINGS_KEY))); } catch { prefs = normalizePortfolioPrefs(null); }
+    const save = () => { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(prefs)); } catch {} };
+
+    let market = null, evaluations = [], signals = new Map(), model = null, plan = null;
+
+    function segmented(el, items, key) {
+      el.innerHTML = items.map(i => `<button type="button" class="seg-btn" data-key="${i.key}">${escapeHtml(i.label)}</button>`).join("");
+      el.addEventListener("click", (e) => {
+        const b = e.target.closest("button");
+        if (!b) return;
+        prefs = normalizePortfolioPrefs({ ...prefs, [key]: b.dataset.key });
+        save(); syncControls(); render();
+      });
+    }
+    segmented($("universe"), PORTFOLIO_UNIVERSES, "universe");
+
+    // Risk preference: the share of the account in stocks, with the presets as named stops on the scale.
+    $("risk").max = String(100 * MAX_STOCKS_SHARE);
+    const stops = [{ label: "All index", share: 0, end: "left" }, ...STYLE_PRESETS.map(x => ({ label: x.label, share: x.stocksShare })), { label: "Stock-heavy", share: MAX_STOCKS_SHARE, end: "right" }];
+    $("riskScale").innerHTML = stops.map(x => `<button type="button" data-share="${x.share}" class="${x.end ? `end ${x.end}` : ""}" style="left:${100 * x.share / MAX_STOCKS_SHARE}%">${escapeHtml(x.label)}</button>`).join("");
+    const setShare = (share, persist) => { prefs = normalizePortfolioPrefs({ ...prefs, stocksShare: share }); if (persist) save(); syncControls(); render(); };
+    $("risk").addEventListener("input", () => setShare(Number($("risk").value) / 100, false));
+    $("risk").addEventListener("change", () => setShare(Number($("risk").value) / 100, true));
+    $("riskScale").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) setShare(Number(b.dataset.share), true); });
+
+    // Exclusions: never pick these. Rows carry an Exclude button; chips restore; the box adds any ticker.
+    const setExcluded = (list) => { prefs = normalizePortfolioPrefs({ ...prefs, excluded: list }); save(); render(); };
+    $("holdings").addEventListener("click", (e) => { const b = e.target.closest("[data-exclude]"); if (b) setExcluded([...prefs.excluded, b.dataset.exclude]); });
+    $("excludedList").addEventListener("click", (e) => { const b = e.target.closest("[data-restore]"); if (b) setExcluded(prefs.excluded.filter(t => t !== b.dataset.restore)); });
+    $("excludeForm").addEventListener("submit", (e) => {
+      e.preventDefault();
+      const ticker = $("excludeInput").value.trim().toUpperCase();
+      if (ticker) setExcluded([...prefs.excluded, ticker]);
+      $("excludeInput").value = "";
+    });
+
+    function syncControls() {
+      $("account").value = prefs.account;
+      $("horizon").value = prefs.horizonDays;
+      $("fractional").value = String(prefs.fractional);
+      $("options").value = String(prefs.options);
+      $("risk").value = String(Math.round(100 * prefs.stocksShare));
+      $("riskScale").querySelectorAll("button").forEach(b => b.classList.toggle("on", Math.abs(Number(b.dataset.share) - prefs.stocksShare) < 1e-9));
+      const st = styleFor(prefs.stocksShare);
+      $("riskLabel").textContent = `${st.label} · ${Math.round(100 * st.core)}% index, ${Math.round(100 * st.stocksShare)}% stocks`;
+      $("riskSub").textContent = st.maxNames ? `Up to ${st.maxNames} stocks, at most ${(100 * st.maxWeight).toFixed(1).replace(/\.0$/, "")}% each and ${(100 * st.sectorCap).toFixed(1).replace(/\.0$/, "")}% per sector. Anything the caps can't place stays in the index.`
+        : "Everything in the index: no stock picks.";
+      $("universe").querySelectorAll("button").forEach(b => b.classList.toggle("active", b.dataset.key === prefs.universe));
+    }
+    for (const [id, key] of [["account", "account"], ["horizon", "horizonDays"], ["fractional", "fractional"], ["options", "options"]]) {
+      $(id).addEventListener("change", () => { prefs = normalizePortfolioPrefs({ ...prefs, [key]: $(id).value }); save(); syncControls(); render(); });
+    }
+
+    async function load() {
+      try {
+        const [m, registry] = await Promise.all([
+          fetch("data/market.json", { cache: "no-cache" }).then(r => { if (!r.ok) throw new Error(`market.json ${r.status}`); return r.json(); }),
+          fetch("data/paper/registry.json", { cache: "no-cache" }).then(r => r.ok ? r.json() : null).catch(() => null)
+        ]);
+        market = m;
+        const records = Object.values(m.stocks ?? {});
+        const context = buildMarketContext(excludeScreened(records, m), m.sectors);
+        evaluations = records.map(r => evaluateAsset(r, context));
+        model = frozenModel(registry);
+        signals = signalReadings(excludeScreened(records, m), context, model);
+        $("freshness").innerHTML = `Site data build · <strong>${escapeHtml(new Date(m.generatedAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }))}</strong>`;
+      } catch (err) {
+        $("headline").textContent = `Market data could not be loaded (${err.message}).`;
+        return;
+      }
+      render();
+    }
+
+    function render() {
+      if (!market) return;
+      plan = buildPortfolio(evaluations, prefs, { signals, model, universe: market.universe, screened: market.screened ?? [] });
+      const s = plan.stats;
+      const core = plan.holdings.find(h => h.role === "core");
+      const stocks = plan.holdings.filter(h => h.role === "stock");
+      const stockWeight = stocks.reduce((t, h) => t + h.weight, 0);
+      const cashWeight = plan.cash / prefs.account;
+
+      $("headline").textContent = `${plan.style.label}: ${pct(core?.weight ?? 0, 0)} in ${core?.ticker ?? "the index"}, ${pct(stockWeight, 0)} across ${stocks.length} stock${stocks.length === 1 ? "" : "s"}`
+        + (s ? `, for about ${pct(s.vol)} volatility a year against ${pct(s.marketVol)} for the index alone.` : ".");
+
+      const kpi = (label, value, sub, tip) => `<div class="kpi" title="${escapeHtml(tip)}"><div class="kpi-label">${escapeHtml(label)}</div><div class="kpi-value">${value}</div><div class="kpi-sub">${escapeHtml(sub)}</div></div>`;
+      $("kpis").innerHTML = [
+        kpi("Holdings", `${plan.holdings.filter(h => h.cost > 0).length}`, `${core?.ticker ?? "No"} core + ${stocks.length} stock${stocks.length === 1 ? "" : "s"}`, "Positions the plan buys, the index core included."),
+        kpi("Volatility", s ? pct(s.vol) : "—", s ? `a year; the index alone is ${pct(s.marketVol)}` : "needs SPY's volatility", "Single-index model: market risk from each holding's beta plus uncorrelated stock-specific risk. See How the plan is built."),
+        kpi("Beta to the market", s ? s.beta.toFixed(2) : "—", s ? `diversification ratio ${s.diversification?.toFixed(2) ?? "—"}` : "", "Beta 1 moves with the market. The diversification ratio is the holdings' average volatility over the plan's; above 1 means spreading out removed risk."),
+        kpi("Expected edge vs market", s?.edge !== null && s ? `${s.edge >= 0 ? "+" : "−"}${pct(Math.abs(s.edge), 2)}` : "—", "over the holding period · unproven", "From the frozen signal model (H2), which hasn't passed its out-of-sample test. Treat it as zero until it does.")
+      ].join("");
+
+      const segs = [
+        { label: core?.ticker ? `${core.ticker} core` : "Core", w: core?.weight ?? 0, color: "var(--alloc-core)" },
+        { label: "Stocks", w: stockWeight, color: "var(--alloc-stocks)" },
+        { label: "Cash", w: cashWeight, color: "var(--alloc-cash)" }
+      ].filter(x => x.w > 0.0005);
+      $("allocBar").innerHTML = segs.map(x => `<span style="width:${100 * x.w}%;background:${x.color}" title="${escapeHtml(`${x.label}: ${pct(x.w)}`)}"></span>`).join("");
+      $("allocBar").setAttribute("aria-label", segs.map(x => `${x.label} ${pct(x.w)}`).join(", "));
+      $("allocLegend").innerHTML = segs.map(x => `<span><i style="background:${x.color}"></i>${escapeHtml(x.label)} <b>${pct(x.w)}</b> ${money(x.w * prefs.account)}</span>`).join("");
+      $("allocSub").textContent = `${money(plan.invested)} invested${plan.cash > 0.005 ? ` · ${money(plan.cash)} cash` : ""}`;
+
+      renderTable();
+
+      const maxS = Math.max(...plan.sectors.map(x => x.weight), 0.0001);
+      $("sectors").innerHTML = plan.sectors.filter(x => x.weight > 0.0005).map(x =>
+        `<div class="sector-row" title="${escapeHtml(`${x.sector}: ${pct(x.weight)} of the account`)}"><span>${escapeHtml(x.sector)}</span><span class="bar${x.sector === "Index" ? " core" : ""}" style="width:${100 * x.weight / maxS}%"></span><span>${pct(x.weight)}</span></div>`).join("")
+        || `<div class="h-detail">Nothing invested.</div>`;
+
+      $("excludedList").innerHTML = prefs.excluded.length
+        ? prefs.excluded.map(t => `<span class="chip">${escapeHtml(t)}<button type="button" data-restore="${escapeHtml(t)}" title="Allow ${escapeHtml(t)} again" aria-label="Allow ${escapeHtml(t)} again">×</button></span>`).join("")
+        : `<span class="none">None</span>`;
+
+      const notes = [...plan.notes, "The stock picks are tilts, not predictions: none of the app's signals has passed its out-of-sample test yet. Diversification is what this plan relies on."];
+      $("notes").innerHTML = notes.map(n => `<div>${escapeHtml(n)}</div>`).join("");
+    }
+
+    // ---------- holdings table: sort, filter, totals, CSV ----------
+    let sort = { key: "weight", dir: "desc" };
+    const ratingOf = (h) => h.role === "core" ? "Index core" : h.verdict;
+    const COLUMNS = [
+      { key: "ticker", label: "Holding", sort: h => h.ticker, csv: h => h.ticker,
+        cell: h => `<div class="t-holding"><div><div class="t-ticker">${escapeHtml(h.ticker)}</div><div class="t-name" title="${escapeHtml(h.name)}">${escapeHtml(h.name)}</div></div>`
+          + (h.role === "stock" ? `<button type="button" class="t-exclude" data-exclude="${escapeHtml(h.ticker)}" title="Never pick ${escapeHtml(h.ticker)}; the next eligible stock takes its place">Exclude</button>` : "") + `</div>` },
+      { key: "method", label: "Method", sort: h => h.method?.label, csv: h => h.method?.label ?? "", cls: "t-method",
+        cell: h => {
+          const m = h.method;
+          const lines = (d) => d.map(x => `<div class="t-detail">${escapeHtml(x)}</div>`).join("");
+          const overlay = h.overlay ? `<div class="t-overlay"><strong title="${escapeHtml(h.overlay.why)}">${escapeHtml(h.overlay.label)}</strong><div class="t-summary">${escapeHtml(h.overlay.summary)}</div>${lines(h.overlay.detail)}</div>` : "";
+          return (m ? `<strong title="${escapeHtml(m.why)}">${escapeHtml(m.label)}</strong><div class="t-summary">${escapeHtml(m.summary)}</div>${lines(m.detail ?? [])}` : "—")
+            + overlay + (h.note ? `<div class="t-note">${escapeHtml(h.note)}</div>` : "");
+        } },
+      { key: "weight", label: "Weight", dir: "desc", sort: h => h.weight, csv: h => +(100 * h.weight).toFixed(2), csvLabel: "Weight (%)",
+        cell: (h, ctx) => `<div class="t-weight">${pct(h.weight)}<span class="t-bar${h.role === "core" ? " core" : ""}" style="width:${Math.max(2, 100 * h.weight / ctx.maxW)}%"></span></div>` },
+      { key: "amount", label: "Amount", num: true, dir: "desc", sort: h => h.cost, csv: h => +h.cost.toFixed(2), cell: h => money(h.cost) },
+      { key: "shares", label: "Shares", num: true, dir: "desc", sort: h => h.shares, csv: h => h.shares, cell: h => h.shares > 0 ? qty(h.shares) : "—" },
+      { key: "rating", label: "Rating", sort: ratingOf, csv: ratingOf, cell: h => `<span class="t-tag">${escapeHtml(ratingOf(h))}</span>` },
+      { key: "sector", label: "Sector", sort: h => h.sector, csv: h => h.sector, cell: h => escapeHtml(h.sector) },
+      { key: "price", label: "Price", num: true, dir: "desc", sort: h => h.price, csv: h => h.price, cell: h => money(h.price) },
+      { key: "vol", label: "Volatility", num: true, dir: "desc", title: "Annualized: the build's GARCH forecast, else 30-day realized", sort: h => h.vol, csv: h => Number.isFinite(h.vol) ? +(100 * h.vol).toFixed(1) : "", csvLabel: "Volatility (%)",
+        cell: h => Number.isFinite(h.vol) ? pct(h.vol) : "—" },
+      { key: "beta", label: "Beta", num: true, dir: "desc", title: "One-year beta to SPY, shrunk a third toward 1", sort: h => h.beta, csv: h => h.beta ?? "", cell: h => Number.isFinite(h.beta) ? h.beta.toFixed(2) : "—" },
+      { key: "signal", label: "Signal", num: true, dir: "desc", title: "Frozen H2 model: expected return over the next month relative to the other stocks. Unproven.", sort: h => h.expected, csv: h => Number.isFinite(h.expected) ? +(100 * h.expected).toFixed(3) : "", csvLabel: "Signal (%)",
+        cell: h => Number.isFinite(h.expected) ? `${h.expected >= 0 ? "+" : "−"}${pct(Math.abs(h.expected), 2)}` : "—" },
+      { key: "earnings", label: "Earnings", sort: h => h.role === "core" ? null : h.earnings, csv: h => h.role === "core" ? "" : h.earnings ?? "", cell: h => h.role === "core" || !h.earnings ? "—" : escapeHtml(h.earnings) }
+    ];
+    const CSV_EXTRA = [
+      ["Name", h => h.name], ["Action", h => h.method?.summary ?? ""], ["Details", h => (h.method?.detail ?? []).join(" ")],
+      ["Overlay", h => h.overlay ? `${h.overlay.label}: ${h.overlay.summary}` : ""], ["Note", h => h.note ?? ""]
+    ];
+
+    /** Rows passing the filter row, in the current sort (missing values last). */
+    function shownRows() {
+      const q = $("tSearch").value.trim().toLowerCase();
+      const sector = $("tSector").value, rating = $("tRating").value, method = $("tMethod").value;
+      const rows = plan.holdings.filter(h => (!q || h.ticker.toLowerCase().includes(q) || h.name.toLowerCase().includes(q))
+        && (!sector || h.sector === sector) && (!rating || ratingOf(h) === rating) && (!method || h.method?.label === method));
+      const col = COLUMNS.find(c => c.key === sort.key);
+      const sign = sort.dir === "asc" ? 1 : -1;
+      return rows.sort((a, b) => {
+        const x = col.sort(a), y = col.sort(b);
+        if (x == null || x === "") return 1;
+        if (y == null || y === "") return -1;
+        return sign * (typeof x === "number" ? x - y : String(x).localeCompare(String(y)));
+      });
+    }
+
+    /** Keeps each filter's choices to what the plan contains, without losing a still-valid selection. */
+    function fillFilter(el, label, values) {
+      const keep = el.value;
+      el.innerHTML = `<option value="">${escapeHtml(label)}</option>` + [...new Set(values.filter(Boolean))].sort().map(v => `<option>${escapeHtml(v)}</option>`).join("");
+      el.value = [...el.options].some(o => o.value === keep) ? keep : "";
+    }
+
+    function renderTable() {
+      fillFilter($("tSector"), "All sectors", plan.holdings.map(h => h.sector));
+      fillFilter($("tRating"), "All ratings", plan.holdings.map(ratingOf));
+      fillFilter($("tMethod"), "All methods", plan.holdings.map(h => h.method?.label));
+      const rows = shownRows();
+      const ctx = { maxW: Math.max(...plan.holdings.map(h => h.weight), 0.0001) };
+      const table = $("holdings");
+      table.tHead.innerHTML = `<tr>${COLUMNS.map(c => `<th data-sort="${c.key}" class="${[c.num ? "num" : "", c.nosort ? "nosort" : ""].join(" ")}"${c.title ? ` title="${escapeHtml(c.title)}"` : ""}${sort.key === c.key ? ` aria-sort="${sort.dir === "asc" ? "ascending" : "descending"}"` : ""}>${escapeHtml(c.label)}</th>`).join("")}</tr>`;
+      table.tBodies[0].innerHTML = rows.length
+        ? rows.map(h => `<tr>${COLUMNS.map(c => `<td class="${[c.num ? "num" : "", c.cls ?? ""].join(" ")}">${c.cell(h, ctx)}</td>`).join("")}</tr>`).join("")
+        : `<tr><td class="t-empty" colspan="${COLUMNS.length}">No holdings match the filters.</td></tr>`;
+
+      // Totals for the rows shown; beta and volatility as weight-averaged figures, which ignore diversification.
+      const sum = (f) => rows.reduce((t, h) => t + f(h), 0);
+      const w = sum(h => h.weight);
+      const avg = (f) => w > 0 ? sum(h => h.weight * (Number.isFinite(f(h)) ? f(h) : 0)) / w : null;
+      const avgVol = avg(h => h.vol), avgBeta = avg(h => h.beta ?? 1);
+      const cells = {
+        ticker: `${rows.length} of ${plan.holdings.length}`, weight: pct(w), amount: money(sum(h => h.cost)),
+        vol: avgVol === null ? "—" : `<span title="Weight-averaged volatility of these rows. The plan's own volatility, after diversification, is in the tiles above.">${pct(avgVol)}</span>`,
+        beta: avgBeta === null ? "—" : `<span title="Weight-averaged beta of these rows">${avgBeta.toFixed(2)}</span>`
+      };
+      table.tFoot.innerHTML = `<tr>${COLUMNS.map(c => `<td class="${c.num ? "num" : ""}">${cells[c.key] ?? ""}</td>`).join("")}</tr>`;
+      $("tCount").textContent = rows.length === plan.holdings.length ? "" : `${rows.length} of ${plan.holdings.length} shown`;
+    }
+
+    $("holdings").tHead.addEventListener("click", (e) => {
+      const th = e.target.closest("th[data-sort]");
+      const col = th && COLUMNS.find(c => c.key === th.dataset.sort);
+      if (!col || col.nosort) return;
+      sort = sort.key === col.key ? { key: col.key, dir: sort.dir === "asc" ? "desc" : "asc" } : { key: col.key, dir: col.dir ?? "asc" };
+      renderTable();
+    });
+    for (const id of ["tSector", "tRating", "tMethod"]) $(id).addEventListener("change", renderTable);
+    $("tSearch").addEventListener("input", renderTable);
+
+    /** One CSV field; a leading =, +, - or @ would run as a formula in a spreadsheet, so it is quoted out. */
+    const csvCell = (v) => {
+      if (v === null || v === undefined || (typeof v === "number" && !Number.isFinite(v))) return "";
+      if (typeof v === "number") return String(v);
+      const text = /^[=+\-@\t\r]/.test(String(v)) ? `'${v}` : String(v);
+      return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+    };
+    $("tCsv").addEventListener("click", () => {
+      if (!plan) return;
+      const cols = COLUMNS.filter(c => c.csv);
+      const header = [...cols.map(c => c.csvLabel ?? c.label), ...CSV_EXTRA.map(([label]) => label)];
+      const body = shownRows().map(h => [...cols.map(c => c.csv(h)), ...CSV_EXTRA.map(([, f]) => f(h))]);
+      const text = [header, ...body].map(r => r.map(csvCell).join(",")).join("\r\n");
+      const url = URL.createObjectURL(new Blob(["\uFEFF" + text], { type: "text/csv;charset=utf-8" }));
+      const link = Object.assign(document.createElement("a"), { href: url, download: `stockwatcher-portfolio-${new Date().toISOString().slice(0, 10)}.csv` });
+      document.body.append(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    });
+
+    $("copy").addEventListener("click", async (e) => {
+      if (!plan) return;
+      try {
+        await navigator.clipboard.writeText(portfolioText(plan, { generatedAt: market.generatedAt, url: new URL(location.pathname, location.origin).href }));
+        e.target.textContent = "Copied";
+        setTimeout(() => { e.target.textContent = "Copy as text"; }, 1500);
+      } catch {
+        e.target.textContent = "Couldn't copy";
+      }
+    });
+    if (location.hash === "#technical-reference" || location.hash === "#how") $("how").open = true;
+
+    syncControls();
+    load();
+  </script>
+</body>
+</html>

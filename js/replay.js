@@ -130,12 +130,14 @@ const REGIME_LEVEL = { BULLISH: 1, NEUTRAL: 0.66, CAUTIOUS: 0.33, BEARISH: 0 };
 const dateMs = (yyyymmdd) => Date.UTC(Math.floor(yyyymmdd / 10000), Math.floor(yyyymmdd / 100) % 100 - 1, yyyymmdd % 100);
 
 /**
- * data/replay.json as { generatedAt, tickers: { [ticker]: { etf, sector, research, candles, rows, earnings } } } with candles
- * as [{ t, o, h, l, c, a, v }] (t in UTC ms; `a` the dividend-adjusted close or null) and rows as [{ i, record }],
- * where record is the engine input for bar i.
+ * data/replay.json as { generatedAt, tickers: { [ticker]: { etf, sector, research, candles, rows, earnings } }, screened }
+ * with candles as [{ t, o, h, l, c, a, v }] (t in UTC ms; `a` the dividend-adjusted close or null) and rows as
+ * [{ i, record }], where record is the engine input for bar i.
+ * Stocks from the weekly screen go in `screened`, never `tickers`: they were picked on their past year, so every
+ * backtest (which reads `tickers`) must leave them out. Charts and volatility forecasts may read either.
  */
 export function decodeReplay(json) {
-  const tickers = {};
+  const tickers = {}, screened = {};
   for (const [ticker, raw] of Object.entries(json.tickers ?? {})) {
     const b = raw.bars;
     const candles = b.d.map((d, i) => ({ t: dateMs(d), o: b.o ? b.o[i] : null, h: b.h[i], l: b.l[i], c: b.c[i], a: b.a ? b.a[i] : null, v: b.v[i] }));
@@ -145,9 +147,9 @@ export function decodeReplay(json) {
       json.fields.forEach((f, k) => { record[f] = values[k]; });
       return { i, record };
     });
-    tickers[ticker] = { etf: raw.etf, sector, research: !!raw.research, candles, rows, earnings: raw.earnings ?? null };
+    (raw.screened ? screened : tickers)[ticker] = { etf: raw.etf, sector, research: !!raw.research, candles, rows, earnings: raw.earnings ?? null };
   }
-  return { generatedAt: json.generatedAt, tickers };
+  return { generatedAt: json.generatedAt, tickers, screened };
 }
 
 /**

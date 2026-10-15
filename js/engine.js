@@ -112,6 +112,16 @@ export function buildMarketContext(records, sectors = {}) {
   return { regime, regimeDescription: description, spy, sectors: sectors ?? {}, breadthNow, breadthPrior, trackedStocks: stocks.length };
 }
 
+/**
+ * The records the market context and the signal ranks are built from: everything but the weekly screen's picks
+ * (market.json `screened`). They were chosen for strong trends, so counting them would lift breadth and shift every
+ * tracked stock's rank. They are still scored, against the same context as everything else.
+ */
+export function excludeScreened(records, market) {
+  const screened = new Set(market?.screened ?? []);
+  return screened.size ? records.filter(r => !screened.has(r.ticker)) : records;
+}
+
 /* ------------------------------------------------------------------ levels */
 
 /**

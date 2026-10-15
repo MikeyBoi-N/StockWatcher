@@ -128,7 +128,8 @@ const INPUT_FIELDS = {
   earningsMove: (i) => i.options?.earningsMove,
   earningsStraddle: (i) => i.options?.earningsStraddle,
   volForecast21: (i) => i.volForecast?.vol21,
-  volForecastToExpiry: (i) => i.volForecast?.volToExpiry
+  volForecastToExpiry: (i) => i.volForecast?.volToExpiry,
+  beta: (i) => i.beta
 };
 
 /** Levels the engine derived for the build, kept for the same reason as the inputs. */

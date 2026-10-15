@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import {
   RULES, SCORE_KEYS, VERDICT_LABELS, applyScenario, buildMarketContext, classifyEvaluations, computeLevels,
-  determineMarketRegime, evaluateAsset, evaluateOptions, valuationLabel
+  determineMarketRegime, evaluateAsset, evaluateOptions, valuationLabel,
+  excludeScreened
 } from "../js/engine.js";
 
 const spy = () => ({ ticker: "SPY", etf: true, price: 700, sma20: 695, sma50: 690, sma200: 650, return3m: 0.03, return12m: 0.12, hv30: 0.12, prevClose: 698 });
@@ -220,4 +221,10 @@ test("engine scores every stock in the real market snapshot", { skip: !existsSyn
   }
   const { buy, strong, watch, avoid } = classifyEvaluations(evaluations);
   assert.equal(buy.length + strong.length + watch.length + avoid.length, records.length);
+});
+
+test("excludeScreened leaves the weekly screen's picks out of the context records, and nothing else", () => {
+  const records = [{ ticker: "AAA" }, { ticker: "PICK" }, { ticker: "BBB" }];
+  assert.deepEqual(excludeScreened(records, { screened: ["PICK"] }).map(r => r.ticker), ["AAA", "BBB"]);
+  assert.equal(excludeScreened(records, {}), records, "no screen, same records");
 });

@@ -21,7 +21,7 @@
 import { readFileSync } from "node:fs";
 import { initializeApp, cert } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
-import { buildMarketContext, evaluateAsset } from "../js/engine.js";
+import { buildMarketContext, evaluateAsset, excludeScreened } from "../js/engine.js";
 import { snapshotDocuments, snapshotFromEvaluations } from "../js/history.js";
 
 const MARKET_FILE = new URL("../data/market.json", import.meta.url);
@@ -77,7 +77,7 @@ async function main() {
     return;
   }
 
-  const context = buildMarketContext(records, market.sectors);
+  const context = buildMarketContext(excludeScreened(records, market), market.sectors);
   const snapshot = snapshotFromEvaluations(records.map(item => evaluateAsset(item, context)), context);
   const docs = snapshotDocuments(snapshot, market.generatedAt);
 

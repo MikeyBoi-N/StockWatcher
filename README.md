@@ -86,6 +86,8 @@ Each build cross-checks price and the 52-week range across sources and logs any 
 
 Stocks users add to their watchlists are recorded in the public Firestore `tickerRequests` collection and included in the next build (up to 250 tickers). Until then they appear under "Market data pending".
 
+**Weekly screen** ([`scripts/screen_universe.py`](scripts/screen_universe.py), `data/screen.json`): the hand-picked list leans to stocks that already won, so once a week a two-tier screen looks further. Tier one is a single Nasdaq screener request: US companies' common stock at $5 or more and worth at least $300M, outside the tracked and research lists, the 1,500 largest. Tier two fetches two years of prices for each and keeps stocks above their 200-day average that trade at least $10M a day, ranked on 12-month momentum skipping the last month and closeness to the 52-week high. The top 50, at most 6 per sector, get the full analysis in every build until the next screen (after user requests, within the 250 cap) and show under the **Screened** filter. Neither signal cleared the noise in the replay, so the picks are candidates, not recommendations. They are kept out of market breadth, the signal ranks and every backtest: they were chosen on their past year, so testing them on it would be hindsight. Each screen carries the earlier weeks' picks and prices forward (`history`) and scores them against SPY (`record`), the screen's only hindsight-free test. The screen sees today's listings only, so it is survivor-biased too.
+
 **Caveats:** Yahoo, Nasdaq and Cboe endpoints are unofficial, can rate-limit or change without notice, and their terms restrict redistribution. This project is for personal research, not investment advice.
 
 ### Data build setup
@@ -94,7 +96,7 @@ Stocks users add to their watchlists are recorded in the public Firestore `ticke
 3. GitHub pauses scheduled workflows after 60 days without repository activity; re-enable it from the Actions tab if that happens.
 4. **Settings → Pages → Source** must be **GitHub Actions**. With "Deploy from a branch", every push also publishes the repository as committed: the fallback `data/market.json` and no `api/` folder.
 
-The workflow runs two jobs. **build** runs the tests, refreshes the data, builds the API, records history and sends alerts, with no environment attached and a 30-minute timeout. **deploy** only publishes the site to the `github-pages` environment, and a newer deploy replaces an older one. If the site's data looks stale (the page shows when it was built), open the Actions tab. A failed or stuck **deploy** clears itself at the next build. A **build** that keeps failing needs its log read; the history snapshot is skipped whenever the build fell back to the committed data.
+The workflow runs two jobs. **build** runs the tests, refreshes the data, builds the API, records history and sends alerts, with no environment attached and a 40-minute timeout (the weekly screen adds about 5 minutes once a week). **deploy** only publishes the site to the `github-pages` environment, and a newer deploy replaces an older one. If the site's data looks stale (the page shows when it was built), open the Actions tab. A failed or stuck **deploy** clears itself at the next build. A **build** that keeps failing needs its log read; the history snapshot is skipped whenever the build fell back to the committed data.
 
 ---
 
@@ -142,7 +144,7 @@ True IV Rank needs a year of implied-volatility history that no free source prov
 - Illiquid chains (open interest under 500 or bid/ask spread over 6%) → **Shares**; earnings inside 14 days → **Shares only**; not in the buy zone → **WAIT**.
 
 ### Strategy ([`js/strategy.js`](js/strategy.js))
-The **Your trading limits** bar under the Overview takes a budget per trade, risk per trade (% of budget), holding period, maximum option bid/ask spread and whether options are allowed. The limits are saved to the account (`users/{uid}.strategy`), or to the browser for guests. Each stock's detail view then turns them into one order, in a **Strategy** section under Entry diagnostics:
+The **Your trading limits** bar under the Overview takes a budget per trade (from $1), risk per trade (% of budget), holding period, maximum option bid/ask spread, whether options are allowed, and whether fractional shares are (on by default: orders are cut to 0.0001 of a share with a $1 minimum, so a $40 budget can hold part of a $400 stock; options are always whole contracts). The limits are saved to the account (`users/{uid}.strategy`), or to the browser for guests. Each stock's detail view then turns them into one order, in a **Strategy** section under Entry diagnostics:
 - **Act now** (buy zone): e.g. *Buy 16 MSFT shares, don't pay above $500.42, close by Tue, Nov 3*. The vehicle follows the options rule above, with your spread limit in place of the 6%. Positions are sized so a daily close below entry support loses no more than your risk per trade; an option too large for the limits falls back to shares and says why.
 - **Planned order** (strong asset or watch): shares at the top of the preferred entry zone, to place once the stock reaches the buy zone.
 - **No trade** (avoid, or limits that can't buy one share).
@@ -158,8 +160,17 @@ Below the breakdown, every vehicle that fits the limits is sized and valued, so 
 
 **Risk score** (0-100, higher is riskier) adds eight named factors: capital at risk (20), the chance ordinary volatility touches the stop before the exit (15), volatility (10), event risk (earnings near the exit, a negative 8-K in the last 30 days; 15), market regime (10), the verdict and chase risk (15), leverage and time decay (10), option liquidity and data gaps (5). Hover a factor to see its reading. Sizing doesn't forecast anything: the verdicts it starts from haven't shown an edge in the replay backtests yet.
 
+### Portfolio ([`portfolio.html`](portfolio.html), [`js/portfolio.js`](js/portfolio.js))
+The Strategy sizes one trade at a time, so a small account entered as its budget goes all into one stock. The **Portfolio** page plans the whole account instead: an index core (SPY) plus capped stock positions, because diversification is the one benefit with solid evidence and the picks have no proven edge yet.
+- **Risk preference slider** (in the Allocation card): the share of the account in stocks, 0-90% in 5% steps, with named stops at Conservative 20%, Balanced 40% (default) and Active 70%. The number of stocks and the per-stock cap are interpolated between anchors (20% → 5 stocks at 5% each, 40% → 8 at 8%, 70% → 12 at 12%, 90% → 15 at 15%), each sector is held to twice the per-stock cap, and whatever the caps or share prices can't place goes back to the core.
+- **Exclusions:** an Exclude button on each stock (or type any ticker) keeps it out of every plan; the next eligible stock takes the slot. Restore with the chip's ×. Kept in the browser.
+- **Universe:** all tracked stocks (default), without the weekly screen's picks, or the primary list only.
+- **Picks and weights:** Buy-zone stocks, then Strong ones, ordered by the frozen H2 signal; weighted by inverse forecast volatility so each carries similar risk.
+- **Methods**, from a catalog that is meant to grow: lump sum (core and buy-zone), a limit at the preferred entry with replay-measured fill odds and a market fallback (strong, within 3%), a weekly DCA schedule (other strong names), a cash-secured put, and a covered-call overlay (both only when options are expensive against the GARCH forecast and 100 shares are covered).
+- **Risk:** a single-index model from each holding's beta (recorded by the build, see `scripts/forecast_vol.mjs`) and volatility gives the plan's volatility, beta, diversification ratio and 90% range, next to the index alone. Fractional shares (0.0001, $1 minimum) are on by default. "How the plan is built" on the page states every rule exactly.
+
 ### 5. Benchmark Table
-One sortable table ranks every stock in the current view (watchlist, all, primary, or alerts; the historical view is described below):
+One sortable table ranks every stock in the current view (watchlist, all, primary, screened, or alerts; the historical view is described below):
 - **Ranking:** rank, verdict, Overall and the four scores, the next step each stock needs, warnings (extension, earnings inside 14 days, weak fundamentals, stretched valuation, illiquid options), what the stock stands out in, and what's happening.
 - **Entry:** entry type, reward/risk, preferred entry zone, distance from it, chase risk, entry support, distance to the stop, structural support.
 - **Price and trend:** price, daily change, 3- and 12-month return vs SPY, distance from the 50d and 200d SMAs, RSI, resistance, 52-week range.
@@ -260,7 +271,7 @@ in_buy_zone = [s["ticker"] for s in index["stocks"] if s["verdict"]["bucket"] ==
 | `best` | string \| null | Ticker of the buy-zone stock with the highest Overall score. Usually `null`, because waiting is the default |
 | `stocks[]` | array | One row per stock, sorted by verdict (buy, strong, watch, avoid) and then Overall |
 | `stocks[].ticker`, `.name`, `.sector` | string | `sector` can be `null` for ETFs |
-| `stocks[].etf`, `.primary` | boolean | `primary` marks the core universe's primary list |
+| `stocks[].etf`, `.primary`, `.screened` | boolean | `primary` marks the core universe's primary list; `screened` marks this week's picks from the weekly screen (no `signal`, untested) |
 | `stocks[].verdict` | object | `{ bucket, label }`, described below |
 | `stocks[].overall` | number \| null | 0-100 |
 | `stocks[].scores` | object | `{ quality, trend, entry, trade }`, each 0-100 or `null` (`quality` is `null` for ETFs) |
@@ -274,7 +285,7 @@ in_buy_zone = [s["ticker"] for s in index["stocks"] if s["verdict"]["bucket"] ==
 |---|---|---|
 | `meta` | object | Same as in `stocks.json` |
 | `ticker`, `name`, `exchange`, `sector`, `industry` | string \| null | |
-| `etf`, `primary` | boolean | |
+| `etf`, `primary`, `screened` | boolean | `screened` stocks have no `signal`: the frozen model ranks only the tracked list |
 | `asOf` | ISO 8601 string | Time of the price the reading used |
 | `verdict.bucket` | string | `buy`, `strong`, `watch` or `avoid` |
 | `verdict.label` | string | `Buy zone`, `Strong asset, poor entry`, `Strong asset, poor risk/reward`, `Strong asset, wait for earnings`, `Watch`, `Avoid, broken trend` or `Avoid, weak business` |
