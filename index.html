@@ -237,6 +237,58 @@
     .search-input { width: 160px; }
     .select:focus, .search-input:focus { outline: none; border-color: var(--border-strong); }
 
+    /* Trading limits for the Strategy */
+    .limits {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-start;
+      gap: 10px 22px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--surface);
+      padding: 12px 16px;
+    }
+    .limits-title { display: flex; flex-direction: column; font-size: 12px; color: var(--text-3); margin: 8px 6px 0 0; }
+    .limits-title strong { font-size: 13px; font-weight: 600; color: var(--text); }
+    .limit-field { display: flex; flex-direction: column; gap: 3px; }
+    .limit-label { font-size: 12px; color: var(--text-3); display: inline-flex; align-items: center; gap: 5px; }
+    .info {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 13px; height: 13px; border-radius: 50%; border: 1px solid var(--border-strong);
+      font-size: 9px; font-style: normal; font-weight: 700; color: var(--text-3); cursor: help;
+    }
+    .limit-input {
+      display: inline-flex;
+      align-items: center;
+      gap: 2px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 0 8px;
+      font-size: 12px;
+      color: var(--text-3);
+    }
+    .limit-input:focus-within { border-color: var(--border-strong); }
+    .limit-input input {
+      width: 76px;
+      background: transparent;
+      border: none;
+      padding: 5px 2px;
+      font-size: 13px;
+      color: var(--text);
+      font-variant-numeric: tabular-nums;
+    }
+    .limit-input input:focus { outline: none; }
+    #limBudget { width: 92px; }
+    .limit-note { font-size: 11px; color: var(--text-3); min-height: 16px; }
+    .limits-status { margin: 30px 0 0 auto; font-size: 11px; color: var(--text-3); }
+    @media (max-width: 640px) {
+      .limits { display: grid; grid-template-columns: 1fr 1fr; padding: 12px; }
+      .limits-title, .limits-status { grid-column: 1 / -1; margin: 0; }
+      .limit-input input, #limBudget { width: 100%; }
+      .limit-field .select { width: 100%; }
+    }
+
     /* Benchmark table */
     .table-wrap {
       border: 1px solid var(--border);
@@ -571,6 +623,48 @@
     .spec-k { color: var(--text-3); font-size: 11px; }
     .spec-v { color: var(--text); font-weight: 500; }
 
+    /* Strategy: the order ticket and its risk score */
+    .strategy { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(250px, 1fr); gap: 18px; }
+    @media (max-width: 760px) { .strategy { grid-template-columns: 1fr; } }
+    .ticket { border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); padding: 16px 18px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+    .ticket.tint-pos { background: rgba(79, 176, 105, 0.07); border-color: rgba(79, 176, 105, 0.3); }
+    .ticket.tint-warn { background: rgba(214, 167, 58, 0.06); border-color: rgba(214, 167, 58, 0.28); }
+    .ticket-top { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 12px; color: var(--text-3); }
+    .ticket-top .val { font-size: 12px; line-height: 22px; }
+    .ticket-order { font-size: 20px; font-weight: 700; line-height: 1.3; letter-spacing: -0.01em; }
+    .ticket-sub { font-size: 13px; color: var(--text-2); line-height: 1.5; }
+    .ticket-legs { display: flex; flex-direction: column; gap: 4px; font-size: 13px; font-variant-numeric: tabular-nums; }
+    .ticket-leg { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+    .ticket-leg .tag { margin-left: 0; }
+    .ticket-specs { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; }
+    .ticket-spec { border: 1px solid var(--border); border-radius: 4px; padding: 7px 10px; cursor: help; background: var(--bg); }
+    .ticket-spec-k { font-size: 11px; color: var(--text-3); }
+    .ticket-spec-v { font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; }
+    .ticket-spec-s { font-size: 11px; color: var(--text-3); line-height: 1.35; }
+    .ticket-notes { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--text-3); line-height: 1.5; }
+    .ticket-actions { display: flex; gap: 8px; }
+    .risk-card { border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); padding: 16px 18px; display: flex; flex-direction: column; gap: 6px; }
+    .risk-head { display: flex; justify-content: space-between; align-items: baseline; }
+    .risk-head strong { font-size: 15px; font-weight: 700; }
+    .risk-head span { font-size: 26px; font-weight: 700; line-height: 1; }
+    .risk-card .factor-row { cursor: help; padding: 6px 0; }
+    .strategy-foot { display: flex; justify-content: flex-end; margin-top: 12px; }
+    .ev-box { border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg); padding: 10px 12px; font-size: 13px; }
+    .ev-head { display: flex; justify-content: space-between; align-items: baseline; font-weight: 600; margin-bottom: 4px; }
+    .ev-head strong { font-size: 15px; font-variant-numeric: tabular-nums; }
+    .ev-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 4px 0; cursor: help; font-variant-numeric: tabular-nums; }
+    .ev-row + .ev-row { border-top: 1px solid var(--border); }
+    .ev-row .tag { margin-left: 6px; font-weight: 500; }
+    .ev-alts { margin-top: 8px; font-size: 12px; color: var(--text-3); line-height: 1.5; }
+    .ev-alts span { white-space: nowrap; color: var(--text-2); cursor: help; }
+    .ev-alts .ev-alt-pick { font-weight: 600; color: var(--text); }
+    .ev-alts .tone-pos { color: var(--pos); }
+    @media (max-width: 640px) {
+      .ticket, .risk-card { padding: 14px; }
+      .ticket-specs { grid-template-columns: 1fr 1fr; }
+      .ticket-order { font-size: 18px; }
+    }
+
     .epistemic-tag {
       display: inline-block;
       font-size: 10px;
@@ -731,7 +825,7 @@
       </button>
       <button class="btn-secondary" id="btnExportJournal" title="Copy the current table as a markdown report">Copy report</button>
       <button class="btn-secondary" id="btnDownloadCsv" title="Download the current view, in its current sort, as a CSV file">Download CSV</button>
-      <a class="btn-secondary" href="simulator.html" title="Simulate a range of possible futures for a stock or crypto">Simulator</a>
+      <a class="btn-secondary" href="simulator.html" title="Forecast a range of possible futures for a stock or crypto">Forecaster</a>
       <a class="btn-secondary" href="https://github.com/MikeyBoi-N/StockWatcher#developer-api" target="_blank" rel="noopener" title="Free JSON API with every stock's scores and verdict, for developers">API</a>
       <div id="authPillContainer"></div>
     </div>
@@ -771,6 +865,35 @@
         <div class="stat-value" id="statVerdicts">—</div>
         <div class="stat-sub" id="statVerdictsSub"></div>
       </div>
+    </section>
+
+    <section class="limits" aria-label="Your trading limits">
+      <div class="limits-title">
+        <strong>Your trading constraints</strong>
+        <span>Size the Strategy in each stock's detail view</span>
+      </div>
+      <label class="limit-field" title="The most money one trade may use: the cost of shares or option premium, or the cash set aside for a cash-secured put.">
+        <span class="limit-label">Budget per trade <i class="info">i</i></span>
+        <span class="limit-input"><span>$</span><input type="number" id="limBudget" min="100" step="100" inputmode="decimal"></span>
+      </label>
+      <label class="limit-field" title="How much of the budget you accept losing if the stock closes below the stop and you exit. Positions are sized so a stop-out loses no more than this. A gap through the stop can lose more; the Strategy shows that worst case.">
+        <span class="limit-label">Risk per trade <i class="info">i</i></span>
+        <span class="limit-input"><input type="number" id="limRiskPct" min="0.1" max="10" step="0.1" inputmode="decimal"><span>%</span></span>
+        <span class="limit-note" id="limRiskUsd"></span>
+      </label>
+      <label class="limit-field" title="The longest you want to hold. The exit comes sooner when earnings fall inside it, or for options, three weeks before expiration.">
+        <span class="limit-label">Holding period <i class="info">i</i></span>
+        <span class="limit-input"><input type="number" id="limHorizon" min="5" max="120" step="1" inputmode="numeric"><span>days</span></span>
+      </label>
+      <label class="limit-field" title="The widest bid/ask spread you'll trade options at, as a share of the ask. Above it, the Strategy uses shares. The engine's own default is 6%.">
+        <span class="limit-label">Max option spread <i class="info">i</i></span>
+        <span class="limit-input"><input type="number" id="limSpread" min="1" max="25" step="0.5" inputmode="decimal"><span>%</span></span>
+      </label>
+      <label class="limit-field" title="Shares only skips options entirely. With options allowed, the vehicle follows the engine's rule: cheap options a long call, moderate a call debit spread, expensive a cash-secured put.">
+        <span class="limit-label">Instruments <i class="info">i</i></span>
+        <select id="limInstruments" class="select"></select>
+      </label>
+      <span class="limits-status" id="limStatus"></span>
     </section>
 
     <section class="toolbar">
@@ -1069,6 +1192,13 @@
           <div id="modalEntryDiagnostics" class="diag-grid"></div>
         </div>
 
+        <!-- Strategy: a sized order from the user's trading limits, with its risk score -->
+        <div class="sub-box">
+          <div class="sub-box-title">Strategy</div>
+          <div class="section-intro">A concrete order built from your trading limits and this stock's levels. Hover any figure to see how it was worked out. The verdicts behind it haven't shown an edge in backtests yet, so treat this as position sizing, not a prediction.</div>
+          <div id="modalStrategy"></div>
+        </div>
+
         <div class="chart-box">
           <div class="chart-legend">
             <span><i style="border-color:#e6dfcf;"></i>Price</span>
@@ -1151,16 +1281,19 @@
     import { getFirestore, doc, getDoc, setDoc, updateDoc, serverTimestamp, collection, getDocs, limit, orderBy, query as fsQuery, where } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
     import { firebaseConfig } from "./firebase-config.js";
     import {
-      RULES, SCORE_KEYS, SCORE_LABELS, applyScenario as simulateScenario, buildMarketContext, classifyEvaluations, evaluateAsset, valuationLabel
+      RULES, SCORE_KEYS, SCORE_LABELS, applyScenario as simulateScenario, buildMarketContext, classifyEvaluations, evaluateAsset, optionsPricing, valuationLabel
     } from "./js/engine.js";
+    import { frozenModel, signalReadings } from "./js/edge.js";
     import { ALERT_SCORE_KEYS, ALERT_TRIGGERS, normalizeAlertPrefs } from "./js/alerts.js";
     import { capitalReturns, developmentsLine, filingActions, quarterSummary } from "./js/developments.js";
     import { leaderCutoff, rankPeers, relativeToSpy, strengths } from "./js/benchmarks.js";
     import { HORIZONS, grade, horizonReading } from "./js/grades.js";
     import { FORWARD_WINDOWS, HISTORY_DAY_LIMITS, HISTORY_METRICS, HISTORY_RESOLUTIONS, INPUT_KEYS, historyRecords, historyRows, metricCell, metricValue } from "./js/history.js";
+    import { INSTRUMENTS, VEHICLE_LABELS, buildStrategy, expiryText, normalizeStrategyPrefs, orderLine, strategyText } from "./js/strategy.js";
 
     const SYMBOLS_URL = "data/symbols.json";
     const MARKET_URL = "data/market.json";
+    const REGISTRY_URL = "data/paper/registry.json";
     const REFRESH_NOTE = "refreshes every 4 hours on weekdays";
     const HISTORY_NOTE = `
       Every data build (about every 4 hours on weekdays) is stored as its own snapshot of what the engine said about each
@@ -1175,6 +1308,8 @@
     // Enough for the widest range at the current schedule (180 days of three builds a weekday is about 400).
     const MAX_SNAPSHOTS = 1000;
     const DEFAULT_WATCHLIST = ["SPY", "QQQ", "MSFT", "NVDA", "GOOGL", "AMZN", "AAPL"];
+    // Guests keep their trading limits in this browser; signed-in users also save them to their profile.
+    const STRATEGY_STORAGE_KEY = "stockwatcher.strategy";
 
     const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, ch => (
       { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]
@@ -1189,6 +1324,7 @@
       return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
     };
     const money = (v) => isNum(v) ? `$${v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "N/A";
+    const signedMoney = (v) => isNum(v) ? `${v < 0 ? "−" : "+"}${money(Math.abs(v))}` : "N/A";
     const percent = (v, digits = 1) => isNum(v) ? `${(v * 100).toFixed(digits)}%` : "N/A";
     const signedPercent = (v, digits = 1) => isNum(v) ? `${v >= 0 ? "+" : ""}${(v * 100).toFixed(digits)}%` : "N/A";
     const multiple = (v) => isNum(v) ? `${v.toFixed(1)}x` : "N/A";
@@ -1214,6 +1350,7 @@
      *   name, email, watchlist: [ticker],
      *   addedStocks: { [ticker]: { name, exchange, etf, thesis, addedAt, research: engineItem | null } },
      *   alerts: { enabled, triggers: { [triggerId]: bool }, scoreThreshold, earningsDays }  (see js/alerts.js)
+     *   strategy: { budget, riskPct, horizonDays, maxSpreadPct, instruments }  (see js/strategy.js)
      *   createdAt, updatedAt
      * }
      */
@@ -1265,7 +1402,10 @@
           const data = snap.data();
           // Older profiles may carry manually entered `research` levels; scores now use real data only.
           const addedStocks = Object.fromEntries(Object.entries(data.addedStocks || {}).map(([ticker, { research, ...meta }]) => [ticker, meta]));
-          return { uid: fbUser.uid, name: data.name, email: data.email, watchlist: data.watchlist || [], addedStocks, alerts: normalizeAlertPrefs(data.alerts), createdAt: data.createdAt };
+          return {
+            uid: fbUser.uid, name: data.name, email: data.email, watchlist: data.watchlist || [], addedStocks, alerts: normalizeAlertPrefs(data.alerts),
+            strategy: data.strategy ? normalizeStrategyPrefs(data.strategy) : null, createdAt: data.createdAt
+          };
         }
         // First sign-in for this account: create its profile document.
         const profile = {
@@ -1275,7 +1415,7 @@
           addedStocks: {}
         };
         await setDoc(ref, { ...profile, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
-        return { uid: fbUser.uid, ...profile, alerts: normalizeAlertPrefs(null) };
+        return { uid: fbUser.uid, ...profile, alerts: normalizeAlertPrefs(null), strategy: null };
       }
 
       login(email, password) {
@@ -1313,6 +1453,10 @@
 
       saveAlerts(profile) {
         return updateDoc(doc(this.db, "users", profile.uid), { alerts: profile.alerts, updatedAt: serverTimestamp() });
+      }
+
+      saveStrategy(profile) {
+        return updateDoc(doc(this.db, "users", profile.uid), { strategy: profile.strategy, updatedAt: serverTimestamp() });
       }
 
       /** Alerts are only emailed to verified addresses; reload picks up a link clicked in another tab. */
@@ -1497,9 +1641,11 @@
         this.currentFilter = "my_watchlist";
         this.marketRegime = "NEUTRAL";
         this.historySort = { key: "ticker", dir: "asc" };
+        this.strategyPrefs = this.loadLocalStrategy();
 
         this.initDOM();
         this.attachEvents();
+        this.renderLimits();
         this.renderAuthUI();
         this.sort = { key: "rank", dir: "asc" };
         this.loadMarketData();
@@ -1520,6 +1666,8 @@
       handleSessionChange(profile) {
         this.currentUser = profile;
         this.authResolved = true;
+        if (profile?.strategy) this.strategyPrefs = profile.strategy;
+        this.renderLimits();
         if (profile) this.closeAuthModal();
         this.scenarioSelector.value = "baseline";
         this.dataset = this.buildDataset();
@@ -1541,8 +1689,12 @@
       }
 
       async loadMarketData() {
+        const registry = fetch(REGISTRY_URL, { cache: "no-cache" })
+          .then(res => res.ok ? res.json() : null)
+          .catch(err => { console.error("Paper registry could not be loaded", err); return null; });
         try {
           await this.marketData.load();
+          this.signalModel = frozenModel(await registry);
         } catch (err) {
           console.error(err);
           this.dataFreshness.textContent = "Market data could not be loaded. Refresh the page to try again.";
@@ -1571,6 +1723,49 @@
           console.error("Failed to save profile", err);
           this.showToast("Could not save to your account. Check your connection and try again.");
           return false;
+        }
+      }
+
+      loadLocalStrategy() {
+        try {
+          return normalizeStrategyPrefs(JSON.parse(localStorage.getItem(STRATEGY_STORAGE_KEY)));
+        } catch {
+          return normalizeStrategyPrefs(null);
+        }
+      }
+
+      renderLimits() {
+        for (const [key, input] of Object.entries(this.limitInputs)) input.value = this.strategyPrefs[key];
+        this.renderRiskDollars();
+      }
+
+      renderRiskDollars() {
+        const budget = Number(this.limitInputs.budget.value);
+        const pct = Number(this.limitInputs.riskPct.value);
+        document.getElementById("limRiskUsd").textContent = budget > 0 && pct > 0 ? `${money(budget * pct / 100)} at the stop` : "";
+      }
+
+      /** Reads the limits bar, clamps it to valid values, and saves it to this browser and, when signed in, the account. */
+      async saveLimits() {
+        const raw = Object.fromEntries(Object.entries(this.limitInputs).map(([key, input]) => [key, input.value]));
+        this.strategyPrefs = normalizeStrategyPrefs(raw);
+        this.renderLimits();
+        try {
+          localStorage.setItem(STRATEGY_STORAGE_KEY, JSON.stringify(this.strategyPrefs));
+        } catch {
+          // Storage blocked (private window): the limits still apply for this visit.
+        }
+        if (!this.currentUser) {
+          this.limitStatus.textContent = this.accountManager ? "Saved in this browser. Sign in to sync them." : "Saved in this browser.";
+          return;
+        }
+        this.currentUser.strategy = this.strategyPrefs;
+        try {
+          await this.accountManager.saveStrategy(this.currentUser);
+          this.limitStatus.textContent = "Saved to your account.";
+        } catch (err) {
+          console.error("Failed to save trading limits", err);
+          this.limitStatus.textContent = "Saved in this browser only; your account couldn't be reached.";
         }
       }
 
@@ -1636,6 +1831,15 @@
         this.historyHorizon = document.getElementById("historyHorizon");
         this.historyDays = document.getElementById("historyDays");
         this.historyResolution = document.getElementById("historyResolution");
+        this.limitInputs = {
+          budget: document.getElementById("limBudget"),
+          riskPct: document.getElementById("limRiskPct"),
+          horizonDays: document.getElementById("limHorizon"),
+          maxSpreadPct: document.getElementById("limSpread"),
+          instruments: document.getElementById("limInstruments")
+        };
+        this.limitInputs.instruments.innerHTML = INSTRUMENTS.map(i => `<option value="${i.key}">${escapeHtml(i.label)}</option>`).join("");
+        this.limitStatus = document.getElementById("limStatus");
       }
 
       attachEvents() {
@@ -1661,6 +1865,9 @@
         }
 
         this.tableSearch.addEventListener("input", () => this.renderOutput());
+        for (const input of Object.values(this.limitInputs)) input.addEventListener("change", () => this.saveLimits());
+        this.limitInputs.riskPct.addEventListener("input", () => this.renderRiskDollars());
+        this.limitInputs.budget.addEventListener("input", () => this.renderRiskDollars());
         this.benchHead.addEventListener("click", (e) => {
           const th = e.target.closest("th[data-sort]");
           if (!th) return;
@@ -1787,6 +1994,14 @@
         document.getElementById("btnSendVerification").addEventListener("click", (e) => this.sendVerificationEmail(e.target));
 
         this.modalCloseBtn.addEventListener("click", () => this.detailModal.classList.remove("active"));
+        document.getElementById("modalStrategy").addEventListener("click", (e) => {
+          const copy = e.target.closest("[data-copy-strategy]");
+          if (copy) return this.copyStrategy(copy);
+          if (!e.target.closest("[data-edit-limits]")) return;
+          this.detailModal.classList.remove("active");
+          this.limitInputs.budget.scrollIntoView({ block: "center" });
+          this.limitInputs.budget.focus();
+        });
         document.getElementById("modalBearCaseDetails").addEventListener("click", (e) => {
           const button = e.target.closest("[data-horizon]");
           if (!button) return;
@@ -2225,6 +2440,7 @@
         this.currentEvaluations = this.dataset.map(item => evaluateAsset(item, this.marketContext));
         // Peer ranks always compare against every tracked stock, whichever view is showing.
         this.peerRanks = rankPeers(this.currentEvaluations);
+        this.signals = signalReadings(this.dataset, this.marketContext, this.signalModel);
         this.spy = this.marketContext.spy;
         this.renderOutput();
       }
@@ -2329,6 +2545,15 @@
           scoreColumn("trend", "Trend: price vs 50- and 200-day SMAs, 3- and 12-month return vs SPY, RSI momentum, market regime"),
           scoreColumn("entry", "Entry: distance to entry support and resistance in volatility units, stretch above the 50- and 200-day, RSI"),
           scoreColumn("trade", "Trade: reward vs risk, valuation, PEG, analyst target, earnings timing, options conditions"),
+          {
+            key: "signal", group: "Scores", label: "Signal", pct: true, num: true, dir: "desc",
+            title: "The paper record's frozen model (H2): expected return over the next month relative to the other tracked stocks, from price signals only. Unproven until its paper test passes.",
+            sort: r => this.signals?.get(r.ticker)?.expected ?? null,
+            cell: r => {
+              const sig = this.signals?.get(r.ticker);
+              return sig ? `<span class="tone-${sig.percentile >= 0.8 ? "pos" : sig.percentile <= 0.2 ? "neg" : "muted"}" title="#${sig.rank} of ${sig.of}">${signedPercent(sig.expected, 2)}</span>` : dash;
+            }
+          },
           { key: "next", label: "Next step", sort: r => r.next.text, cell: r => `<span class="${r.next.tone === "pos" ? "tone-pos" : ""}">${escapeHtml(r.next.text)}</span>` },
           { key: "warnings", label: "Warnings", dir: "desc", csv: r => r.e ? r.e.warnings.join("; ") : "", sort: r => value(r, e => e.warnings.length), cell: r => cell(r, e => this.warningChips(e.warnings)) },
           {
@@ -2461,6 +2686,14 @@
             key: "ivrv", group: "Options", label: "IV/RV", title: "Implied volatility divided by 30-day realized volatility (above 1.3 = expensive, below 0.9 = cheap)", num: true, dir: "desc",
             sort: r => value(r, (e, i) => i.options?.ivHvRatio ?? null),
             cell: r => cell(r, (e, i) => isNum(i.options?.ivHvRatio) ? toned(grade.ivRatio(i.options.ivHvRatio), `${i.options.ivHvRatio.toFixed(2)}x`) : null)
+          },
+          {
+            key: "ivfc", group: "Options", label: "IV/fcst", title: "Implied volatility divided by the GJR-GARCH volatility forecast for the option's life (above 1.3 = expensive, below 0.9 = cheap). Picks the vehicle when the build has a forecast.", num: true, dir: "desc",
+            sort: r => value(r, (e, i) => optionsPricing(i)?.basis === "forecast" ? optionsPricing(i).ratio : null),
+            cell: r => cell(r, (e, i) => {
+              const pricing = optionsPricing(i);
+              return pricing?.basis === "forecast" ? toned(grade.ivRatio(pricing.ratio), `${pricing.ratio.toFixed(2)}x`) : null;
+            })
           },
           { key: "delta", group: "Options", label: "Delta", num: true, sort: r => value(r, (e, i) => i.options?.atmCallDelta ?? null), cell: r => cell(r, (e, i) => fixed(i.options?.atmCallDelta, 2)) },
           { key: "theta", group: "Options", label: "Theta", num: true, sort: r => value(r, (e, i) => i.options?.atmCallTheta ?? null), cell: r => cell(r, (e, i) => fixed(i.options?.atmCallTheta, 3)) },
@@ -2814,6 +3047,7 @@
         const entryRows = e.diagnostics.entry;
         document.getElementById("modalEntryDiagnostics").innerHTML =
           diagSection("Setup", entryRows.slice(0, 5)) + diagSection("Plan", entryRows.slice(5));
+        document.getElementById("modalStrategy").innerHTML = this.strategyHtml(e);
         document.getElementById("modalDiagnostics").innerHTML =
           diagSection("Market context", e.diagnostics.market) + diagSection("Asset quality", e.diagnostics.quality) + diagSection("Technical state", e.diagnostics.technical);
 
@@ -2921,9 +3155,11 @@
             ${spec("Delta / Theta", `${fixed(o.atmCallDelta, 2)} / ${fixed(o.atmCallTheta, 3)}`)}
             ${spec("ATM IV", percent(o.impliedVolatility))}
             ${spec("IV / 30d Realized", isNum(o.ivHvRatio) ? g(grade.ivRatio(o.ivHvRatio), `${o.ivHvRatio.toFixed(2)}x`) : "N/A")}
+            ${spec("Vol forecast", isNum(item.volForecast?.volToExpiry) ? `${percent(item.volForecast.volToExpiry)} <span class="muted">to expiry</span>` : "N/A")}
+            ${spec("IV / Forecast", optionsPricing(item)?.basis === "forecast" ? g(grade.ivRatio(optionsPricing(item).ratio), `${optionsPricing(item).ratio.toFixed(2)}x`) : "N/A")}
             ${spec("Expected Move", `±${percent(o.expectedMovePct)}`)}
           </div>
-          <div class="muted" style="font-size:11px; margin-top:6px;">Cboe delayed quotes as of ${escapeHtml(o.quoteTime)} (quotes outside market hours can be wide). IV/realized: green is cheap, red is expensive.</div>` : ""}
+          <div class="muted" style="font-size:11px; margin-top:6px;">Cboe delayed quotes as of ${escapeHtml(o.quoteTime)} (quotes outside market hours can be wide). The vehicle compares IV with the GJR-GARCH forecast for the option's life (IV/realized when there's no forecast): green is cheap, red is expensive. In replay tests the forecast was unbiased and about half as wrong as 30-day realized volatility.</div>` : ""}
         `;
 
         document.getElementById("modalEpistemicDetails").innerHTML = `
@@ -2956,6 +3192,191 @@
         `;
 
         this.detailModal.classList.add("active");
+      }
+
+      /**
+       * The Strategy section: the order sized to the user's trading limits (an order ticket with the figures behind it)
+       * beside its risk score and the factors that make it up. Every figure carries a tooltip saying how it was found.
+       */
+      strategyHtml(e) {
+        const { item } = e;
+        const s = buildStrategy(e, this.strategyPrefs, this.marketContext, new Date(), this.edgeFor(item.ticker));
+        this.detailStrategy = s;
+        const ticker = escapeHtml(item.ticker);
+        const editButton = `<div class="ticket-actions"><button type="button" class="btn-secondary" data-edit-limits>Change trading limits</button></div>`;
+        const copyFoot = `
+          <div class="strategy-foot">
+            <button type="button" class="btn-secondary" data-copy-strategy title="Copies the order, every figure, the risk factors and the context as plain text, ready to paste into an AI agent or a note.">Copy as text</button>
+          </div>`;
+        const limitsLine = (p) => `Your limits: ${money(p.budget)} budget, ${p.riskPct}% risk (${money(p.budget * p.riskPct / 100)}), ${p.horizonDays}-day hold, ${p.maxSpreadPct}% max option spread, ${INSTRUMENTS.find(i => i.key === p.instruments).label.toLowerCase()}.`;
+        if (s.status === "pass") {
+          return `
+            <div class="strategy">
+              <div class="ticket">
+                <div class="ticket-top"><span class="val val-muted">${s.label}</span></div>
+                <div class="ticket-order">No trade</div>
+                <div class="ticket-sub">${escapeHtml(s.reason)}</div>
+                <div class="ticket-sub"><strong>Next:</strong> ${escapeHtml(this.nextStep(e).text)}</div>
+                <div class="ticket-notes"><div>${escapeHtml(limitsLine(s.prefs))}</div></div>
+                ${editButton}
+              </div>
+              <div class="risk-card">
+                <div class="risk-head"><strong>Risk</strong><span class="tone-muted">—</span></div>
+                <div class="muted" style="font-size:13px;">No position, so nothing to score.</div>
+              </div>
+            </div>${copyFoot}`;
+        }
+
+        const closeBy = s.closeBy ? new Date(`${s.closeBy}T12:00:00`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }) : null;
+        const strike = (v) => `$${+v.toFixed(2)}`;
+        const legs = s.legs;
+        const headline = escapeHtml(orderLine(s, item.ticker));
+        const exit = closeBy ? `close by <strong>${closeBy}</strong> <span class="muted">(${escapeHtml(s.closeByReason)})</span>` : "";
+        const sub = s.status === "plan"
+          ? `Once it's in the buy zone: limit <strong>${money(s.entry)}</strong>, the top of the preferred entry zone. Hold up to ${s.holdDays} days after it fills.`
+          : {
+              shares: () => `Limit <strong>${money(item.price)}</strong>, don't pay above <strong>${money(s.limit)}</strong> (reward/risk falls below ${RULES.buyZone.rewardRisk} : 1 there) · ${exit}`,
+              call: () => `Limit <strong>${money(legs[0].price)}</strong> each (${money(s.perContract)} per contract) · ${exit}`,
+              spread: () => `About <strong>${money(s.debit)}</strong> debit each (${money(s.perContract)} per spread) · ${exit}`,
+              csp: () => `About <strong>${money(s.premium)}</strong> credit each, ${money(s.perContract)} cash set aside per contract · buy back by <strong>${closeBy}</strong> <span class="muted">(${escapeHtml(s.closeByReason)})</span>`
+            }[s.vehicle]();
+        const legRows = legs.length ? `<div class="ticket-legs">${legs.map(l => `
+          <div class="ticket-leg" title="${escapeHtml(l.modeled ? "Black-Scholes estimate at the chain's implied volatility. Check the live quote and that this strike is listed." : `Cboe delayed quote (ask) as of ${item.options.quoteTime}.`)}">
+            <span>${l.side === "buy" ? "Buy" : "Sell"} ${s.qty} × ${ticker} ${expiryText(l.expiration)} ${strike(l.strike)} ${l.kind}</span>
+            <span class="muted">@ ${money(l.price)}</span>
+            <span class="tag">${l.modeled ? "modeled" : "quote"}</span>
+          </div>`).join("")}</div>` : "";
+
+        const share = (v) => isNum(v) ? `${percent(v / s.prefs.budget)} of budget` : "";
+        const fromEntry = (v) => signedPercent(v / s.entry - 1);
+        const optionNote = s.vehicle === "shares" ? "" : " Option values at the stop and the target are modeled on the close-by date at today's implied volatility.";
+        const spec = (k, v, detail, tip, tone = "") => `
+          <div class="ticket-spec" title="${escapeHtml(tip)}">
+            <div class="ticket-spec-k">${k}</div>
+            <div class="ticket-spec-v${tone ? ` tone-${tone}` : ""}">${v}</div>
+            <div class="ticket-spec-s">${detail}</div>
+          </div>`;
+        const plan = s.status === "plan";
+        const rr = s.rewardRisk;
+        const specs = [
+          spec(plan ? "Entry (limit)" : "Stock price", money(plan ? s.entry : item.price),
+            plan ? `${signedPercent(s.entry / item.price - 1)} from today` : "at the last build",
+            plan ? "The top of the preferred entry zone, just above entry support." : "The price the data build saw. Check the live quote before ordering."),
+          spec("Stop", money(s.stop), `${fromEntry(s.stop)} · daily close below`,
+            "Entry support. Exit the whole position on a daily close below it; the loss at the stop is measured here.", "neg"),
+          spec("Target", money(s.target), `${fromEntry(s.target)} · ${escapeHtml(s.targetSource)}`,
+            "Where the engine measures upside: the nearest resistance, else the analyst target, else a one-month typical move.", "pos"),
+          spec(s.vehicle === "csp" ? "Cash set aside" : "Capital used", money(s.cost), share(s.cost),
+            s.vehicle === "csp" ? "Strike × 100 per contract, held in cash in case the put is assigned." : "What the position costs to open at the limit price."),
+          spec("Loss at stop", money(s.lossAtStop), share(s.lossAtStop),
+            `What you lose exiting at the stop. Sized to stay within your ${s.prefs.riskPct}% risk per trade (${money(s.riskBudget)}).${optionNote}`, "neg"),
+          spec("Worst case", money(s.worstLoss), share(s.worstLoss), {
+            shares: "If the stock gaps one typical weekly move below the stop, so the exit fills under it.",
+            call: "The premium paid, if the calls expire worthless.",
+            spread: "The debit paid, if the spread expires worthless.",
+            csp: "If the put is assigned and the stock then gaps one typical weekly move below the stop."
+          }[s.vehicle], "neg"),
+          spec("Gain at target", money(s.gainAtTarget), isNum(s.maxGain) ? `max ${money(s.maxGain)}` : "if it reaches the target",
+            `What the position makes if the stock reaches the target by the exit.${s.vehicle === "spread" ? " A spread can make at most its width less the debit." : s.vehicle === "csp" ? " A short put can make at most its premium, if held to expiry." : ""}${optionNote}`, "pos"),
+          spec("Expected value", signedMoney(s.ev.total), `target first ${isNum(s.targetFirst) ? percent(s.targetFirst, 0) : "N/A"} · reward/risk ${isNum(rr) ? `${rr.toFixed(1)} : 1` : "N/A"}`,
+            `What the position is worth on average after costs, from the parts that can carry an edge (breakdown below). A stop and a target don't add value on their own: the price reaches this target before the stop about ${isNum(s.targetFirst) ? percent(s.targetFirst, 0) : "N/A"} of the time if it has no drift, which is what the ${isNum(rr) ? rr.toFixed(1) : "N/A"} : 1 reward/risk pays for.`,
+            s.ev.total > 0 ? "pos" : "neg")
+        ].join("");
+
+        const r = s.risk;
+        const riskRows = r.factors.map(f => {
+          const fill = f.points / f.max;
+          const tone = fill <= 0.3 ? "pos" : fill <= 0.6 ? "warn" : "neg";
+          return `
+            <div class="factor-row" title="${escapeHtml(f.detail)}">
+              <div>${escapeHtml(f.label)}</div>
+              <div class="factor-score tone-${tone}">
+                <span class="factor-points">${f.points} / ${f.max}</span>
+                <span class="factor-bar"><span style="width:${Math.round(fill * 100)}%"></span></span>
+              </div>
+            </div>`;
+        }).join("");
+
+        return `
+          <div class="strategy">
+            <div class="ticket tint-${s.tone}">
+              <div class="ticket-top"><span class="val val-${s.tone}">${s.label}</span><span>${escapeHtml(VEHICLE_LABELS[s.vehicle])}</span></div>
+              <div>
+                <div class="ticket-order">${headline}</div>
+                <div class="ticket-sub">${sub}</div>
+                ${plan ? `<div class="ticket-sub"><strong>Waiting on:</strong> ${escapeHtml(this.nextStep(e).text)}</div>` : ""}
+              </div>
+              ${legRows}
+              <div class="ticket-specs">${specs}</div>
+              ${this.expectedValueHtml(s, item)}
+              <div class="ticket-notes">${[...s.notes, limitsLine(s.prefs)].map(n => `<div>${escapeHtml(n)}</div>`).join("")}</div>
+              ${editButton}
+            </div>
+            <div class="risk-card">
+              <div class="risk-head"><strong>Risk</strong><span class="tone-${r.tone}">${r.score}</span></div>
+              <div class="tone-${r.tone}"><div class="gauge"><span style="width:${r.score}%"></span></div></div>
+              <div class="score-card-sub" style="margin:4px 0 2px;"><span class="tone-${r.tone}" style="font-weight:600;">${r.label}</span> · 0 is calm, 100 is fragile. Hover a factor for its reading.</div>
+              ${riskRows}
+            </div>
+          </div>${copyFoot}`;
+      }
+
+      /** This stock's signal reading in the form buildStrategy() takes, or null without a model. */
+      edgeFor(ticker) {
+        const reading = this.signals?.get(ticker);
+        return reading && this.signalModel ? { ...reading, sessions: this.signalModel.sessions, label: this.signalModel.label } : null;
+      }
+
+      /**
+       * Where the expected value comes from, each part with how far it has been tested, and the same for every other
+       * vehicle that fits the limits, so the rule's pick can be weighed against them.
+       */
+      expectedValueHtml(s, item) {
+        const ev = s.ev;
+        const model = this.signalModel;
+        const pricing = optionsPricing(item);
+        const row = (label, amount, tag, tip) => `
+          <div class="ev-row" title="${escapeHtml(tip)}">
+            <span>${label} <span class="tag">${tag}</span></span>
+            <span class="${!isNum(amount) ? "muted" : amount > 0 ? "tone-pos" : amount < 0 ? "tone-neg" : ""}">${isNum(amount) ? signedMoney(amount) : "N/A"}</span>
+          </div>`;
+        const rows = [
+          row("Signal", ev.signal, "unproven",
+            model ? `${model.label}: the frozen model expects ${isNum(ev.drift) ? signedPercent(ev.drift, 2) : "N/A"} over the hold, relative to the other tracked stocks. Walk-forward tests haven't shown it to be real yet; its paper test is on the Forecaster page.` : "No frozen model in the paper record."),
+          s.vehicle === "shares" ? "" : row("Volatility", ev.volatility, "untested vs IV",
+            isNum(ev.volatility) ? `${pricing?.text ?? ""}. Worth this much on average if the stock moves as the GARCH forecast expects during the hold and the market prices the rest of the option's life at today's IV. The forecast beat 30-day realized volatility in replay tests; whether it beats implied volatility can only be tested on the IV history being recorded now.` : "No volatility forecast in this build."),
+          row("Costs", isNum(ev.costs) ? -ev.costs : null, "estimate",
+            s.vehicle === "shares" ? "About 0.05% of the position each way: half a large-cap spread plus slippage." : "Crossing the bid/ask spread on every leg, in and out, at the at-the-money call's spread.")
+        ].join("");
+        const alternatives = s.alternatives.length > 1 ? `
+          <div class="ev-alts">Expected value by vehicle, each sized to your limits: ${s.alternatives.map(a =>
+            `<span class="${a.vehicle === s.vehicle ? "ev-alt-pick" : ""}${a.ev.total > 0 && a.ev.total === Math.max(...s.alternatives.map(x => x.ev.total)) ? " tone-pos" : ""}" title="${escapeHtml(`${a.qty} ${a.unit}, ${money(a.cost)} ${a.vehicle === "csp" ? "set aside" : "used"}, ${money(a.lossAtStop)} lost at the stop`)}">${escapeHtml(VEHICLE_LABELS[a.vehicle])} ${signedMoney(a.ev.total)}</span>`).join(" · ")}.
+            The rule picked ${escapeHtml(VEHICLE_LABELS[s.vehicle].toLowerCase())}; the estimates behind these are untested, so a gap of a few dollars means little.</div>` : "";
+        return `
+          <div class="ev-box">
+            <div class="ev-head"><span>Expected value</span><strong class="${ev.total > 0 ? "tone-pos" : "tone-neg"}">${signedMoney(ev.total)}</strong></div>
+            ${rows}
+            ${alternatives}
+          </div>`;
+      }
+
+      async copyStrategy(button) {
+        const e = this.detailEvaluation;
+        if (!e || !this.detailStrategy) return;
+        const text = strategyText(this.detailStrategy, e, this.marketContext, {
+          model: this.signalModel?.label,
+          generatedAt: this.marketData.data.generatedAt,
+          url: new URL(location.pathname, location.origin).href
+        });
+        try {
+          await navigator.clipboard.writeText(text);
+        } catch (err) {
+          console.error("Clipboard write failed", err);
+          this.showToast("Couldn't copy. Your browser blocked clipboard access.");
+          return;
+        }
+        button.textContent = "Copied";
+        setTimeout(() => { button.textContent = "Copy as text"; }, 1500);
       }
 
       /**

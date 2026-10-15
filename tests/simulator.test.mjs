@@ -103,7 +103,15 @@ test("on a pure random walk the random walk's bands are honest and nothing has r
   for (const key of ["bootstrap", "garch", "analog"]) {
     const r = results[key];
     assert.ok(r.skill - 3 * r.skillSE < 0, `${key} claims skill ${r.skill} ± ${r.skillSE} on noise`);
+    assert.ok(r.brierSkill - 3 * r.brierSkillSE < 0, `${key} claims direction skill ${r.brierSkill} ± ${r.brierSkillSE} on noise`);
   }
+  assert.equal(results.gaussian.brierSkill, null, "the random walk is the yardstick, not scored against itself");
+});
+
+test("a series that drifts up gives a drift-tilted model direction skill over the random walk", () => {
+  const prep = prepare(walk(3000, 12).map((k, i) => ({ ...k, o: k.o * Math.exp(0.004 * i), h: k.h * Math.exp(0.004 * i), l: k.l * Math.exp(0.004 * i), c: k.c * Math.exp(0.004 * i) })));
+  const { results } = backtest(prep, { models: ["gaussian", "tilted"], horizon: 10, maxOrigins: 200, external: { tilted: () => ({ model: "bootstrap", drift: 0.004 }) } });
+  assert.ok(results.tilted.brierSkill - 2 * results.tilted.brierSkillSE > 0, `direction skill ${results.tilted.brierSkill} ± ${results.tilted.brierSkillSE}`);
 });
 
 test("market.json closes become weekday candles ending on the build date", () => {

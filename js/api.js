@@ -9,7 +9,7 @@
  *
  * scripts/build_api.mjs writes:
  *   api/v1/stocks.json            build info, market context and a summary row per tracked stock
- *   api/v1/stocks/{TICKER}.json   one stock's full reading
+ *   api/v1/stocks/{TICKER}.json   one stock's full reading, with the Strategy as rules and per-dollar figures
  * The README's Developer API section documents every field. Within v1 fields may be added; renaming or removing one
  * needs a v2 path.
  */
@@ -17,6 +17,8 @@ import { SCORE_KEYS, buildMarketContext, classifyEvaluations, evaluateAsset } fr
 import { PEER_METRICS, rankPeers } from "./benchmarks.js";
 import { filingActions } from "./developments.js";
 import { HORIZONS, horizonReading } from "./grades.js";
+import { STRATEGY_FIELDS, buildStrategy } from "./strategy.js";
+import { signalReadings } from "./edge.js";
 
 export const API_VERSION = 1;
 export const API_DOCS_URL = "https://github.com/MikeyBoi-N/StockWatcher#developer-api";
@@ -46,8 +48,61 @@ function secFundamentals(f) {
 
 const labels = (list) => list.map(({ name, value, tone }) => ({ name, value, tone }));
 
+/**
+ * The Strategy is sized from the reader's own budget, so the API publishes it without one: built at the largest budget
+ * (so no option falls back to shares for lack of money) and 1% risk per trade, then every dollar figure is divided by
+ * the capital the position uses. A reader sizes it with position = min(budget, budget × risk% ÷ 100 ÷ lossAtStop).
+ * Only rules, the engine's own levels and these ratios go out: the order's prices, strikes and expiration, and the exit
+ * date (which gives away the earnings date) are quotes or close to them.
+ */
+const STRATEGY_REFERENCE = {
+  budget: STRATEGY_FIELDS.budget.max, riskPct: STRATEGY_FIELDS.riskPct.default,
+  horizonDays: STRATEGY_FIELDS.horizonDays.default, maxSpreadPct: STRATEGY_FIELDS.maxSpreadPct.default, instruments: "any"
+};
+const EXPIRATION_RULE = "the monthly expiration nearest 52 days out (40-70 days)";
+const STRATEGY_LEGS = {
+  shares: [],
+  call: [{ side: "buy", kind: "call", strike: "at the money" }],
+  spread: [{ side: "buy", kind: "call", strike: "at the money" }, { side: "sell", kind: "call", strike: "nearest listed strike to the target" }],
+  csp: [{ side: "sell", kind: "put", strike: "highest listed strike at or below preferredEntryHigh (and above the stop)" }]
+};
+
+function strategyBlock(e, context, now, edge) {
+  const s = buildStrategy(e, STRATEGY_REFERENCE, context, now, edge);
+  const reference = { riskPct: STRATEGY_REFERENCE.riskPct, holdDays: STRATEGY_REFERENCE.horizonDays, maxOptionSpreadPct: STRATEGY_REFERENCE.maxSpreadPct };
+  if (s.status === "pass") {
+    return { reference, status: "pass", reasonCode: s.code, vehicle: null, entry: null, stop: null, legs: [], exit: null, perDollar: null, rewardRisk: null, risk: null };
+  }
+  const act = s.status === "act";
+  const perDollar = (v) => round(v / s.cost, 4);
+  return {
+    reference,
+    status: s.status,
+    reasonCode: null,
+    vehicle: s.vehicle,
+    entry: { when: act ? "now" : "buy zone", maxPrice: act ? round(s.limit, 2) : null, limit: act ? null : round(s.entry, 2) },
+    stop: round(s.stop, 2),
+    legs: STRATEGY_LEGS[s.vehicle].map(l => ({ ...l, expiration: EXPIRATION_RULE })),
+    exit: {
+      maxHoldDays: STRATEGY_REFERENCE.horizonDays,
+      beforeEarnings: true,
+      daysBeforeExpiration: s.vehicle === "shares" ? null : 21
+    },
+    perDollar: {
+      lossAtStop: perDollar(s.lossAtStop),
+      worstCase: perDollar(s.worstLoss),
+      gainAtTarget: perDollar(s.gainAtTarget),
+      maxGain: isNum(s.maxGain) ? perDollar(s.maxGain) : null,
+      expectedValue: perDollar(s.ev.total)
+    },
+    rewardRisk: round(s.rewardRisk, 2),
+    risk: { score: s.risk.score, label: s.risk.label, factors: s.risk.factors.map(({ label, points, max }) => ({ label, points, max })) }
+  };
+}
+
 /** One stock's full reading: api/v1/stocks/{TICKER}.json. */
-function stockDocument(e, spy, peerRanks, meta) {
+function stockDocument(e, context, peerRanks, meta, edge) {
+  const spy = context.spy;
   const { item, levels, diagnostics } = e;
   const scores = {};
   for (const key of SCORE_KEYS) {
@@ -106,6 +161,8 @@ function stockDocument(e, spy, peerRanks, meta) {
     },
     fundamentals: secFundamentals(item.fundamentals),
     filings: filingActions(item).map(({ date, code, label, short, tone, url }) => ({ date, item: code, label, short, tone, url })),
+    signal: edge ? { model: edge.label, expectedExcessReturn: round(edge.expected, 4), sessions: edge.sessions, rank: edge.rank, of: edge.of } : null,
+    strategy: strategyBlock(e, context, new Date(meta.generatedAt), edge),
     dataGaps: e.dataGaps
   };
 }
@@ -113,9 +170,10 @@ function stockDocument(e, spy, peerRanks, meta) {
 /**
  * Builds every API document for one data build.
  * @param {object} market parsed data/market.json
+ * @param {object} [options] { model }: the paper record's frozenModel() (js/edge.js), for each stock's signal
  * @returns {{index: object, stocks: Map<string, object>}} the stocks.json body, and each stock's document by ticker
  */
-export function apiDocuments(market) {
+export function apiDocuments(market, { model = null } = {}) {
   const primary = new Set(market.universe?.primary ?? []);
   // Tickers become file names, so anything that could escape api/v1/stocks/ is dropped rather than written.
   const records = Object.values(market.stocks ?? {})
@@ -128,7 +186,9 @@ export function apiDocuments(market) {
   const meta = { apiVersion: API_VERSION, generatedAt: market.generatedAt, docs: API_DOCS_URL, disclaimer: API_DISCLAIMER };
 
   const stocks = new Map();
-  for (const e of sorted) stocks.set(e.item.ticker, stockDocument(e, context.spy, ranks.get(e.item.ticker), meta));
+  const signals = signalReadings(records, context, model);
+  const edgeFor = (ticker) => signals.has(ticker) ? { ...signals.get(ticker), sessions: model.sessions, label: model.label } : null;
+  for (const e of sorted) stocks.set(e.item.ticker, stockDocument(e, context, ranks.get(e.item.ticker), meta, edgeFor(e.item.ticker)));
 
   const index = {
     meta,

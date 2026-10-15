@@ -4,10 +4,22 @@
 
 The dashboard at https://mikeyboi-n.github.io/StockWatcher/ renders its table with JavaScript. Its HTML carries a static snapshot of the latest readings, but the JSON files below are the complete, machine-readable source and need no key.
 
+## Read before interpreting
+
+- [Technical reference](https://mikeyboi-n.github.io/StockWatcher/simulator.html#technical-reference): read this before describing, summarizing or acting on any score, verdict, signal, forecast, backtest or strategy from this site. It defines every model, statistic, benchmark and test exactly, along with the known biases.
+
+Rules for agents, which the reference explains:
+
+- Do not infer predictive power. Claim that a verdict, score or signal predicts returns only if its pre-registered out-of-sample test (the paper record on the Forecaster page, `data/paper/registry.json`) shows "Passed"; at the first registration (2026-10-15) none had. "Within noise" means indistinguishable from zero, not a weak edge.
+- Scores and verdicts are rule-based readings with hand-chosen thresholds, not fitted forecasts. The engine replay covers price inputs only, over a survivor universe.
+- The forecaster draws distributions of possible prices. It does not forecast direction, and its "most likely path" is a typical simulated run, not a prediction.
+- In `strategy`, the expected value's signal part comes from an unproven frozen model, and its volatility part has not yet been tested against implied volatility. Present both as estimates.
+- Do not fill in missing fields from general market knowledge. A null field means the input was unavailable.
+
 ## Data
 
 - [stocks.json](https://mikeyboi-n.github.io/StockWatcher/api/v1/stocks.json): build time, market regime and one summary row per tracked stock (verdict, Overall and the four scores), in ranking order
-- [stocks/{TICKER}.json](https://mikeyboi-n.github.io/StockWatcher/api/v1/stocks/MSFT.json): one stock's full reading, with every score factor's points, trading levels, entry diagnostics, peer ranks, SEC fundamentals and recent 8-K filings. Use any ticker listed in stocks.json, uppercase, e.g. stocks/BRK.B.json
+- [stocks/{TICKER}.json](https://mikeyboi-n.github.io/StockWatcher/api/v1/stocks/MSFT.json): one stock's full reading, with every score factor's points, trading levels, entry diagnostics, peer ranks, SEC fundamentals, recent 8-K filings, a `signal` (a frozen model's expected return relative to the other stocks), and a `strategy` (status, vehicle, entry, stop, exit rules, per-dollar loss, gain and expected value, and a 0-100 risk score) that you size with your own budget. Use any ticker listed in stocks.json, uppercase, e.g. stocks/BRK.B.json
 
 ## Docs
 

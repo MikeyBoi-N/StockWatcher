@@ -79,6 +79,14 @@ test("a sample keeps the options surface the build read beyond the at-the-money 
   }
 });
 
+test("a sample keeps the volatility forecast, which can't be rebuilt for past days", () => {
+  const records = [stock("AAA", { volForecast: { vol21: 0.3123, volToExpiry: 0.3345 } }), stock("SPY", { etf: true, fundamentals: null })];
+  const ctx = buildMarketContext(records, {});
+  const sample = sampleFromEvaluation(evaluateAsset(records[0], ctx), ctx.spy);
+  assert.equal(sample.inputs.volForecast21, 0.3123);
+  assert.equal(sample.inputs.volForecastToExpiry, 0.3345);
+});
+
 test("a build is keyed by its own timestamp, so recording it twice cannot count it twice", () => {
   assert.equal(snapshotId("2026-09-18T00:54:47+00:00"), "20260918T005447Z");
   assert.equal(snapshotId("2026-09-18T00:54:47.812Z"), "20260918T005447Z", "sub-second noise does not make a second id");

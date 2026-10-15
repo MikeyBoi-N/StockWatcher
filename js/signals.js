@@ -48,7 +48,7 @@ const MIN_TRAIN_DATES = 52;
 const SQRT3 = Math.sqrt(3);
 
 /** Ranks of `values` scaled to -√3..√3 (ties share their mean rank); nulls stay null. */
-function rankScores(values) {
+export function rankScores(values) {
   const present = values.map((v, i) => [v, i]).filter(([v]) => isNum(v)).sort((a, b) => a[0] - b[0]);
   const out = new Array(values.length).fill(null);
   const n = present.length;
@@ -175,9 +175,12 @@ function meanSE(values) {
   return { mean, se: n > 1 ? Math.sqrt(values.reduce((s, v) => s + (v - mean) ** 2, 0) / (n - 1) / n) : null, n };
 }
 
-/** Per-date rank correlation and top-minus-bottom-fifth spread of `score(row)` against the excess return. */
+/**
+ * Per-date rank correlation and top-minus-bottom-fifth spread of `score(row)` against the excess return, plus
+ * `series`: each date's spread in date order ({ t, spread }), for drawing how it accumulated.
+ */
 function rankStats(dates, score) {
-  const ics = [], spreads = [], tops = [];
+  const ics = [], spreads = [], tops = [], series = [];
   for (const d of dates) {
     const rows = d.rows.filter(r => r.excess !== null && isNum(score(r)));
     const ic = spearman(rows.map(score), rows.map(r => r.excess));
@@ -188,9 +191,10 @@ function rankStats(dates, score) {
       const avg = (list) => list.reduce((s, r) => s + r.excess, 0) / list.length;
       spreads.push(avg(sorted.slice(-fifth)) - avg(sorted.slice(0, fifth)));
       tops.push(avg(sorted.slice(-fifth)));
+      series.push({ t: d.t, spread: spreads.at(-1) });
     }
   }
-  return { ic: meanSE(ics), spread: meanSE(spreads), top: meanSE(tops) };
+  return { ic: meanSE(ics), spread: meanSE(spreads), top: meanSE(tops), series };
 }
 
 /** Test dates for a panel: one per outcome window, newest complete first, so no two windows overlap. */

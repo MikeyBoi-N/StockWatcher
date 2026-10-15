@@ -510,16 +510,36 @@ function flagsFor(item, levels) {
   return { flags, warnings };
 }
 
-export function evaluateOptions(item, readyToAct, earningsWarning) {
+/**
+ * How expensive options are: at-the-money implied volatility over the volatility expected for the option's life.
+ * The yardstick is the build's GJR-GARCH forecast (scripts/forecast_vol.mjs), which replay tests found unbiased and
+ * far closer to what followed than 30-day realized volatility; without one it falls back to the 30-day figure.
+ * Returns { ratio, basis, text } or null.
+ */
+export function optionsPricing(item) {
+  const o = item.options;
+  const forecast = item.volForecast?.volToExpiry;
+  if (isNum(o?.impliedVolatility) && isNum(forecast) && forecast > 0) {
+    const ratio = o.impliedVolatility / forecast;
+    return { ratio, basis: "forecast", forecast, text: `ATM IV ${pct(o.impliedVolatility)} is ${ratio.toFixed(2)}x the ${pct(forecast)} volatility forecast for the option's life` };
+  }
+  return isNum(o?.ivHvRatio)
+    ? { ratio: o.ivHvRatio, basis: "realized", forecast: null, text: `ATM IV ${pct(o.impliedVolatility)} is ${o.ivHvRatio.toFixed(2)}x 30-day realized volatility` }
+    : null;
+}
+
+/** `maxSpreadPct` lets a caller apply its own liquidity limit (the strategy layer uses the user's). */
+export function evaluateOptions(item, readyToAct, earningsWarning, maxSpreadPct = RULES.maxSpreadPct) {
   const o = item.options;
   if (!o || !isNum(o.atmCallAsk) || o.atmCallAsk <= 0) {
     return { recommendation: readyToAct ? "SHARES" : "WAIT", reason: "No listed options data for a 21-120 DTE expiration.", tradeSpecs: null };
   }
 
   const spreadPct = ((o.atmCallAsk - o.atmCallBid) / o.atmCallAsk) * 100;
-  const isLiquid = o.atmCallOpenInterest >= RULES.minOpenInterest && spreadPct <= RULES.maxSpreadPct;
-  const ratio = o.ivHvRatio;
-  const ivText = isNum(ratio) ? `ATM IV ${pct(o.impliedVolatility)} is ${ratio.toFixed(2)}x 30-day realized volatility` : "IV vs realized volatility unavailable";
+  const isLiquid = o.atmCallOpenInterest >= RULES.minOpenInterest && spreadPct <= maxSpreadPct;
+  const pricing = optionsPricing(item);
+  const ratio = pricing?.ratio;
+  const ivText = pricing ? pricing.text : "IV vs expected volatility unavailable";
 
   if (earningsWarning) {
     return { recommendation: "SHARES ONLY (OR WAIT)", reason: `Earnings in ${item.catalysts.daysToEarnings} days; long options would absorb the post-earnings IV crush.`, spreadPct, isLiquid, tradeSpecs: null };
@@ -534,7 +554,7 @@ export function evaluateOptions(item, readyToAct, earningsWarning) {
     return { recommendation: "CASH-SECURED PUT OR SHARES", reason: `${ivText}: options are expensive. Sell a put near support or buy shares.`, spreadPct, isLiquid, tradeSpecs: null };
   }
   if (isNum(ratio) && ratio <= RULES.ivCheapRatio) {
-    return { recommendation: "LONG CALL OR CALL DEBIT SPREAD", reason: `${ivText}: options are cheap relative to recent movement.`, spreadPct, isLiquid, tradeSpecs: null };
+    return { recommendation: "LONG CALL OR CALL DEBIT SPREAD", reason: `${ivText}: options are cheap relative to the movement expected.`, spreadPct, isLiquid, tradeSpecs: null };
   }
   return { recommendation: "CALL DEBIT SPREAD", reason: `${ivText}: a vertical spread offsets theta decay.`, spreadPct, isLiquid, tradeSpecs: null };
 }

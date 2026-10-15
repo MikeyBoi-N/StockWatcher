@@ -11,16 +11,19 @@
  *
  * Usage: node scripts/build_api.mjs [--page]
  */
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { apiDocuments, snapshotHtml } from "../js/api.js";
+import { frozenModel } from "../js/edge.js";
 
 const MARKET_FILE = new URL("../data/market.json", import.meta.url);
 const OUT_DIR = new URL("../api/v1/", import.meta.url);
 const PAGE_FILE = new URL("../index.html", import.meta.url);
+const REGISTRY_FILE = new URL("../data/paper/registry.json", import.meta.url);
 const SNAPSHOT_MARKERS = /(<!-- snapshot:start -->)[\s\S]*?(<!-- snapshot:end -->)/;
 
 const market = JSON.parse(readFileSync(MARKET_FILE, "utf8"));
-const { index, stocks } = apiDocuments(market);
+const model = existsSync(REGISTRY_FILE) ? frozenModel(JSON.parse(readFileSync(REGISTRY_FILE, "utf8"))) : null;
+const { index, stocks } = apiDocuments(market, { model });
 
 rmSync(OUT_DIR, { recursive: true, force: true });
 mkdirSync(new URL("stocks/", OUT_DIR), { recursive: true });

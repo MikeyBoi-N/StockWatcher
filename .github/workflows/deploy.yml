@@ -72,6 +72,13 @@ jobs:
           SEC_USER_AGENT: ${{ vars.SEC_USER_AGENT }}
         run: python scripts/build_market_data.py --previous-earnings "$RUNNER_TEMP/previous-earnings.json"
 
+      - name: Forecast Volatility
+        # Adds a GJR-GARCH forecast to each stock in data/market.json from the five years of candles in data/replay.json.
+        # Options are priced against it; without it (a failed build, or a fit that errors) the engine falls back to
+        # 30-day realized volatility, so a failure here never stops the build.
+        continue-on-error: true
+        run: node scripts/forecast_vol.mjs
+
       - name: Validate Market Data With Scoring Engine
         run: npm test
 

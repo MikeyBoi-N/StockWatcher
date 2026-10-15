@@ -153,3 +153,58 @@ test("the page snapshot lists every stock's reading, escaped, and nothing the AP
     for (const value of [r.price, r.prevClose, r.high52, r.low52, r.rsi14, r.marketCap]) assert.ok(!html.includes(String(value)), `published ${value} from ${r.ticker}`);
   }
 });
+
+test("each stock document carries the Strategy as rules and per-dollar figures, never the order's prices", () => {
+  const m = market();
+  const { stocks } = apiDocuments(m);
+  const keys = ["reference", "status", "reasonCode", "vehicle", "entry", "stop", "legs", "exit", "perDollar", "rewardRisk", "risk"];
+  for (const doc of stocks.values()) {
+    const s = doc.strategy;
+    assert.deepEqual(Object.keys(s), keys);
+    assert.ok(["act", "plan", "pass"].includes(s.status));
+    if (s.status === "pass") {
+      assert.ok(["avoid", "no-stop", "no-room", "exit-too-soon", "too-small"].includes(s.reasonCode));
+      continue;
+    }
+    assert.ok(["shares", "call", "spread", "csp"].includes(s.vehicle));
+    assert.equal(s.stop, doc.levels.entrySupport);
+    for (const v of Object.values(s.perDollar)) assert.ok(v === null || Number.isFinite(v));
+    assert.ok(s.perDollar.lossAtStop > 0 && s.perDollar.worstCase >= s.perDollar.lossAtStop);
+    for (const f of s.risk.factors) assert.deepEqual(Object.keys(f), ["label", "points", "max"]);
+    for (const leg of s.legs) assert.equal(typeof leg.strike, "string", "strikes are rules, not prices");
+  }
+
+  // A buy-zone stock with cheap options gets an options order; its quotes, strike and expiration stay out.
+  const buy = stock("CCC", { price: 100, sma20: 99, sma50: 98, sma200: 90, majorSupport: 92, entrySupport: 98.5, majorResistance: 112, rsi14: 52, hv30: 0.3,
+    high52: 112, low52: 70, return3m: 0.09, return12m: 0.28,
+    catalysts: { nextEarningsDate: "2026-12-03", daysToEarnings: 50, revisionsUp: 3, revisionsDown: 0, oneYearTarget: 125.37 },
+    valuation: { forwardPe: 22, trailingPe: 25, historical5yPe: 28, pegRatio: 1.0, fcfYield: 0.05 },
+    options: { expiration: "2026-12-18", daysToExpiration: 65, atmCallStrike: 100, atmCallBid: 4.91, atmCallAsk: 4.97, atmCallOpenInterest: 5000, atmCallDelta: 0.52, atmCallTheta: -0.05, impliedVolatility: 0.2713, ivHvRatio: 0.82 } });
+  m.stocks.CCC = buy;
+  const doc = apiDocuments(m).stocks.get("CCC");
+  assert.equal(doc.verdict.bucket, "buy");
+  assert.equal(doc.strategy.status, "act");
+  assert.equal(doc.strategy.vehicle, "call");
+  assert.equal(doc.strategy.perDollar.worstCase, 1, "a long call can lose all its premium");
+  const text = JSON.stringify(doc);
+  for (const value of ["4.97", "4.91", "0.2713", "2026-12-18", "2026-12-03", "2026-12-02", "125.37", "Cboe"]) assert.ok(!text.includes(value), `published ${value}`);
+});
+
+test("the signal is published only with a model and enough stocks, and the volatility forecast stays out", () => {
+  const m = market();
+  for (const r of Object.values(m.stocks)) r.volForecast = { vol21: 0.2718, diffusive21: 0.2604, volToExpiry: 0.2836, earningsInWindow: false };
+  const weights = { trend: 0.001, entry: -0.001, trade: 0, momentum: 0.001, month: -0.001, week: -0.001, volatility: 0.002, high52: 0, sma200: 0, rsi14: 0, volume: 0 };
+  const model = { label: "H2, registered 2026-10-15", weights, sessions: 21 };
+  assert.equal(apiDocuments(m).stocks.get("AAA").signal, null, "no model");
+  assert.equal(apiDocuments(m, { model }).stocks.get("AAA").signal, null, "two stocks are too few to rank");
+
+  for (let k = 0; k < 8; k++) m.stocks[`S${k}`] = stock(`S${k}`, { rsi14: 40 + k * 3, return5d: 0.01 * k - 0.04, hv30: 0.2 + 0.03 * k, volForecast: m.stocks.AAA.volForecast });
+  const { stocks } = apiDocuments(m, { model });
+  const doc = stocks.get("AAA");
+  assert.deepEqual(Object.keys(doc.signal), ["model", "expectedExcessReturn", "sessions", "rank", "of"]);
+  assert.equal(doc.signal.of, 10);
+  assert.equal(stocks.get("SPY").signal, null, "ETFs aren't ranked");
+  if (doc.strategy.perDollar) assert.ok(Number.isFinite(doc.strategy.perDollar.expectedValue));
+  const text = JSON.stringify([...stocks.values()]);
+  for (const value of ["volForecast", "0.2718", "0.2604", "0.2836"]) assert.ok(!text.includes(value), `published ${value}`);
+});

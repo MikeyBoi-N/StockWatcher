@@ -195,6 +195,37 @@ export function fitGjr(prep, origin = prep.n - 1, jumps = null) {
   return { omega: longRun * (1 - alpha - gamma / 2 - beta), alpha, gamma, beta, mean, sigma };
 }
 
+/**
+ * The volatility a GJR-GARCH fit expects over the next `sessions` sessions, annualized: the average of its variance
+ * forecasts, which start at tomorrow's and decay toward the long-run level at rate α + γ/2 + β per session. With
+ * `earnings` (earningsEvents()), past reactions are left out of the fit and each release ahead adds the stock's
+ * average squared reaction in place of an ordinary session, so the figure is comparable with an option's implied
+ * volatility, which prices the release too.
+ * Returns { vol, diffusive, earningsDays, persistence } or null when the fit has too little history.
+ */
+export function forecastVolatility(prep, sessions, earnings = null) {
+  const origin = prep.n - 1;
+  const fit = fitGjr(prep, origin, earnings ? new Set(earnings.past) : null);
+  if (!fit || sessions < 1) return null;
+  const phi = fit.alpha + fit.gamma / 2 + fit.beta;
+  const longRun = fit.omega / (1 - phi);
+  const first = fit.sigma[origin + 1] ** 2;
+  const diffusive = sessions * longRun + (first - longRun) * (1 - phi ** sessions) / (1 - phi);
+  let total = diffusive;
+  const releases = earnings?.ahead.filter(k => k < sessions).length ?? 0;
+  if (releases) {
+    const jump = earnings.past.reduce((s, i) => s + prep.rel[4 * i + 3] ** 2, 0) / earnings.past.length;
+    total += releases * Math.max(0, jump - longRun);
+  }
+  if (!Number.isFinite(total) || total <= 0) throw new Error("GJR-GARCH forecast produced a non-finite variance");
+  return {
+    vol: Math.sqrt(total / sessions * 252),
+    diffusive: Math.sqrt(diffusive / sessions * 252),
+    earningsDays: releases,
+    persistence: phi
+  };
+}
+
 /** Fewest past earnings reactions the earnings model draws from; with fewer it has no sense of the stock's gap size. */
 const MIN_EARNINGS = 4;
 
@@ -463,7 +494,9 @@ export function crps(sorted, y) {
  * Returns { origins, horizon, results: { [model]: metrics } } where metrics are
  *   n, crps (in % log return), skill (vs the random walk, 0 = no better, >0 = better) and skillSE (its standard
  *   error), coverage50, coverage90, below5 and above95 (share of outcomes past each end of the 90% band: a band can
- *   hold 90% overall while missing far more crashes than rallies), brier, trades, hitRate, netPerTrade (% after fees).
+ *   hold 90% overall while missing far more crashes than rallies), brier, brierSkill and brierSkillSE (how much better
+ *   its chance of "up" scored than the random walk's, the direction counterpart of skill), trades, hitRate,
+ *   netPerTrade (% after fees).
  * NaN in a score means the simulation produced a non-finite price, which is a bug, so it throws.
  */
 export function backtest(prep, { models = MODELS.map(m => m.key), horizon = 30, paths = 200, window = 12, neighbors = 150, step = horizon, maxOrigins = 120, costBps = 20, seed = 7, external = {} } = {}) {
@@ -473,7 +506,7 @@ export function backtest(prep, { models = MODELS.map(m => m.key), horizon = 30, 
   origins.reverse();
 
   const fee = costBps / 10000;
-  const scores = Object.fromEntries(models.map(m => [m, { crps: [], in50: 0, in90: 0, below5: 0, above95: 0, brier: 0, trades: 0, hits: 0, net: 0 }]));
+  const scores = Object.fromEntries(models.map(m => [m, { crps: [], briers: [], in50: 0, in90: 0, below5: 0, above95: 0, brier: 0, trades: 0, hits: 0, net: 0 }]));
   for (const origin of origins) {
     const realized = Math.log(prep.candles[origin + horizon].c / prep.candles[origin].c);
     // A call is made at the origin's close, so the earliest fill is the next candle's close.
@@ -491,7 +524,8 @@ export function backtest(prep, { models = MODELS.map(m => m.key), horizon = 30, 
       if (realized < quantile(sorted, 0.05)) s.below5++;
       if (realized > quantile(sorted, 0.95)) s.above95++;
       const pUp = sorted.filter(v => v > 0).length / sorted.length;
-      s.brier += (pUp - (realized > 0 ? 1 : 0)) ** 2;
+      s.briers.push((pUp - (realized > 0 ? 1 : 0)) ** 2);
+      s.brier += s.briers.at(-1);
       if (pUp >= CALL_SHARE || pUp <= 1 - CALL_SHARE) {
         const side = pUp >= CALL_SHARE ? 1 : -1;
         s.trades++;
@@ -503,22 +537,25 @@ export function backtest(prep, { models = MODELS.map(m => m.key), horizon = 30, 
 
   const n = origins.length;
   const mean = (a) => a.reduce((x, y) => x + y, 0) / a.length;
-  const base = scores.gaussian?.crps;
+  /** Improvement over the random walk on a per-origin loss, as a share of its loss, with the standard error of that. */
+  const vsRandomWalk = (model, key) => {
+    const base = scores.gaussian?.[key];
+    if (!base || n < 2 || model === "gaussian") return [null, null];
+    const diffs = base.map((b, i) => b - scores[model][key][i]);
+    const baseMean = mean(base), diffMean = mean(diffs);
+    if (!(baseMean > 0)) return [null, null];
+    const sd = Math.sqrt(diffs.reduce((acc, d) => acc + (d - diffMean) ** 2, 0) / (n - 1));
+    return [diffMean / baseMean, sd / Math.sqrt(n) / baseMean];
+  };
   const results = {};
   for (const model of models) {
     const s = scores[model];
-    let skill = null, skillSE = null;
-    if (base && n > 1 && model !== "gaussian") {
-      const diffs = base.map((b, i) => b - s.crps[i]);
-      const baseMean = mean(base), diffMean = mean(diffs);
-      const sd = Math.sqrt(diffs.reduce((acc, d) => acc + (d - diffMean) ** 2, 0) / (n - 1));
-      skill = diffMean / baseMean;
-      skillSE = sd / Math.sqrt(n) / baseMean;
-    }
+    const [skill, skillSE] = vsRandomWalk(model, "crps");
+    const [brierSkill, brierSkillSE] = vsRandomWalk(model, "briers");
     results[model] = {
       n,
       crps: n ? 100 * mean(s.crps) : null,
-      skill, skillSE,
+      skill, skillSE, brierSkill, brierSkillSE,
       coverage50: n ? s.in50 / n : null,
       coverage90: n ? s.in90 / n : null,
       below5: n ? s.below5 / n : null,

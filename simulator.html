@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Simulator · StockWatcher</title>
+  <title>Forecaster · StockWatcher</title>
   <style>
     :root {
       --bg: #0e0e0f;
@@ -22,6 +22,11 @@
       --sim: #a66bd8;
       /* The highlighted most-typical run: the same hue, lighter, so it reads as one of the simulations. */
       --sim-strong: #c58cf7;
+      /* Analysis charts: beat / trailed / within noise, in the site's up/down colours. Green and red alone are hard to
+         tell apart for red-green colour blindness, so every chart also says it by position against zero and in words. */
+      --viz-pos: #4fb069;
+      --viz-neg: #e0605a;
+      --viz-none: #6f6f75;
 
       --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
       --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
@@ -118,6 +123,9 @@
     .select:focus, .num-input:focus { outline: none; border-color: var(--border-strong); }
     .settings { font-size: 13px; }
     .settings .select { padding: 4px 8px; }
+    .btn-small { padding: 4px 10px; font-size: 12px; }
+    .model-row { margin-top: 18px; }
+    .chart-controls { justify-content: space-between; margin-top: 8px; }
 
     .overview {
       display: grid;
@@ -126,12 +134,20 @@
       border-radius: var(--radius);
       background: var(--surface);
     }
-    .stat { padding: 12px 16px; border-right: 1px solid var(--border); min-width: 0; }
+    .stat { padding: 14px 16px; border-right: 1px solid var(--border); min-width: 0; }
     .stat:last-child { border-right: none; }
     .stat-label { font-size: 12px; color: var(--text-3); margin-bottom: 2px; }
     .stat-value { font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; }
     .stat-sub { font-size: 12px; color: var(--text-2); font-variant-numeric: tabular-nums; }
     @media (max-width: 700px) { .stat { border-right: none; border-bottom: 1px solid var(--border); } }
+    /* Where the price is and where the paths centre: the two numbers read first */
+    .stat-big .stat-value { font-size: 34px; font-weight: 700; line-height: 1.15; letter-spacing: -0.02em; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8); }
+    .stat-big .stat-sub { font-size: 15px; }
+    .range-ends { display: flex; justify-content: space-between; gap: 8px; padding: 0 6px; font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; }
+    .range-bar { position: relative; height: 8px; margin: 6px 0 8px; border-radius: 2px; background: linear-gradient(90deg, var(--neg), var(--pos)); }
+    .range-bar i { position: absolute; top: 50%; transform: translate(-50%, -50%); }
+    .range-now { width: 2px; height: 16px; background: var(--text); border-radius: 1px; }
+    .range-mid { width: 12px; height: 12px; border-radius: 50%; background: var(--text-2); border: 2px solid var(--surface); }
 
     .tone-pos { color: var(--pos); }
     .tone-warn { color: var(--warn); }
@@ -203,10 +219,34 @@
     .swatch.real { border: 1.5px solid var(--text); }
     .swatch.likely { border: 1.5px solid var(--sim-strong); }
     .replay { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; }
-    .replay input[type=range] { width: 200px; accent-color: var(--sim); }
-    .replay output { min-width: 96px; color: var(--text); font-variant-numeric: tabular-nums; }
-    .step-btn { padding: 3px 8px; font-size: 12px; }
-    .replay .num-input { width: 70px; padding: 4px 8px; }
+    /* Right is now and left is further back, the same way the chart and the arrow buttons run. */
+    .replay input[type=range] {
+      -webkit-appearance: none; appearance: none; direction: rtl;
+      width: 200px; height: 6px; border-radius: 3px; cursor: pointer;
+      background: linear-gradient(90deg, var(--sim), #5a4670);
+    }
+    .replay input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 6px; height: 22px; border-radius: 2px; background: var(--text); border: none; }
+    .replay input[type=range]::-moz-range-thumb { width: 6px; height: 22px; border-radius: 2px; background: var(--text); border: none; }
+    .replay input[type=range]:focus-visible { outline: 1px solid var(--border-strong); outline-offset: 4px; }
+    .step-btn { padding: 3px 8px; font-size: 12px; font-weight: 600; min-width: 28px; justify-content: center; }
+    .replay-num { margin-left: 18px; }
+    .replay .num-input { width: 56px; padding: 4px 8px; text-align: center; font-weight: 600; }
+
+    .chart-actions { display: flex; justify-content: flex-end; align-items: center; flex-wrap: wrap; gap: 8px 10px; margin-top: -4px; }
+    .fit-note { flex: 1 1 320px; font-size: 12px; color: var(--text-2); text-align: right; }
+    .fit-for { display: inline-flex; align-items: center; gap: 6px; }
+    .fit-for .select { padding: 5px 8px; }
+    /* Best-fit leaderboard on the model buttons: gold, silver, bronze for the top three. */
+    .filter-btn.medal-1 { background: rgba(212, 175, 55, 0.24); color: #f2dd8f; }
+    .filter-btn.medal-2 { background: rgba(192, 192, 200, 0.2); color: #e4e4ea; }
+    .filter-btn.medal-3 { background: rgba(205, 127, 50, 0.24); color: #efc39a; }
+    .filter-btn.medal-1:hover:not(:disabled) { background: rgba(212, 175, 55, 0.34); color: #f2dd8f; }
+    .filter-btn.medal-2:hover:not(:disabled) { background: rgba(192, 192, 200, 0.3); color: #e4e4ea; }
+    .filter-btn.medal-3:hover:not(:disabled) { background: rgba(205, 127, 50, 0.34); color: #efc39a; }
+    .filter-btn.active.medal-1 { background: rgba(212, 175, 55, 0.42); color: #fff3c8; font-weight: 600; }
+    .filter-btn.active.medal-2 { background: rgba(192, 192, 200, 0.36); color: #ffffff; font-weight: 600; }
+    .filter-btn.active.medal-3 { background: rgba(205, 127, 50, 0.42); color: #ffe2c6; font-weight: 600; }
+    .fit-note strong { color: var(--text); font-weight: 600; }
 
     .split { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 16px; }
     @media (max-width: 1000px) { .split { grid-template-columns: minmax(0, 1fr); } }
@@ -239,12 +279,83 @@
     .card-body h3 { font-size: 12px; font-weight: 500; color: var(--text-3); margin: 6px 0 4px; }
     .card-body .toolbar { margin-bottom: 10px; }
 
+    /* Analysis charts: green beat, red trailed, gray within noise. Position against the zero line says the same
+       thing, so colour is never alone. */
+    .score-body { position: relative; }
+    .score-filters .view-toggle { margin-left: auto; }
+    .score-body { padding-top: 26px; padding-bottom: 30px; }
+    .score-filters { margin-bottom: 6px; }
+    .score-headline { font-size: 16px; font-weight: 600; margin: 18px 0 24px; }
+    .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 16px; margin-bottom: 52px; }
+    .kpi { border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface-2); padding: 22px 20px; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px 12px; min-width: 0; }
+    .kpi .kpi-label { grid-column: 1 / -1; }
+    .kpi-text { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+    .kpi-label { font-size: 14px; color: var(--text-2); }
+    .kpi-value { font-size: 38px; font-weight: 700; line-height: 1.1; letter-spacing: -0.02em; }
+    .kpi-value small { font-size: 20px; font-weight: 600; color: var(--text-2); margin: 0 4px; }
+    .kpi-sub { font-size: 14px; color: var(--text); }
+    .kpi-viz { flex: none; display: block; }
+    .score-charts { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 56px 44px; align-items: start; }
+    .viz-col { display: flex; flex-direction: column; gap: 60px; min-width: 0; }
+    @media (max-width: 1000px) { .score-charts { grid-template-columns: minmax(0, 1fr); } }
+    .viz h3 { font-size: 18px; font-weight: 600; color: var(--text); letter-spacing: -0.01em; margin: 0 0 20px; }
+    .forest { display: grid; grid-template-columns: minmax(110px, 190px) minmax(0, 1fr) 72px; column-gap: 12px; font-size: 13px; }
+    .fr-row { display: contents; }
+    .fr-row > * { min-height: 36px; display: flex; align-items: center; }
+    .fr-row:hover > *, .fr-row:focus-visible > * { background: var(--surface-2); }
+    .fr-row:focus-visible { outline: none; }
+    .fr-label { color: var(--text-2); padding-left: 4px; line-height: 1.3; }
+    .fr-row.emph .fr-label { color: var(--text); font-weight: 600; }
+    .fr-value { justify-content: flex-end; font-variant-numeric: tabular-nums; color: var(--text); padding-right: 4px; }
+    .fr-plot { position: relative; }
+    .fr-plot i { position: absolute; }
+    .fr-grid { top: 0; bottom: 0; width: 1px; background: var(--border); }
+    .fr-zero { top: 0; bottom: 0; width: 1px; background: var(--text-3); }
+    .fr-ci { height: 3px; border-radius: 2px; top: 50%; transform: translateY(-50%); }
+    .fr-dot { width: 10px; height: 10px; border-radius: 50%; top: 50%; transform: translate(-50%, -50%); box-shadow: 0 0 0 2px var(--surface); }
+    .fr-bar { height: 10px; top: 50%; transform: translateY(-50%); }
+    .fr-bar.right { border-radius: 0 4px 4px 0; }
+    .fr-bar.left { border-radius: 4px 0 0 4px; }
+    .fr-ghost .fr-dot { background: var(--surface) !important; border: 2px solid var(--ring); }
+    .fr-axis > * { min-height: 26px; }
+    .fr-ends > * { min-height: 22px; }
+    .fr-ends .fr-plot span { position: absolute; top: 0; font-size: 11px; color: var(--text-2); white-space: nowrap; }
+    .fr-ends .fr-plot .left { right: calc(100% - var(--zero) + 6px); }
+    .fr-ends .fr-plot .right { left: calc(var(--zero) + 6px); }
+    .fr-axis .fr-plot span { position: absolute; top: 2px; transform: translateX(-50%); font-size: 11px; color: var(--text-3); font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .k-pos { background: var(--viz-pos); border-color: var(--viz-pos) !important; }
+    .k-neg { background: var(--viz-neg); border-color: var(--viz-neg) !important; }
+    .k-none { background: var(--viz-none); border-color: var(--viz-none) !important; }
+    .viz-legend { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 12px; color: var(--text-2); margin-top: 8px; }
+    .viz-legend span { display: inline-flex; align-items: center; gap: 6px; }
+    .viz-legend i { width: 10px; height: 10px; border-radius: 50%; }
+    .viz-legend .filled { background: var(--text-2); }
+    .viz-legend .hollow { border: 2px solid var(--text-2); }
+    .viz-tip .tt-value { font-size: 14px; font-weight: 600; color: var(--text); }
+    .viz-tip .tt-line { color: var(--text-2); }
+    details.fine-print { margin-top: 32px; }
+    details.fine-print summary { cursor: pointer; font-size: 12px; color: var(--text-2); list-style: none; }
+    details.fine-print summary::-webkit-details-marker { display: none; }
+    details.fine-print summary::before { content: "+ "; color: var(--text-3); }
+    details.fine-print[open] summary::before { content: "− "; }
+    @media (max-width: 600px) {
+      .score-filters .view-toggle { margin-left: 0; }
+      .forest { grid-template-columns: minmax(84px, 120px) minmax(0, 1fr) 62px; column-gap: 8px; font-size: 12px; }
+      .fr-ends .fr-plot span { font-size: 10px; }
+      .viz h3 { font-size: 16px; }
+    }
+
     details.notes summary { cursor: pointer; padding: 12px 16px; font-size: 14px; font-weight: 600; list-style: none; }
     details.notes summary::-webkit-details-marker { display: none; }
     details.notes summary::before { content: "+ "; color: var(--text-3); }
     details.notes[open] summary::before { content: "− "; }
     details.notes .card-body { border-top: 1px solid var(--border); font-size: 13px; color: var(--text-2); display: grid; gap: 10px; max-width: 900px; }
     details.notes strong { color: var(--text); font-weight: 600; }
+    .tech-ref { border-top: 1px solid var(--border); padding-top: 18px; margin-top: 8px; display: grid; gap: 8px; scroll-margin-top: 72px; }
+    .tech-ref h3 { font-size: 16px; font-weight: 600; color: var(--text); margin: 0; }
+    .tech-ref h4 { font-size: 13px; font-weight: 600; color: var(--text); margin: 10px 0 0; }
+    .tech-ref ul { margin: 0; padding-left: 18px; display: grid; gap: 6px; }
+    .tech-ref code { font-family: var(--font-mono); font-size: 12px; color: var(--text); }
     .fan-table { margin-top: 4px; }
 
     @media (max-width: 600px) {
@@ -252,6 +363,8 @@
       .field { flex-wrap: wrap; max-width: 100%; }
       .segmented { flex-wrap: wrap; max-width: 100%; }
       .replay input[type=range] { width: 140px; }
+      .replay-num { margin-left: 0; }
+      .fit-note { text-align: left; }
     }
   </style>
 </head>
@@ -265,16 +378,12 @@
 
   <main class="page">
     <div class="page-head">
-      <h1>Simulator</h1>
+      <h1>Forecaster</h1>
       <div id="freshness" class="data-freshness">Loading…</div>
     </div>
 
-    <div class="toolbar">
-      <label class="field"><span>Symbol</span><select id="symbol" class="select"></select></label>
-      <div class="field"><span>Candles</span><div class="segmented" id="timeframe"></div></div>
+    <div class="toolbar model-row">
       <div class="field"><span>Model</span><div class="segmented" id="model"></div></div>
-      <div class="field"><span>View</span><div class="segmented" id="view"></div>
-        <div class="segmented"><button class="filter-btn" id="likelyToggle" aria-pressed="true" title="Highlight the simulated run that stays in the densest part of the cloud">Likely path</button></div></div>
     </div>
 
     <div class="toolbar settings">
@@ -284,17 +393,31 @@
       <label class="field" title="How many past patterns the analog model replays"><span>Matches</span><select id="neighbors" class="select"></select></label>
       <label class="field" title="Commission per side, in basis points (60 = 0.60%). Stock defaults assume a commission-free broker; crypto defaults assume Coinbase's entry-tier taker fee."><span>Fee / side (bps)</span><input id="fee" class="num-input" type="number" min="0" max="300" step="1" /></label>
       <label class="field" title="Bid/ask spread plus slippage for one round trip, in basis points"><span>Spread + slippage (bps)</span><input id="spread" class="num-input" type="number" min="0" max="300" step="0.5" /><span class="hint" id="spreadHint"></span></label>
-      <button class="btn-secondary" id="reset" title="Back to the latest real candles and default inputs, showing the model that scored best in the backtest">Reset to live forecast</button>
+      <button class="btn-secondary btn-small" id="resetSettings" title="Horizon, paths, pattern length, matches and costs back to their defaults. The model, view and symbol stay as they are.">Reset</button>
     </div>
 
     <section class="overview">
-      <div class="stat"><div class="stat-label">Last close</div><div class="stat-value" id="statLast">—</div><div class="stat-sub" id="statLastSub"></div></div>
+      <div class="stat stat-big"><div class="stat-label">Last close</div><div class="stat-value" id="statLast">—</div><div class="stat-sub" id="statLastSub"></div></div>
+      <div class="stat stat-big"><div class="stat-label" id="statMedianLabel">Median outcome</div><div class="stat-value" id="statMedian">—</div><div class="stat-sub" id="statMedianSub"></div></div>
+      <div class="stat" title="The bar runs from the 5th to the 95th percentile of where the paths end. The tick is the last close; the dot is the median.">
+        <div class="stat-label">90% of paths end between</div>
+        <div class="range-ends"><span id="statRangeLo">—</span><span id="statRangeHi">—</span></div>
+        <div class="range-bar" id="statRangeBar"><i class="range-now" id="statRangeNow"></i><i class="range-mid" id="statRangeMid"></i></div>
+        <div class="stat-sub" id="statRangeSub"></div>
+      </div>
       <div class="stat"><div class="stat-label">Volatility</div><div class="stat-value" id="statVol">—</div><div class="stat-sub" id="statVolSub"></div></div>
-      <div class="stat"><div class="stat-label" id="statMedianLabel">Median outcome</div><div class="stat-value" id="statMedian">—</div><div class="stat-sub" id="statMedianSub"></div></div>
-      <div class="stat"><div class="stat-label">90% of paths end between</div><div class="stat-value" id="statRange">—</div><div class="stat-sub" id="statRangeSub"></div></div>
       <div class="stat"><div class="stat-label">Paths ending higher</div><div class="stat-value" id="statUp">—</div><div class="stat-sub" id="statUpSub"></div></div>
       <div class="stat" id="statIvTile" hidden title="Annualized volatility the options market is pricing (at-the-money call, from the latest data build) next to the volatility of this model's simulated paths over the horizon"><div class="stat-label">Options vs model volatility</div><div class="stat-value" id="statIv">—</div><div class="stat-sub" id="statIvSub"></div></div>
     </section>
+
+    <div class="toolbar chart-controls">
+      <div class="toolbar">
+        <label class="field"><span>Symbol</span><select id="symbol" class="select"></select></label>
+        <div class="field"><span>Candles</span><div class="segmented" id="timeframe"></div></div>
+      </div>
+      <div class="field"><span>View</span><div class="segmented" id="view"></div>
+        <div class="segmented"><button class="filter-btn" id="likelyToggle" aria-pressed="true" title="Highlight the simulated run that stays in the densest part of the cloud">Likely path</button></div></div>
+    </div>
 
     <section class="card">
       <div class="card-head">
@@ -315,18 +438,28 @@
           <span id="legendLikely"><i class="swatch likely"></i>Most likely path</span>
           <span id="legendReal" hidden><i class="swatch real"></i>What actually happened</span>
         </div>
-        <div class="replay" title="Move the forecast back in time and reveal what really followed">
-          <span>Forecast from</span>
-          <button class="btn-secondary step-btn" data-step="-horizon" title="One horizon further back">« H</button>
-          <button class="btn-secondary step-btn" data-step="-1" title="One candle further back">‹</button>
+        <div class="replay" title="Move the forecast back in time, up to 30 candles, and reveal what really followed">
+          <button class="btn-secondary step-btn" data-step="-horizon" title="One horizon further back">&lt;&lt;</button>
+          <button class="btn-secondary step-btn" data-step="-1" title="One candle further back">&lt;</button>
           <input type="range" id="replay" min="0" max="0" step="1" value="0" aria-label="Candles ago" />
-          <button class="btn-secondary step-btn" data-step="1" title="One candle closer to now">›</button>
-          <button class="btn-secondary step-btn" data-step="horizon" title="One horizon closer to now">H »</button>
-          <label class="field"><input type="number" id="replayNum" class="num-input" min="0" step="1" value="0" aria-label="Candles ago" /><span>candles ago</span></label>
-          <output id="replayOut">now</output>
+          <button class="btn-secondary step-btn" data-step="1" title="One candle closer to now">&gt;</button>
+          <button class="btn-secondary step-btn" data-step="horizon" title="One horizon closer to now">&gt;&gt;</button>
+          <label class="field replay-num"><input type="number" id="replayNum" class="num-input" min="0" step="1" value="0" aria-label="Candles ago" /><span id="replayUnit">days ago</span></label>
         </div>
       </div>
     </section>
+
+    <div class="chart-actions">
+      <div class="fit-note" id="fitNote"></div>
+      <div class="fit-for">
+        <button class="btn-secondary" id="bestFit" title="Backtest every model, and for the pattern models every pattern length and match count, at this horizon. The models are then ranked gold, silver and bronze for the question picked here, and the winner is shown.">Show best fit for</button>
+        <select id="fitFor" class="select" aria-label="What the best fit is judged on">
+          <option value="range">Range (CRPS)</option>
+          <option value="direction">Direction (Brier)</option>
+        </select>
+      </div>
+      <button class="btn-secondary" id="reset" title="Back to the latest real candles and default inputs, showing the model that scored best in the backtest">Reset to live forecast</button>
+    </div>
 
     <div class="split">
       <section class="card">
@@ -372,65 +505,95 @@
     <section class="card">
       <div class="card-head">
         <h2>Does the app's analysis work?</h2>
-        <div class="sub" id="scoreSub"></div>
       </div>
-      <div class="card-body">
-        <div class="toolbar">
+      <div class="card-body score-body">
+        <div class="toolbar score-filters">
           <div class="field"><span>Measured over</span><div class="segmented" id="scoreHorizon"></div></div>
           <div class="field" title="App's list: the stocks this site tracks (hand-picked, leaning to big winners). The second option adds today's S&amp;P 100 members: broader, but still chosen for being large today, so still survivors."><span>Stocks</span><div class="segmented" id="scoreUniverse"></div></div>
           <div class="field" title="Risk-adjusted subtracts beta times SPY's return, so a stock doesn't get credit just for moving more than the market. Sector peers also compares it with the other stocks in its sector that week."><span>Compared with</span><div class="segmented" id="benchmark"></div></div>
+          <div class="field view-toggle"><span>Show</span><div class="segmented" id="scoreView"></div></div>
         </div>
-        <div class="verdict-line" id="scoreVerdict">Loading five years of replayed engine readings…</div>
-        <div class="score-grid">
-          <div>
-            <h3>By verdict (replayed)</h3>
-            <div class="table-wrap">
-              <table class="bench">
-                <thead><tr>
-                  <th>Verdict</th>
-                  <th title="How many stock-weeks got this verdict on the tested dates">Readings</th>
-                  <th title="Average return over the benchmark in the window that followed (± one standard error across dates)" class="vsHead">vs SPY</th>
-                  <th title="Share of readings that beat the benchmark over the window">Beat it</th>
-                  <th title="Average raw return over the window, after one round trip at the stock cost settings">After costs</th>
-                </tr></thead>
-                <tbody id="bucketBody"></tbody>
-              </table>
-            </div>
+        <div class="score-headline" id="scoreVerdict">Loading five years of replayed engine readings…</div>
+        <div class="kpis" id="scoreKpis"></div>
+
+        <div class="score-charts" id="scoreCharts">
+          <div class="viz-col">
+          <div class="viz">
+            <h3>Did Buy zone beat Avoid?</h3>
+            <div class="forest" id="bucketChart"></div>
+            <div class="viz-legend" id="bucketLegend"></div>
           </div>
-          <div>
-            <h3>By signal (replayed)</h3>
-            <div class="table-wrap">
-              <table class="bench">
-                <thead><tr>
-                  <th>Signal</th>
-                  <th title="Average rank correlation between the signal and the return over the benchmark that followed, per date. Above 0 means higher values did better.">Rank correlation</th>
-                  <th title="Top fifth of stocks by this signal minus the bottom fifth, return over the benchmark">Top fifth − bottom fifth</th>
-                </tr></thead>
-                <tbody id="icBody"></tbody>
-              </table>
-            </div>
-            <h3 style="margin-top:12px">What the fitted model learned</h3>
-            <div class="table-wrap">
-              <table class="bench">
-                <thead><tr>
-                  <th>Signal</th>
-                  <th title="Fitted on every complete week: the modelled return gap between the highest- and lowest-ranked stock on this signal, everything else equal">Top-ranked vs bottom-ranked</th>
-                </tr></thead>
-                <tbody id="weightBody"></tbody>
-              </table>
-            </div>
+          <div class="viz">
+            <h3>What the fitted model leans on</h3>
+            <div class="forest" id="weightChart"></div>
+          </div>
+          </div>
+          <div class="viz-col">
+          <div class="viz">
+            <h3>Did any signal pick winners?</h3>
+            <div class="forest" id="signalChart"></div>
+          </div>
           </div>
         </div>
-        <h3 style="margin-top:14px">Live record (verdicts the app actually published)</h3>
-        <div class="verdict-line" id="liveVerdict">Loading published snapshots…</div>
-        <div class="table-wrap" id="liveTable" hidden>
-          <table class="bench">
-            <thead><tr><th>Verdict</th><th>Readings</th><th class="vsHead">vs SPY</th><th>Beat it</th></tr></thead>
-            <tbody id="liveBody"></tbody>
-          </table>
+
+        <div class="score-tables" id="scoreTables" hidden>
+          <div class="score-grid">
+            <div>
+              <h3>By verdict (replayed)</h3>
+              <div class="table-wrap">
+                <table class="bench">
+                  <thead><tr>
+                    <th>Verdict</th>
+                    <th title="How many stock-weeks got this verdict on the tested dates">Readings</th>
+                    <th title="Average return over the benchmark in the window that followed (± one standard error across dates)" class="vsHead">vs SPY</th>
+                    <th title="Share of readings that beat the benchmark over the window">Beat it</th>
+                    <th title="Average raw return over the window, after one round trip at the stock cost settings">After costs</th>
+                  </tr></thead>
+                  <tbody id="bucketBody"></tbody>
+                </table>
+              </div>
+              <div id="liveTable" hidden>
+              <h3 style="margin-top:12px">Live record (verdicts the app actually published)</h3>
+              <div class="table-wrap">
+                <table class="bench">
+                  <thead><tr><th>Verdict</th><th>Readings</th><th class="vsHead">vs SPY</th><th>Beat it</th></tr></thead>
+                  <tbody id="liveBody"></tbody>
+                </table>
+              </div>
+              </div>
+            </div>
+            <div>
+              <h3>By signal (replayed)</h3>
+              <div class="table-wrap">
+                <table class="bench">
+                  <thead><tr>
+                    <th>Signal</th>
+                    <th title="Average rank correlation between the signal and the return over the benchmark that followed, per date. Above 0 means higher values did better.">Rank correlation</th>
+                    <th title="Top fifth of stocks by this signal minus the bottom fifth, return over the benchmark">Top fifth − bottom fifth</th>
+                  </tr></thead>
+                  <tbody id="icBody"></tbody>
+                </table>
+              </div>
+              <h3 style="margin-top:12px">What the fitted model learned</h3>
+              <div class="table-wrap">
+                <table class="bench">
+                  <thead><tr>
+                    <th>Signal</th>
+                    <th title="Fitted on every complete week: the modelled return gap between the highest- and lowest-ranked stock on this signal, everything else equal">Top-ranked vs bottom-ranked</th>
+                  </tr></thead>
+                  <tbody id="weightBody"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
         </div>
-        <div class="footnote" id="scoreNote"></div>
-        <div class="footnote">The replay runs the real engine on each past week's price data only. Fundamentals, analyst targets, earnings dates and options can't be rebuilt for past dates, so Quality is blank and the Trade score is only its price half. Every stock here exists today, so the replay never sees stocks that were dropped or collapsed. The app's list is hand-picked and leans to big winners; the S&amp;P 100 option is broader but is today's members, chosen for being large now, so it is a survivor list too. The replay also assumes earnings were never close.</div>
+        <details class="fine-print">
+          <summary>How this is measured</summary>
+          <div class="footnote" id="liveVerdict">Loading published snapshots…</div>
+          <div class="footnote" id="scoreNote"></div>
+          <div class="footnote">The replay runs the real engine on each past week's prices only. Fundamentals, analyst targets, earnings dates and options can't be rebuilt for past dates, so Quality is blank, Trade is only its price half, and earnings are assumed never close. Every stock in it exists today, so both lists are survivors: the app's list leans to big winners, and the S&amp;P 100 list is today's members.</div>
+        </details>
+        <div class="tooltip viz-tip" id="vizTip" hidden></div>
       </div>
     </section>
 
@@ -488,10 +651,90 @@
         <p><strong>Options vs model volatility</strong> compares the move the options market is pricing for a stock (implied volatility from the latest data build) with the spread of the model's simulated paths. Options pricing in much more movement than the model expects often means options are expensive, and the reverse means they're cheap. The implied volatility is from the most recent build, at the option's own expiry, so treat it as a rough comparison.</p>
         <p><strong>Does the app's analysis work?</strong> replays the scoring engine on every past week of five years of prices, using only the data available that week, and checks what followed. <em>vs SPY</em> is the average return over SPY for stocks with each verdict. <em>Rank correlation</em> says whether higher scores lined up with better returns that week. 0 is no relationship and negative means the score ranked stocks backwards. Dates are spaced a full window apart, so each one is an independent test. The live record does the same with the verdicts the app actually published, fundamentals included. It is small for now and grows with every build.</p>
         <p><strong>Most likely path</strong> highlights one real simulated run: the one that stays in the most crowded part of the cloud from start to finish (at each step, how many other runs closed near it). Any single exact path is about as unlikely as any other, so this is the most typical run, not a prediction. It shows what an ordinary outcome looks like candle by candle, wicks and all, and it sits near the median by construction.</p>
-        <p><strong>Reset to live forecast</strong> returns to the latest candles and the default inputs. It shows the historical bootstrap unless another model beat the random walk on this symbol by more than the noise. Picking whichever scored best would mostly pick whichever got lucky.</p>
+        <p><strong>Reset to live forecast</strong> returns to the latest candles and the default inputs. It shows the historical bootstrap unless another model beat the random walk on this symbol by more than the noise. Picking whichever scored best would mostly pick whichever got lucky. The <strong>Reset</strong> beside the costs puts only that row (horizon, paths, pattern length, matches and costs) back to its defaults.</p>
+        <p><strong>Show best fit for</strong> backtests every model at the current horizon, the pattern models at every pattern length and match count, and ranks them on the question you pick. <em>Range (CRPS)</em> asks how well the whole spread of outcomes matched what happened, which is mostly a question of volatility, so steady volatility models tend to win it. <em>Direction (Brier)</em> asks how well each model's chance of "up" matched whether the price rose. Models are ranked by skill minus two standard errors, the low end of what the skill could really be, so a noisy model that got lucky can't top the board; the top three are marked gold, silver and bronze on the model buttons, and hovering a model shows its numbers and how far it is behind the leader. Trying many settings still flatters the winner a little, so its skill is a best case.</p>
         <p><strong>Paper record</strong>: backtests on the same five years are exploratory, because every idea tried on them makes a lucky result likelier. The paper record writes hypotheses down first, with the exact measurement, stocks, benchmark, window, number of tests and pass bar, and scores them only on weeks that happen afterwards. Registrations are in <code>data/paper/registry.json</code>, added by <code>node scripts/register_paper.mjs</code> and never edited. The commit that adds one is its timestamp. If the engine, a signal or the measurement code changes after registration, the hypotheses that depend on it are marked "rules changed" rather than quietly scoring something else.</p>
-        <p><strong>Forecast from</strong> rewinds the starting point so you can watch a past forecast play out against the candles that actually came next.</p>
+        <p><strong>Days ago</strong> (the arrows and slider under the chart) rewinds the starting point by up to 30 candles so you can watch a past forecast play out against the candles that actually came next.</p>
         <p>Crypto candles come live from Coinbase. Stock candles are five years of daily candles from this site's data build, updated with each build.</p>
+        <section class="tech-ref" id="technical-reference">
+          <h3>Technical reference</h3>
+          <p>Written for quantitatively literate readers and for AI agents. It states exactly what every number on this page is, so nothing has to be inferred. Source of truth: <code>js/simulator.js</code>, <code>js/replay.js</code>, <code>js/signals.js</code>, <code>js/paper.js</code>, <code>js/engine.js</code>, <code>scripts/forecast_vol.mjs</code>. Nothing here is investment advice, and no model or signal on this page has a demonstrated out-of-sample edge unless the paper record says it passed.</p>
+
+          <h4>Conventions</h4>
+          <ul>
+            <li>All forecasts are distributions, never point predictions. Returns are log returns relative to the previous close unless stated. Percent figures labelled "skill" are relative improvements over the random walk, not returns.</li>
+            <li>Everything is causal: a forecast or reading at origin <i>t</i> uses candles 0..<i>t</i> only. Backtests replay past origins under the same rule. Randomness is a seeded mulberry32 generator, so identical inputs reproduce identical paths.</li>
+            <li>Stocks use daily candles: five years from the site's data build (<code>data/replay.json</code>: OHLCV, a dividend-adjusted close, weekly engine-input rows, and earnings-reaction sessions dated from SEC EDGAR filings). If the replay file is missing, the last 120 closes in <code>data/market.json</code> are used, with no wicks or volume. Crypto uses up to 3,000 live Coinbase Exchange candles at the chosen size.</li>
+            <li>Universes are survivor lists: "App's list" is the hand-picked tracked set (leans to past winners); "+ S&amp;P 100" adds today's index members. Neither contains delisted or collapsed stocks.</li>
+          </ul>
+
+          <h4>Series preparation</h4>
+          <ul>
+            <li>Each candle <i>i</i> becomes <code>rel = log(o, h, l, c / c<sub>i−1</sub>)</code>. The volatility forecast for candle <i>i</i>, made at the close of <i>i−1</i>, is an EWMA with λ = 0.94: σ²<sub>i+1</sub> = λσ²<sub>i</sub> + (1−λ)·r²<sub>i</sub>.</li>
+            <li>Volume feature: log(v<sub>i</sub> / median of the previous 50 volumes), clamped to ±3.</li>
+          </ul>
+
+          <h4>Models</h4>
+          <ul>
+            <li><strong>Random walk</strong> (baseline): Gaussian log returns at σ<sub>t+1</sub> with drift −σ²/2 (a martingale in price), and synthetic wicks of 0.4σ|N(0,1)| beyond the body.</li>
+            <li><strong>Historical bootstrap</strong> (filtered historical simulation): the candle library is standardized by its own σ<sub>i</sub>, recentred by the mean standardized close so past drift is not replayed, then sampled as a stationary block bootstrap (mean block length 8, restart probability 1/8). Each draw is rescaled to the path's current σ, and σ is updated along the path by the same EWMA.</li>
+            <li><strong>Bootstrap, GJR-GARCH vol</strong>: the same replay with GJR-GARCH(1,1) volatility, σ²<sub>t+1</sub> = ω + (α + γ·1[r<sub>t</sub>&lt;0])·r²<sub>t</sub> + β·σ²<sub>t</sub>. Fitted by Gaussian quasi-maximum likelihood on demeaned close returns with variance targeting (ω = σ̄²(1 − α − γ/2 − β), σ̄² the sample variance), using Nelder-Mead from (α, γ, β) = (0.05, 0.05, 0.85) under α, γ, β ≥ 0 and α + γ/2 + β &lt; 0.999. It is refitted at every origin, and needs 120 closes; with fewer it falls back to the bootstrap.</li>
+            <li><strong>GARCH + earnings gaps</strong>: past earnings-reaction sessions are removed from both the library and the GARCH likelihood. On each scheduled release step inside the horizon, every path draws one past reaction, rescaled to the path's σ, and the variance update skips that step. It needs at least 4 past reactions. In backtests the release dates are the real ones; companies announce them weeks ahead.</li>
+            <li><strong>Pattern analogs</strong>: compares the last <i>w</i> candles (w ∈ {6, 12, 24, 48}) with every earlier window whose next H candles are known at the origin. Distance is Euclidean over standardized close, high and low moves, plus 0.25 × the squared volume-feature difference, weighted by recency ((0.5 + 0.5(k+1)/w)²). The top min(matches, n/3) windows are kept and weighted with a Gaussian kernel whose bandwidth is the median kept distance. Each path replays one match's next H candles, scaled by σ<sub>now</sub> / σ<sub>match</sub>.</li>
+            <li><strong>Engine analogs</strong> (stocks): the same kernel replay, but matched on an 8-dimensional engine state across all replayed stocks' weekly readings: Trend/100, Entry/100, Trade/100, regime level (1, 0.66, 0.33, 0), RSI/100, stretch above the 50-day in monthly σ (clamped ±3, /3), distance to entry support in weekly σ (clamped 0..4, /4), and 3-month relative strength in σ√3 units (clamped ±3, /3). Only readings whose H-session outcome had fully elapsed before the origin are eligible.</li>
+            <li><strong>Fitted signal</strong> (stocks, not ETFs): the bootstrap with a per-candle log drift equal to the ridge model's predicted 21-session excess return ÷ 21. The model is refitted as of the origin, using only weeks whose outcome window had ended.</li>
+          </ul>
+
+          <h4>Chart and statistics</h4>
+          <ul>
+            <li><strong>Density</strong>: each simulated candle spreads one unit of mass uniformly over its [low, high] across 220 price rows per step, blurred vertically with triangular weights over ±3 rows; opacity = (mass / max)<sup>0.55</sup>. <strong>Bands</strong>: the 5–95% and 25–75% quantiles of simulated closes per step. The dashed lines are the 5%, 50% and 95% quantiles.</li>
+            <li><strong>Most likely path</strong>: the simulated run that maximizes the sum, over steps, of the log local density of its close (the count of all paths' log closes within one Silverman bandwidth, 1.06 · IQR/1.349 · n<sup>−1/5</sup>), with near-ties broken toward the median. It is a typical run, not a mode of the path distribution and not a prediction.</li>
+            <li><strong>Paths ending higher</strong>: the share of terminal simulated closes above the origin close. <strong>Options vs model volatility</strong>: the latest build's at-the-money implied volatility against the annualized standard deviation of simulated terminal log returns, √(252/H) × sd. It is shown only at the live origin, since the quote is today's.</li>
+          </ul>
+
+          <h4>Backtest ("Did the forecasts hold up?")</h4>
+          <ul>
+            <li>Origins run back from n−1−H in steps of H (non-overlapping outcome windows), at most 120, each with at least max(w+H+20, 40) candles of history. Every model simulates 200 paths with seed 7 + origin.</li>
+            <li><strong>Range skill</strong>: CRPS of the terminal log return (sample estimator), as mean(CRPS<sub>RW</sub> − CRPS<sub>model</sub>) / mean(CRPS<sub>RW</sub>), with a paired standard error sd(diff)/√n / mean(CRPS<sub>RW</sub>). CRPS rewards calibrated width more than direction, so volatility models tend to win it. <strong>Direction skill</strong>: the same construction on the Brier score of P(close<sub>t+H</sub> &gt; close<sub>t</sub>).</li>
+            <li>Coverage: the shares of outcomes inside the 50% and 90% bands, and below 5% / above 95% separately. A direction call is made when at least 60% of paths agree; it is filled at the next close, held to t+H, and charged one round trip (2 × fee + spread and slippage, in bps).</li>
+            <li>Green or red means more than 2 standard errors from zero. With few tests (under 30) every figure is mostly noise.</li>
+          </ul>
+
+          <h4>Model selection</h4>
+          <ul>
+            <li><strong>Reset to live forecast</strong>: shows the bootstrap unless some model's range skill − 2·SE &gt; 0 over at least 10 tests; then the highest skill among those.</li>
+            <li><strong>Show best fit for</strong>: backtests a grid (pattern analogs at 4 pattern lengths × 3 match counts, engine analogs at 3 match counts, every other available model once) against the random walk. Each model keeps its best setting by the lower bound L = skill − 2·SE for the chosen objective (range or direction), and models are ranked by L. Gold, silver and bronze mark the top three. Taking the best of a grid is a selection, so the winner's skill is optimistically biased; L limits but does not remove that.</li>
+          </ul>
+
+          <h4>Engine scorecard ("Does the app's analysis work?")</h4>
+          <ul>
+            <li>The real scoring engine is re-run on each past week's price-only inputs. Fundamentals, valuation, analyst data, options and earnings dates cannot be reconstructed point-in-time, so Quality is null, Trade is only its price component, "strong" uses the ETF rule, and earnings are assumed never to be within 14 days. This tests the engine's price logic, not the full engine.</li>
+            <li>Outcome: the total (dividend-adjusted) return from the close 1 session after the reading (entry lag), held h ∈ {5, 21, 63} sessions. Benchmarks: <em>SPY</em> (1+r)/(1+m) − 1; <em>risk-adjusted</em> r − β·m, with β a 252-day OLS beta against SPY shrunk one third toward 1 (Blume), needing 120 shared days and otherwise 1; <em>sector peers</em> the risk-adjusted excess minus that week's sector mean (sectors with fewer than 3 stocks are pooled).</li>
+            <li>Test dates are thinned to one per ⌈h/5⌉ weeks, counted from the newest complete date, so outcome windows never overlap. Each statistic is a per-date cross-sectional mean, then mean ± standard error across dates; dates are the independent unit.</li>
+            <li>Signals: 12 (the four engine scores plus 12-month momentum skipping a month, last month's and last week's returns, 30-day volatility, closeness to the 52-week high, distance above the 200-day, RSI(14), and volume against its 20-day average). Each is ranked within the week and scaled to [−√3, √3] (unit variance, ties averaged). Rank correlation is the per-date Spearman correlation with excess return; spread is the top-quintile minus bottom-quintile mean excess (at least 10 stocks). Single signals are judged at ±3 standard errors, roughly Bonferroni for 12 tests.</li>
+            <li>Fitted model: ridge regression of the excess return (winsorized at each week's 5th/95th percentile and demeaned within the week) on the 11 rank features (Overall is excluded as a blend), with penalty 0.05 × rows and at least 52 training weeks. Walk-forward: before each test date it is refitted only on weeks whose entire outcome window, entry lag included, had ended.</li>
+            <li>Charts: dot = mean; line = ±2 SE (±3 SE for single signals); line and dot colour encode how far the estimate leans and whether it clears that band. The gauge plots the Buy-zone mean return on a fixed ±2.5 / 5 / 10% scale for 1 week / 1 month / 3 months, with gaps at ±2 SE. The sparkline is the running mean of the walk-forward top-minus-bottom spread, ending at the card's value. The ring fills a dot only for signals that cleared ±3 SE. The calendar marks published market days, green once at least h sessions old.</li>
+          </ul>
+
+          <h4>Live record and paper record</h4>
+          <ul>
+            <li>Live record: the verdicts the app actually published (one Firestore snapshot per data build, fundamentals included), using each market day's last build, scored with replay closes against the same benchmarks, with days thinned at least h sessions apart.</li>
+            <li>Paper record (<code>data/paper/registry.json</code>, append-only): hypotheses fixed before their test data exists, scored only on weeks after <code>registeredOn</code>. One-sided pass rule z ≥ 2.25 (5% Bonferroni across 4 hypotheses) once <code>minDates</code> independent tests exist. Each registration stores 32-bit FNV-1a fingerprints of the engine rules and scoring functions, the measurement code and each signal definition; any mismatch marks the dependent hypotheses "Rules changed" rather than scoring altered code. The frozen H2 weights also drive the main page's Signal column, the Strategy's expected value and the API's <code>signal</code> field. That use is unproven until H2 passes.</li>
+          </ul>
+
+          <h4>Volatility forecast (build time)</h4>
+          <ul>
+            <li><code>scripts/forecast_vol.mjs</code> fits GJR-GARCH(1,1) to each stock's full replay history, with earnings reactions excluded, and averages the variance forecast E[σ²<sub>t+k</sub>] = σ̄² + φ<sup>k−1</sup>(σ²<sub>t+1</sub> − σ̄²), φ = α + γ/2 + β, over 21 sessions and over the quoted option's life (DTE × 252/365). Each scheduled release in the window adds (mean squared past reaction − σ̄²).</li>
+            <li>Validation on 2,510 replay forecasts: mean realized ÷ forecast variance 0.993 (unbiased), QLIKE 0.22 against 0.42 for 21-day realized volatility, which under-forecasts variance by about 40%. It is used by the engine's options-vehicle rule (IV ÷ forecast: ≤ 0.9 cheap, ≥ 1.3 expensive) and by the Strategy's expected value. Whether it beats implied volatility is untested until enough IV history accumulates.</li>
+          </ul>
+
+          <h4>Limitations an agent must not ignore</h4>
+          <ul>
+            <li>Survivorship bias in both universes; price-only replay; costs are assumptions (stocks 0 bps fee + 2 bps spread per round trip by default, crypto 60 bps per side + 5 bps); market holidays are not modelled in weekday counts; CRPS and Brier score terminal outcomes only, not paths; the rewind control reaches 30 candles, so a rewound chart is one test, not evidence.</li>
+            <li>"Within noise" means the data cannot distinguish the effect from zero. Do not describe it as a weak edge. Treat any claim that a model, signal or verdict predicts returns as unsupported unless its paper-record hypothesis shows "Passed".</li>
+            <li>Every figure here is recomputed in the browser from the current settings and data build. For machine use, prefer the JSON API (<code>api/v1/</code>), whose fields are documented in the repository README.</li>
+          </ul>
+        </section>
       </div>
     </details>
   </main>
@@ -514,6 +757,8 @@
     const WINDOWS = [6, 12, 24, 48];
     const NEIGHBOR_COUNTS = [40, 150, 400];
     const CRYPTO_HISTORY = 3000;
+    /** How far the forecast can be rewound, in candles. */
+    const REPLAY_MAX = 30;
     const SETTINGS_KEY = "stockwatcher.simulator";
 
     const css = getComputedStyle(document.documentElement);
@@ -530,7 +775,7 @@
     const modelLabel = (key) => ALL_MODELS.find(m => m.key === key).label;
     /** Round-trip trading costs per asset class: fee per side and spread + slippage, in basis points. */
     const DEFAULT_COSTS = { crypto: { fee: 60, spread: 5 }, stock: { fee: 0, spread: 2 } };
-    const defaults = { symbol: "SPY", timeframe: "1h", model: "analog", view: "density", horizon: 30, paths: 500, window: 12, neighbors: 150, costs: DEFAULT_COSTS, scoreSessions: 21, scoreUniverse: "broad", benchmark: "beta", showLikely: true };
+    const defaults = { symbol: "SPY", timeframe: "1h", model: "analog", view: "density", horizon: 30, paths: 500, window: 12, neighbors: 150, costs: DEFAULT_COSTS, scoreSessions: 21, scoreUniverse: "broad", benchmark: "beta", showLikely: true, scoreView: "charts", fitFor: "range" };
     const state = { ...defaults, replay: 0 };
     try {
       const saved = JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}");
@@ -564,7 +809,7 @@
       : key === EARNINGS_MODEL.key ? !!(data?.fromReplay && replayData?.tickers[state.symbol]?.earnings)
       : true;
     const activeModels = () => ALL_MODELS.filter(m => modelAvailable(m.key));
-    const engineAt = (origin) => ({ matches: engineMatches(replayData, engineStates, replayPreps, state.symbol, origin, { horizon: state.horizon, count: state.neighbors }) });
+    const engineAt = (origin, neighbors = state.neighbors) => ({ matches: engineMatches(replayData, engineStates, replayPreps, state.symbol, origin, { horizon: state.horizon, count: neighbors }) });
 
     /** The fitted model as of any moment, trained on the broad list against the chosen benchmark (cached per benchmark). */
     const predictors = new Map();
@@ -641,6 +886,8 @@
       (k) => { state.scoreSessions = Number(k); saveSettings(); syncScoreHorizon(); renderScorecard(); });
     const syncUniverse = segmented($("scoreUniverse"), UNIVERSES, () => state.scoreUniverse,
       (k) => { state.scoreUniverse = k; saveSettings(); syncUniverse(); renderScorecard(); });
+    const syncScoreView = segmented($("scoreView"), [{ key: "charts", label: "Charts" }, { key: "table", label: "Table" }], () => state.scoreView,
+      (k) => { state.scoreView = k; saveSettings(); syncScoreView(); renderScoreViz(); });
     const syncBenchmark = segmented($("benchmark"), BENCHMARKS, () => state.benchmark, (k) => {
       state.benchmark = k;
       saveSettings();
@@ -655,7 +902,7 @@
     function syncControls() {
       const crypto = isCrypto(state.symbol);
       if (data && !modelAvailable(state.model)) state.model = "analog";
-      syncModel(); syncView(); syncScoreHorizon(); syncUniverse(); syncBenchmark();
+      syncModel(); syncView(); syncScoreHorizon(); syncUniverse(); syncBenchmark(); syncScoreView();
       $("likelyToggle").classList.toggle("active", state.showLikely);
       $("likelyToggle").setAttribute("aria-pressed", String(state.showLikely));
       $("legendLikely").hidden = !state.showLikely;
@@ -676,12 +923,16 @@
       $("fee").value = state.costs[assetClass()].fee;
       $("spread").value = state.costs[assetClass()].spread;
       if (!crypto) $("spreadHint").textContent = "typical large cap";
+      $("replayUnit").textContent = crypto ? "candles ago" : "days ago";
+      $("fitFor").value = state.fitFor;
+      paintLeaderboard();
     }
 
     for (const [id, key] of [["horizon", "horizon"], ["paths", "paths"], ["window", "window"], ["neighbors", "neighbors"]]) {
       $(id).addEventListener("change", () => {
         state[key] = Number($(id).value);
         saveSettings();
+        if (key === "horizon") clearBestFit();
         updateReplayRange();
         runSimulation();
         if (key !== "paths") scheduleBacktest();
@@ -707,6 +958,27 @@
       updateReplayRange();
       runSimulation();
       scheduleBacktest();
+    });
+    /** The settings row only: horizon, paths, pattern length, matches and this asset class's costs. */
+    $("resetSettings").addEventListener("click", () => {
+      const cls = assetClass();
+      Object.assign(state, {
+        horizon: defaults.horizon, paths: defaults.paths, window: defaults.window, neighbors: defaults.neighbors,
+        costs: { ...state.costs, [cls]: { ...DEFAULT_COSTS[cls] } }
+      });
+      saveSettings();
+      syncControls();
+      updateReplayRange();
+      runSimulation();
+      scheduleBacktest();
+      if (cls === "stock") renderScorecard();
+    });
+    $("bestFit").addEventListener("click", () => showBestFit());
+    // A finished search scored both questions, so switching re-ranks at once; otherwise it waits for the button.
+    $("fitFor").addEventListener("change", () => {
+      state.fitFor = $("fitFor").value;
+      saveSettings();
+      if (fitResults) applyBestFit();
     });
     /** Moves the forecast origin to `candles` ago, clamped to what the data allows. */
     function setReplay(candles) {
@@ -776,6 +1048,7 @@
     async function load() {
       const token = ++loadToken;
       clearInterval(pollTimer);
+      clearBestFit();
       const symbol = state.symbol, crypto = isCrypto(symbol), tf = timeframe();
       setStatus(crypto ? `Loading ${CRYPTO_HISTORY.toLocaleString()} ${tf.label} candles from Coinbase…` : "Loading…");
       $("freshness").textContent = "Loading…";
@@ -842,7 +1115,7 @@
 
     function updateReplayRange() {
       if (!data) return;
-      const max = Math.max(0, Math.min(data.prep.n - 1 - minHistory(), 1000));
+      const max = Math.max(0, Math.min(data.prep.n - 1 - minHistory(), REPLAY_MAX));
       $("replay").max = max;
       $("replayNum").max = max;
       state.replay = Math.min(state.replay, max);
@@ -861,7 +1134,7 @@
       const sim = simulate(prep, { model: state.model, origin, horizon: state.horizon, paths: state.paths, window: state.window, neighbors: state.neighbors, seed: 1, ...extra });
       const analogs = engine ? extra.matches : state.model === "analog" ? sim.analogs : findAnalogs(prep, { origin, window: state.window, horizon: state.horizon, count: state.neighbors });
       view = { sim, fan: fan(sim, [0.01, 0.05, 0.25, 0.5, 0.75, 0.95, 0.99]), origin, analogs, engine, edge: fitted?.edge, earnings: earnings && (earnings.earnings?.ahead ?? null), likely: likelyPath(sim), density: null };
-      $("replayOut").textContent = state.replay ? fmtTime(prep.candles[origin].t) : "now";
+      $("replayNum").title = state.replay ? `Forecast made at ${fmtTime(prep.candles[origin].t)}` : "Forecasting from the latest candle";
       $("legendReal").hidden = !state.replay;
       renderStats();
       renderFanTable();
@@ -883,8 +1156,15 @@
       $("statMedianLabel").textContent = `Median in ${candleSpan(state.horizon)}`;
       $("statMedian").textContent = fmtPrice(end.q[0.5]);
       $("statMedianSub").textContent = fmtPct(change(end.q[0.5]));
-      $("statRange").textContent = `${fmtPrice(end.q[0.05])} – ${fmtPrice(end.q[0.95])}`;
+      $("statRangeLo").textContent = fmtPrice(end.q[0.05]);
+      $("statRangeHi").textContent = fmtPrice(end.q[0.95]);
       $("statRangeSub").textContent = `${fmtPct(change(end.q[0.05]), 1)} to ${fmtPct(change(end.q[0.95]), 1)}`;
+      // The bar is the 90% range: red below the last close, green above it.
+      const at = (v) => Math.max(0, Math.min(100, 100 * (v - end.q[0.05]) / (end.q[0.95] - end.q[0.05] || 1)));
+      const zero = at(sim.start);
+      $("statRangeBar").style.background = `linear-gradient(90deg, ${C.neg} 0%, #6d5a2c ${zero}%, ${C.pos} 100%)`;
+      $("statRangeNow").style.left = `${zero}%`;
+      $("statRangeMid").style.left = `${at(end.q[0.5])}%`;
       $("statUp").textContent = fmtShare(end.pUp);
       $("statUpSub").textContent = `of ${sim.paths} ${modelLabel(state.model).toLowerCase()} paths`;
       $("chartTitle").textContent = `${state.symbol} · ${modelLabel(state.model)}`;
@@ -1025,6 +1305,137 @@
       $("testWarn").className = n < 30 ? "footnote tone-warn" : "footnote";
     }
 
+    // ---------- best fit ----------
+    let fitToken = 0;
+    /**
+     * Every model and setting worth trying at the current horizon: pattern analogs at each pattern length and match
+     * count, engine analogs at each match count, the other models as they are. The random walk is the yardstick.
+     */
+    function fitCandidates() {
+      const out = [];
+      for (const m of activeModels()) {
+        if (m.key === "gaussian") continue;
+        if (m.key === "analog") for (const window of WINDOWS) for (const neighbors of NEIGHBOR_COUNTS) out.push({ model: m.key, window, neighbors });
+        else if (m.key === ENGINE_MODEL.key) for (const neighbors of NEIGHBOR_COUNTS) out.push({ model: m.key, window: state.window, neighbors });
+        else out.push({ model: m.key, window: state.window, neighbors: state.neighbors });
+      }
+      return out;
+    }
+
+    const FIT_OBJECTIVES = {
+      range: { label: "range (CRPS)", skill: "skill", se: "skillSE", what: "how well the whole spread of outcomes matched what happened" },
+      direction: { label: "direction (Brier)", skill: "brierSkill", se: "brierSkillSE", what: "how well its chance of \"up\" matched whether the price rose" }
+    };
+    let fitResults = null;   // { key, horizon, scored, origins } from the last search, for both objectives
+    let leaderboard = [];    // models ranked for the current objective: [{ model, rank, best, scoreOf }]
+
+    function clearBestFit() {
+      fitToken++;
+      fitResults = null;
+      leaderboard = [];
+      $("fitNote").textContent = "";
+      syncControls();
+    }
+
+    /**
+     * Backtests every candidate setting once, scoring both questions, then ranks and applies. Runs one candidate per
+     * tick so the page stays responsive.
+     */
+    async function showBestFit() {
+      if (!data) return;
+      const token = ++fitToken, key = data.key;
+      const candidates = fitCandidates();
+      $("bestFit").disabled = true;
+      const scored = [];
+      let origins = [];
+      try {
+        for (let i = 0; i < candidates.length; i++) {
+          $("fitNote").textContent = `Backtesting ${i + 1} of ${candidates.length} settings…`;
+          await new Promise(r => setTimeout(r, 0));
+          if (token !== fitToken || data?.key !== key) return;
+          const c = candidates[i];
+          const external = c.model === ENGINE_MODEL.key ? { [c.model]: (o) => engineAt(o, c.neighbors) }
+            : c.model === FITTED_MODEL.key ? { [c.model]: fittedAt }
+            : c.model === EARNINGS_MODEL.key ? { [c.model]: earningsAt } : {};
+          const result = backtest(data.prep, { models: ["gaussian", c.model], horizon: state.horizon, window: c.window, neighbors: c.neighbors, costBps: roundTripBps(), external });
+          if (result.origins.length < 10) continue;
+          scored.push({ ...c, n: result.origins.length, r: result.results[c.model] });
+          if (result.origins.length > origins.length) origins = result.origins;
+        }
+      } finally {
+        if (token === fitToken) $("bestFit").disabled = false;
+      }
+      if (!scored.length) {
+        $("fitNote").textContent = "Not enough history to backtest at this horizon. Try a shorter one.";
+        return;
+      }
+      fitResults = { key, horizon: state.horizon, scored, origins };
+      applyBestFit();
+    }
+
+    /**
+     * Ranks the models for the chosen question and switches to the winner. Each model is represented by its best
+     * setting; models are ordered by skill minus two standard errors, the low end of what the skill could really be,
+     * so a noisy model that got lucky can't top the board. The medals and hover stats show the gaps.
+     */
+    function applyBestFit() {
+      const obj = FIT_OBJECTIVES[state.fitFor];
+      const lowEnd = (c) => c.r[obj.skill] - 2 * c.r[obj.se];
+      const valid = fitResults.scored.filter(c => Number.isFinite(c.r[obj.skill]) && Number.isFinite(c.r[obj.se]));
+      if (!valid.length) {
+        $("fitNote").textContent = "No model could be scored on this question at this horizon.";
+        return;
+      }
+      const byModel = new Map();
+      for (const c of valid) {
+        const held = byModel.get(c.model);
+        byModel.set(c.model, { best: !held || lowEnd(c) > lowEnd(held.best) ? c : held.best, tried: (held?.tried ?? 0) + 1 });
+      }
+      leaderboard = [...byModel.entries()]
+        .sort((a, b) => lowEnd(b[1].best) - lowEnd(a[1].best))
+        .map(([model, v], i) => ({ model, rank: i + 1, best: v.best, tried: v.tried }));
+
+      const top = leaderboard[0].best;
+      Object.assign(state, { model: top.model, window: top.window, neighbors: top.neighbors });
+      saveSettings();
+      syncControls();
+      updateReplayRange();
+      runSimulation();
+      scheduleBacktest();
+
+      const score = (c) => `${fmtPct(100 * c.r[obj.skill], 1)} ± ${(100 * c.r[obj.se]).toFixed(1)}`;
+      const medal = ["Gold", "Silver", "Bronze"];
+      $("fitNote").innerHTML = `Best fit for ${escapeHtml(obj.label)} over ${top.n} past ${fitResults.horizon}-candle forecasts since ${escapeHtml(fmtTime(data.prep.candles[fitResults.origins[0]].t))}: `
+        + leaderboard.slice(0, 3).map((e, i) => `${medal[i]} <strong>${escapeHtml(modelLabel(e.model))}</strong> ${escapeHtml(score(e.best))}`).join(" · ")
+        + `. ${lowEnd(top) > 0 ? "The winner clears the noise." : "None clears the noise; the order is a lean, not a verdict."} Hover a model for its numbers.`;
+    }
+
+    /** Gold, silver and bronze on the model buttons, and every ranked model's numbers in its tooltip. */
+    function paintLeaderboard() {
+      const obj = FIT_OBJECTIVES[state.fitFor];
+      $("model").querySelectorAll("button").forEach(b => {
+        b.classList.remove("medal-1", "medal-2", "medal-3");
+        const entry = leaderboard.find(e => e.model === b.dataset.key);
+        if (!entry || b.disabled) {
+          // The models whose availability syncControls() explains keep that title; the rest lose stale stats.
+          if (![ENGINE_MODEL.key, FITTED_MODEL.key, EARNINGS_MODEL.key].includes(b.dataset.key)) b.title = "";
+          return;
+        }
+        if (entry.rank <= 3) b.classList.add(`medal-${entry.rank}`);
+        const c = entry.best, leader = leaderboard[0].best;
+        const pts = (v) => `${(100 * v).toFixed(1)} points`;
+        const behind = leader.r[obj.skill] - 2 * leader.r[obj.se] - (c.r[obj.skill] - 2 * c.r[obj.se]);
+        const gap = entry.rank === 1 ? "" : behind < 0.0005 ? " · tied with #1 on the low end" : ` · ${pts(behind)} behind #1 on the low end`;
+        const settings = c.model === "analog" ? `\nSettings: pattern length ${c.window}, ${c.neighbors} matches (best of ${entry.tried})`
+          : c.model === ENGINE_MODEL.key ? `\nSettings: ${c.neighbors} matches (best of ${entry.tried})` : "";
+        b.title = `#${entry.rank} of ${leaderboard.length} for ${obj.label}${gap}`
+          + `\nSkill vs random walk: ${fmtPct(100 * c.r[obj.skill], 1)} ± ${(100 * c.r[obj.se]).toFixed(1)} (low end ${fmtPct(100 * (c.r[obj.skill] - 2 * c.r[obj.se]), 1)})`
+          + `\nRange skill ${Number.isFinite(c.r.skill) ? fmtPct(100 * c.r.skill, 1) : "—"} · direction skill ${Number.isFinite(c.r.brierSkill) ? fmtPct(100 * c.r.brierSkill, 1) : "—"}`
+          + `\n90% band held ${fmtShare(c.r.coverage90)} of outcomes · direction calls ${c.r.trades ? `${c.r.trades}, ${fmtShare(c.r.hitRate)} right` : "none"}`
+          + `\n${c.n} past forecasts${settings}\nScored on ${obj.what}.`;
+      });
+    }
+
     // ---------- patterns ----------
     function renderPatterns() {
       const { analogs, origin, engine } = view;
@@ -1117,8 +1528,6 @@
      * each direction. A signal has to clear three to count (roughly the Bonferroni bar for twelve tests).
      */
     const SIGNAL_Z = 3;
-    const verdictWord = (stat, z = 2) => !Number.isFinite(stat?.mean) || !Number.isFinite(stat?.se) ? "none"
-      : stat.mean - z * stat.se > 0 ? "right" : stat.mean + z * stat.se < 0 ? "backwards" : "none";
 
     function renderScorecard() {
       if (!replayData || !engineStates) return;
@@ -1127,8 +1536,6 @@
       const benchName = BENCH_NAMES[state.benchmark];
       const { include, signals, fitted } = scoreResults();
       const card = scorecard(replayData, engineStates, { sessions, costBps: roundTripBps("stock"), include, benchmark: state.benchmark });
-      const stocksCount = Object.entries(replayData.tickers).filter(([t, v]) => !v.etf && include(t)).length;
-      $("scoreSub").textContent = `${stocksCount} stocks · ${card.dates} independent dates`;
       document.querySelectorAll(".vsHead").forEach(th => { th.textContent = VS_HEADS[state.benchmark]; });
 
       $("bucketBody").innerHTML = BUCKETS.map(({ key, label }) => {
@@ -1144,28 +1551,263 @@
       $("weightBody").innerHTML = fitted.final.weights.map(w =>
         `<tr><td>${escapeHtml(w.label)}</td><td class="${w.effect > 0 ? "tone-pos" : "tone-neg"}">${fmtPct(100 * w.effect)} <span class="target">over ${escapeHtml(horizonLabel)}</span></td></tr>`).join("");
 
-      const buy = card.buckets.buy.excess;
-      const buyWord = !Number.isFinite(buy.mean) ? "had no readings"
-        : buy.mean - 2 * buy.se > 0 ? `beat ${benchName} by ${fmtPct(100 * buy.mean)} on average, more than the noise`
-        : buy.mean + 2 * buy.se < 0 ? `trailed ${benchName} by ${fmtPct(-100 * buy.mean)} on average, more than the noise`
-        : `were within noise of ${benchName} (${fmtPct(100 * buy.mean)} ± ${(100 * buy.se).toFixed(2)})`;
-      const fittedWord = { right: "ranked stocks the right way, by more than the noise", backwards: "ranked stocks backwards", none: "did no better than chance" }[verdictWord(fitted.ic)];
-      const sorted = { right: [], backwards: [] };
-      for (const sig of SIGNALS) {
-        const w = verdictWord(signals[sig.key].ic, SIGNAL_Z);
-        if (w !== "none") sorted[w].push(`<strong>${escapeHtml(sig.label)}</strong>`);
-      }
-      $("scoreVerdict").innerHTML = `Over the ${horizonLabel.toLowerCase()} after each reading, replayed Buy-zone stocks ${buyWord}. `
-        + `The <strong>fitted model</strong>, tested walk-forward, ${fittedWord}`
-        + (Number.isFinite(fitted.spread.mean) ? ` (top fifth minus bottom fifth ${fmtPct(100 * fitted.spread.mean)} ± ${(100 * fitted.spread.se).toFixed(2)})` : "") + ". "
-        + [sorted.right.length ? `${listWords(sorted.right)} ranked stocks the right way` : null,
-           sorted.backwards.length ? `${listWords(sorted.backwards)} ranked them backwards` : null].filter(Boolean).join("; ")
-        + (sorted.right.length || sorted.backwards.length ? "; everything else was within noise." : "No single signal cleared the three-standard-error bar that twelve tests at once require.");
-      $("scoreNote").textContent = `Readings at the end of each week from ${new Date(engineStates[0].t).toISOString().slice(0, 10)}, tested every ${Math.max(1, Math.ceil(sessions / 5))} week${Math.ceil(sessions / 5) > 1 ? "s" : ""} so windows never overlap. `
-        + `Returns include dividends and start at the close after each reading. After costs is the total return less ${+roundTripBps("stock").toFixed(1)} bps for one round trip. `
-        + `Green or red means more than two standard errors from zero, or three for the individual signals, because twelve are tested at once.`;
+      scoreData = { card, signals, fitted, horizonLabel, benchName };
+      $("scoreNote").textContent = `Weekly readings since ${new Date(engineStates[0].t).toISOString().slice(0, 10)}, tested every ${Math.max(1, Math.ceil(sessions / 5))} week${Math.ceil(sessions / 5) > 1 ? "s" : ""} so windows never overlap, each date one independent test. `
+        + `Returns include dividends and start at the close after each reading. After costs subtracts ${+roundTripBps("stock").toFixed(1)} bps for one round trip. `
+        + `Lines span two standard errors each side, three for single signals because twelve are tested at once. Green beat the benchmark, red trailed it, gray is within noise.`;
+      renderScoreViz();
       renderLiveRecord();
       renderPaper();
+    }
+
+    // ---------- analysis charts ----------
+    let scoreData = null;  // the latest renderScorecard() numbers
+    let liveData = null;   // the latest live record
+
+    const VIZ = { pos: "k-pos", neg: "k-neg", none: "k-none" };
+    const VIZC = { pos: color("--viz-pos"), neg: color("--viz-neg"), none: color("--viz-none") };
+    /** `a` blended toward `b` by t (0..1), as rgb(). */
+    const mixHex = (a, b, t) => {
+      const ch = (hex, i) => parseInt(hex.slice(1 + 2 * i, 3 + 2 * i), 16);
+      return `rgb(${[0, 1, 2].map(i => Math.round(ch(a, i) + (ch(b, i) - ch(a, i)) * Math.max(0, Math.min(1, t)))).join(",")})`;
+    };
+    /**
+     * How strongly a value leans one way, as a colour: gray at zero, full green or red at `full` from it. Error bars
+     * use the bar's own half-length as `full`, so they shade red left of zero and green right of it; dots use the
+     * noise threshold, so a dot only reaches full colour once it clears it, and a paler dot was further from clearing.
+     */
+    const leanColor = (v, full, floor = 0) => !Number.isFinite(v) || !(full > 0) ? VIZC.none
+      : mixHex(VIZC.none, v >= 0 ? VIZC.pos : VIZC.neg, floor + (1 - floor) * Math.min(1, Math.abs(v) / full));
+    /** Which side of zero an estimate is on once its ±z·se range is taken into account. */
+    const sideOf = (mean, se, z) => !Number.isFinite(mean) || !Number.isFinite(se) ? "none" : mean - z * se > 0 ? "pos" : mean + z * se < 0 ? "neg" : "none";
+    const sideWord = { pos: "Beat it", neg: "Trailed it", none: "Within noise" };
+
+    /**
+     * A dot-and-whisker chart in HTML on one shared scale: a row per estimate, the dot at its mean, the line ±z
+     * standard errors, a zero line for the benchmark. Bars instead of whiskers when `bars` is set (no uncertainty).
+     * rows: [{ label, mean, se, z, emph, ghost: { mean, se, z }, tip: [lines] }]; values are fractions.
+     */
+    function forest(el, rows, { fmt = (v) => fmtPct(100 * v), bars = false, ends = null } = {}) {
+      const lo0 = Math.min(0, ...rows.flatMap(r => [r.mean - (r.z ?? 0) * (r.se ?? 0), r.ghost ? r.ghost.mean - r.ghost.z * r.ghost.se : 0]).filter(Number.isFinite));
+      const hi0 = Math.max(0, ...rows.flatMap(r => [r.mean + (r.z ?? 0) * (r.se ?? 0), r.ghost ? r.ghost.mean + r.ghost.z * r.ghost.se : 0]).filter(Number.isFinite));
+      const pad = (hi0 - lo0) * 0.08 || 0.001;
+      const lo = lo0 - pad, hi = hi0 + pad;
+      const x = (v) => Math.max(0, Math.min(100, 100 * (v - lo) / (hi - lo)));
+      // Fewer ticks where the plot is narrow, so their labels never run together.
+      const plotWidth = el.clientWidth - (innerWidth <= 600 ? 170 : 290);
+      const ticks = niceTicks(lo, hi, plotWidth < 260 ? 2 : 4);
+      const tickText = (v) => { const p = Math.round(1000 * v) / 10; return p === 0 ? "0" : fmtPct(p, Number.isInteger(p) ? 0 : 1); };
+      const grid = ticks.map(t => `<i class="fr-grid" style="left:${x(t)}%"></i>`).join("") + `<i class="fr-zero" style="left:${x(0)}%"></i>`;
+      const mark = (m, top = 50) => {
+        const side = bars ? (m.mean >= 0 ? "pos" : "neg") : sideOf(m.mean, m.se, m.z);
+        if (!Number.isFinite(m.mean)) return "";
+        if (bars) {
+          const a = x(Math.min(0, m.mean)), b = x(Math.max(0, m.mean));
+          return `<i class="fr-bar ${VIZ[side]} ${m.mean >= 0 ? "right" : "left"}" style="left:${a}%;width:${Math.max(0.5, b - a)}%;top:${top}%"></i>`;
+        }
+        if (!Number.isFinite(m.se) || !(m.se > 0)) return `<i class="fr-dot ${VIZ[side]}" style="left:${x(m.mean)}%;top:${top}%"></i>`;
+        const half = m.z * m.se, a = m.mean - half, b = m.mean + half;
+        // Gray where the bar crosses zero, deepening toward each end by how far that end is from zero.
+        const zeroAt = 100 * (0 - a) / (b - a);
+        const stops = [`${leanColor(a, half)} 0%`, ...(zeroAt > 0 && zeroAt < 100 ? [`${VIZC.none} ${zeroAt}%`] : []), `${leanColor(b, half)} 100%`];
+        const dot = leanColor(m.mean, half);
+        return `<i class="fr-ci" style="left:${x(a)}%;width:${x(b) - x(a)}%;top:${top}%;background:linear-gradient(90deg, ${stops.join(", ")})"></i>`
+          + `<i class="fr-dot" style="left:${x(m.mean)}%;top:${top}%;background:${dot};--ring:${dot}"></i>`;
+      };
+      el.innerHTML = rows.map((r, i) => `
+        <div class="fr-row${r.emph ? " emph" : ""}" tabindex="0" data-i="${i}">
+          <div class="fr-label">${escapeHtml(r.label)}</div>
+          <div class="fr-plot">${grid}${r.ghost ? `${mark(r, 36)}<span class="fr-ghost">${mark(r.ghost, 70)}</span>` : mark(r)}</div>
+          <div class="fr-value">${Number.isFinite(r.mean) ? escapeHtml(fmt(r.mean)) : "—"}</div>
+        </div>`).join("")
+        + `<div class="fr-row fr-axis" aria-hidden="true"><div></div><div class="fr-plot">${ticks.map(t => `<span style="left:${x(t)}%">${escapeHtml(tickText(t))}</span>`).join("")}</div><div></div></div>`
+        + (ends ? `<div class="fr-row fr-ends"><div></div><div class="fr-plot" style="--zero:${x(0)}%"><span class="left">← ${escapeHtml(ends[0])}</span><span class="right">${escapeHtml(ends[1])} →</span></div><div></div></div>` : "");
+      const show = (row) => {
+        const r = rows[Number(row.dataset.i)];
+        const tip = $("vizTip");
+        tip.replaceChildren();
+        const line = (text, cls) => { const d = document.createElement("div"); d.className = cls; d.textContent = text; tip.append(d); };
+        line(Number.isFinite(r.mean) ? `${fmt(r.mean)}${Number.isFinite(r.se) && !bars ? ` ± ${(100 * r.se).toFixed(2)}` : ""}` : "No data", "tt-value");
+        line(r.label, "tt-title");
+        for (const t of r.tip ?? []) line(t, "tt-line");
+        if (!bars && Number.isFinite(r.mean) && r.se > 0) line(`${Math.abs(r.mean / r.se).toFixed(1)} standard errors from zero; ${r.z} needed to clear the noise`, "tt-line");
+        tip.hidden = false;
+        const host = tip.parentElement.getBoundingClientRect(), box = row.querySelector(".fr-plot").getBoundingClientRect();
+        tip.style.left = `${Math.min(box.left - host.left + box.width / 2, host.width - tip.offsetWidth - 8)}px`;
+        tip.style.top = `${box.bottom - host.top + 6}px`;
+      };
+      el.querySelectorAll(".fr-row[data-i]").forEach(row => {
+        row.addEventListener("pointerenter", () => show(row));
+        row.addEventListener("focus", () => show(row));
+        row.addEventListener("pointerleave", () => { $("vizTip").hidden = true; });
+        row.addEventListener("blur", () => { $("vizTip").hidden = true; });
+      });
+    }
+
+    /** The gauge's full scale for each window: about what a strong month-long edge would look like, and so on. */
+    const GAUGE_RANGE = { 5: 0.025, 21: 0.05, 63: 0.1 };
+
+    /**
+     * A gauge in return terms, from −range to +range with 0 straight up: the needle sits at `mean`, and the gaps in the
+     * arc at ±2 standard errors mark where the noise ends, so a needle between them is within noise.
+     */
+    function gaugeSvg(mean, se, range) {
+      const cx = 56, cy = 50, r = 38;
+      const at = (v, radius = r) => { const a = Math.PI / 2 - (Math.PI / 2) * Math.max(-1, Math.min(1, v / range)); return [cx + radius * Math.cos(a), cy - radius * Math.sin(a)]; };
+      const mark = (v) => { const [x1, y1] = at(v, r - 7), [x2, y2] = at(v, r + 7); return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${C.surface}" stroke-width="3"/>`; };
+      const [nx, ny] = at(Number.isFinite(mean) ? mean : 0, r - 9);
+      const end = (v) => `${v > 0 ? "+" : "−"}${+(100 * range).toFixed(1)}%`;
+      return `<svg class="kpi-viz" width="112" height="66" viewBox="0 0 112 66" aria-hidden="true">
+        <defs><linearGradient id="gaugeGrad" x1="0" x2="1"><stop offset="0" stop-color="${VIZC.neg}"/><stop offset="0.5" stop-color="${VIZC.none}"/><stop offset="1" stop-color="${VIZC.pos}"/></linearGradient></defs>
+        <path d="M ${cx - r} ${cy} A ${r} ${r} 0 0 1 ${cx + r} ${cy}" fill="none" stroke="url(#gaugeGrad)" stroke-width="11"/>
+        ${Number.isFinite(se) ? mark(-2 * se) + mark(2 * se) : ""}
+        <line x1="${cx}" y1="${cy}" x2="${nx}" y2="${ny}" stroke="${C.text}" stroke-width="3" stroke-linecap="round"/>
+        <circle cx="${cx}" cy="${cy}" r="5" fill="${C.text}"/>
+        <text x="${cx - r}" y="${cy + 15}" text-anchor="middle" font-size="10" fill="${C.text3}">${end(-1)}</text>
+        <text x="${cx + r}" y="${cy + 15}" text-anchor="middle" font-size="10" fill="${C.text3}">${end(1)}</text>
+      </svg>`;
+    }
+
+    /**
+     * The walk-forward average as it built up, test by test: the running mean of the top-minus-bottom spread, so the
+     * line ends exactly at the number on the card. A hairline marks zero.
+     */
+    function sparkSvg(series, stroke) {
+      const w = 120, h = 50, pad = 5;
+      if (!series?.length) return "";
+      let acc = 0;
+      const points = series.map((p, k) => (acc += p.spread) / (k + 1));
+      if (points.length === 1) points.unshift(points[0]);
+      const lo = Math.min(0, ...points), hi = Math.max(0, ...points);
+      const x = (i) => pad + (w - 2 * pad) * i / (points.length - 1);
+      const y = (v) => pad + (h - 2 * pad) * (1 - (v - lo) / (hi - lo || 1));
+      const line = points.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
+      return `<svg class="kpi-viz" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" aria-hidden="true">
+        <line x1="${pad}" x2="${w - pad}" y1="${y(0)}" y2="${y(0)}" stroke="${C.borderStrong}" stroke-width="1"/>
+        <text x="${w - pad}" y="${y(0) + (y(0) > h / 2 ? -3 : 10)}" text-anchor="end" font-size="9" fill="${C.text3}">0%</text>
+        <polygon points="${x(0)},${y(0)} ${line} ${x(points.length - 1)},${y(0)}" fill="${stroke}" opacity="0.12"/>
+        <polyline points="${line}" fill="none" stroke="${stroke}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+        <circle cx="${x(points.length - 1)}" cy="${y(points.at(-1))}" r="4" fill="${stroke}" stroke="${C.surface}" stroke-width="2"/>
+      </svg>`;
+    }
+
+    /**
+     * One dot per signal around a ring, clockwise from the top: filled green when it picked winners by more than the
+     * noise, red when it ranked backwards by more than the noise, an empty ring otherwise. So "1 of 12" is one green dot.
+     */
+    function ringSvg(items) {
+      const c = 32, r = 24;
+      const words = { pos: "picked winners", neg: "ranked backwards", none: "within noise" };
+      return `<svg class="kpi-viz" width="64" height="64" viewBox="0 0 64 64" role="img" aria-label="One dot per signal">${items.map((it, k) => {
+        const a = -Math.PI / 2 + 2 * Math.PI * k / items.length;
+        const side = sideOf(it.stat.mean, it.stat.se, SIGNAL_Z);
+        const paint = side === "none" ? `fill="none" stroke="${C.borderStrong}" stroke-width="1.5"` : `fill="${VIZC[side]}"`;
+        return `<circle cx="${(c + r * Math.cos(a)).toFixed(1)}" cy="${(c + r * Math.sin(a)).toFixed(1)}" r="4.5" ${paint}><title>${escapeHtml(`${it.label}: ${fmtPct(100 * it.stat.mean)}, ${words[side]}`)}</title></circle>`;
+      }).join("")}</svg>`;
+    }
+
+    /**
+     * The last six weeks of weekdays, Monday to Friday down each column: outlined when nothing was published, filled
+     * when it was (one filled cell per day counted on the card), green once it is `sessions` sessions old and scored.
+     */
+    function calendarSvg(published, sessions) {
+      const cell = 9, gap = 3, today = new Date();
+      const iso = (d) => d.toISOString().slice(0, 10);
+      const monday = new Date(Date.UTC(today.getFullYear(), today.getMonth(), today.getDate() - ((today.getDay() + 6) % 7)));
+      // Sessions that have closed since the day: weekdays after it, up to yesterday (the data runs to the last close).
+      const sessionsSince = (d) => { let n = 0; for (const t = new Date(d.getTime() + 864e5); iso(t) < iso(today); t.setUTCDate(t.getUTCDate() + 1)) if (t.getUTCDay() % 6) n++; return n; };
+      let cells = "";
+      for (let w = 0; w < 6; w++) for (let k = 0; k < 5; k++) {
+        const d = new Date(monday); d.setUTCDate(d.getUTCDate() - 7 * (5 - w) + k);
+        if (d > today) continue;
+        const day = iso(d), x = w * (cell + gap), y = k * (cell + gap);
+        const fill = !published.has(day) ? "none" : sessionsSince(d) >= sessions ? VIZC.pos : C.text2;
+        cells += `<rect x="${x + 0.5}" y="${y + 0.5}" width="${cell}" height="${cell}" rx="2" fill="${fill}" stroke="${fill === "none" ? C.borderStrong : "none"}"><title>${day}${published.has(day) ? " · published" : ""}</title></rect>`;
+      }
+      return `<svg class="kpi-viz" width="${6 * (cell + gap)}" height="${5 * (cell + gap)}" viewBox="0 0 ${6 * (cell + gap)} ${5 * (cell + gap)}" role="img" aria-label="Published days, last six weeks">${cells}</svg>`;
+    }
+
+    /** The headline sentence, the stat tiles and the three charts, or the tables, from the latest numbers. */
+    function renderScoreViz() {
+      const charts = state.scoreView === "charts";
+      $("vizTip").hidden = true;
+      $("scoreCharts").hidden = !charts;
+      $("scoreTables").hidden = charts;
+      if (!scoreData) return;
+      const { card, signals, fitted, horizonLabel, benchName } = scoreData;
+      const windowWords = horizonLabel.toLowerCase();
+      const buy = card.buckets.buy.excess;
+      const buySide = sideOf(buy.mean, buy.se, 2), modelSide = sideOf(fitted.spread.mean, fitted.spread.se, 2);
+      const signalSides = SIGNALS.map(sig => sideOf(signals[sig.key].spread.mean, signals[sig.key].spread.se, SIGNAL_Z));
+      const working = signalSides.filter(x => x === "pos").length;
+
+      const anyEdge = buySide === "pos" || modelSide === "pos" || working > 0;
+      $("scoreVerdict").textContent = anyEdge
+        ? `Over the ${windowWords} after each reading, something beat ${benchName} by more than chance. Details below.`
+        : `Over the ${windowWords} after each reading, nothing the engine says beat ${benchName} by more than chance.`;
+
+      const live = liveData?.live;
+      const backwards = signalSides.filter(x => x === "neg").length;
+      const kpi = ({ label, value, color = "", sub, tip, viz }) => `
+        <div class="kpi" title="${escapeHtml(tip)}">
+          <div class="kpi-label">${escapeHtml(label)}</div>
+          <div class="kpi-text">
+            <div class="kpi-value"${color ? ` style="color:${color}"` : ""}>${value}</div>
+            <div class="kpi-sub">${escapeHtml(sub)}</div>
+          </div>
+          ${viz}
+        </div>`;
+      $("scoreKpis").innerHTML = [
+        kpi({
+          label: "Buy zone vs. benchmark", value: escapeHtml(fmtPct(100 * buy.mean)), color: leanColor(buy.mean, 2 * buy.se, 0.45), sub: sideWord[buySide],
+          tip: `Buy-zone stocks over ${benchName}, per ${windowWords}: ${fmtPct(100 * buy.mean)} ± ${(100 * buy.se).toFixed(2)}. The needle is that return on a ±${+(100 * (GAUGE_RANGE[state.scoreSessions] ?? 0.05)).toFixed(1)}% scale; the gaps in the arc mark the noise (two standard errors), so a needle between them is within noise.`,
+          viz: gaugeSvg(buy.mean, buy.se, GAUGE_RANGE[state.scoreSessions] ?? 0.05)
+        }),
+        kpi({
+          label: "Fitted model (top vs. bottom fifth)", value: escapeHtml(fmtPct(100 * fitted.spread.mean)), color: leanColor(fitted.spread.mean, 2 * fitted.spread.se, 0.45),
+          sub: { pos: "Picks winners", neg: "Ranks backwards", none: "Within noise" }[modelSide],
+          tip: `Walk-forward over ${fitted.tested} tests, per ${windowWords}. The line is the running average of each test's top-fifth-minus-bottom-fifth return, in date order, so it ends at the number shown.`,
+          viz: sparkSvg(fitted.series, leanColor(fitted.spread.mean, 2 * fitted.spread.se, 0.45))
+        }),
+        kpi({
+          label: "Signals picking winners", value: `${working}<small>of</small>${SIGNALS.length}`,
+          sub: backwards ? `${backwards} ranked backwards` : "The rest within noise",
+          tip: "One dot per signal: green picked winners by more than the noise, red ranked backwards by more than the noise, an empty ring is within noise. Hover a dot for its signal.",
+          viz: ringSvg(SIGNALS.map(sig => ({ label: sig.label, stat: signals[sig.key].spread })))
+        }),
+        kpi({
+          label: "Live record", value: `${liveData?.days.length ?? 0} days`,
+          sub: live?.eligibleDays ? `${live.eligibleDays} scored so far` : "None old enough to score yet",
+          tip: `Market days the app published verdicts on, over the last six weeks (one filled cell per day). Green days are at least ${state.scoreSessions} sessions old, so their outcome is known.`
+            + (live?.days ? ` Overlapping windows share returns, so they make ${live.days} independent test${live.days === 1 ? "" : "s"}.` : ""),
+          viz: calendarSvg(new Set(liveData?.days ?? []), state.scoreSessions)
+        })
+      ].join("");
+
+      if (!charts) return;
+      forest($("bucketChart"), BUCKETS.map(({ key, label }) => {
+        const b = card.buckets[key], l = live?.days ? live.buckets[key] : null;
+        return {
+          label, mean: b.excess.mean, se: b.excess.se, z: 2, emph: key === "buy",
+          ghost: l && Number.isFinite(l.excess.mean) ? { mean: l.excess.mean, se: l.excess.se ?? 0, z: 2 } : null,
+          tip: [`${sideWord[sideOf(b.excess.mean, b.excess.se, 2)]} · ${b.n.toLocaleString()} readings`, `Beat it ${fmtShare(b.hitRate)} of the time · ${fmtPct(100 * b.net)} after costs`,
+            ...(l && Number.isFinite(l.excess.mean) ? [`Published: ${fmtPct(100 * l.excess.mean)} over ${l.n} readings`] : [])]
+        };
+      }), { ends: ["trailed the benchmark", "beat it"] });
+      $("bucketLegend").innerHTML = live?.days ? `<span><i class="filled"></i>Replayed, five years</span><span><i class="hollow"></i>Published by the app</span>` : "";
+
+      const signalRows = SIGNALS.map((sig, k) => ({ sig, stat: signals[sig.key], side: signalSides[k] }))
+        .sort((a, b) => (b.stat.spread.mean ?? 0) - (a.stat.spread.mean ?? 0));
+      forest($("signalChart"), [
+        { label: "Fitted model (walk-forward)", mean: fitted.spread.mean, se: fitted.spread.se, z: 2, emph: true,
+          tip: [`${{ pos: "Picks winners", neg: "Ranks backwards", none: "Within noise" }[modelSide]} · ${fitted.tested} tests`, `Rank correlation ${Number.isFinite(fitted.ic.mean) ? fitted.ic.mean.toFixed(3) : "—"}`] },
+        ...signalRows.map(({ sig, stat, side }) => ({
+          label: sig.label, mean: stat.spread.mean, se: stat.spread.se, z: SIGNAL_Z,
+          tip: [{ pos: "Picked winners", neg: "Ranked backwards", none: "Within noise" }[side], `Rank correlation ${Number.isFinite(stat.ic.mean) ? stat.ic.mean.toFixed(3) : "—"} ± ${Number.isFinite(stat.ic.se) ? stat.ic.se.toFixed(3) : "—"}`]
+        }))
+      ], { ends: ["high values did worse", "high values did better"] });
+
+      forest($("weightChart"), fitted.final.weights.map(w => ({ label: w.label, mean: w.effect, tip: [`over ${windowWords}, everything else equal`] })), { bars: true, ends: ["favors low values", "favors high values"] });
     }
 
     // ---------- paper record ----------
@@ -1228,15 +1870,16 @@
       const sessions = state.scoreSessions;
       const live = liveRecord(replayData, snapshots, { sessions, benchmark: state.benchmark });
       const days = [...new Set(snapshots.map(s => s.day))].sort();
+      liveData = { live, days };
+      renderScoreViz();
       if (!live.days) {
         $("liveVerdict").textContent = days.length
-          ? `${days.length} market days of published verdicts so far (from ${days[0]}), and none is ${sessions} sessions old yet. This section fills in as builds age.`
-          : "No published snapshots yet.";
+          ? `Live record: ${days.length} market days of published verdicts since ${days[0]}, none ${sessions} sessions old yet. They join the verdict chart (as hollow dots) and the table as they age.`
+          : "Live record: no published verdicts yet.";
         $("liveTable").hidden = true;
         return;
       }
-      $("liveVerdict").textContent = `${live.eligibleDays} of ${days.length} published market days are at least ${sessions} sessions old, `
-        + `${live.days} of them far enough apart to count as separate tests. These are the app's full verdicts (fundamentals included), but that is far too few to judge yet.`;
+      $("liveVerdict").textContent = `Live record (hollow dots): ${live.days} independent test${live.days === 1 ? "" : "s"} from ${days.length} published days, the app's full verdicts with fundamentals. Far too few to judge yet.`;
       $("liveTable").hidden = false;
       $("liveBody").innerHTML = BUCKETS.map(({ key, label }) => {
         const b = live.buckets[key];
@@ -1282,7 +1925,8 @@
       const plotR = w - axisW - histW;
       const { origin, fan: rows, sim } = view;
       const { candles } = data.prep;
-      const histCount = Math.min(origin + 1, Math.max(40, Math.min(160, Math.round(state.horizon * 1.8))));
+      // At least 60 slots across: enough history to rewind a full 30 candles and still see what came before.
+      const histCount = Math.min(origin + 1, Math.max(40, 60 - state.horizon, Math.min(160, Math.round(state.horizon * 1.8))));
       const first = origin - histCount + 1;
       const realized = Math.min(state.replay, state.horizon);
       const slotW = plotR / (histCount + state.horizon);
@@ -1448,7 +2092,7 @@
       ctx.beginPath(); ctx.moveTo(divX, g.padT - 6); ctx.lineTo(divX, g.h - g.padB); ctx.stroke();
       ctx.setLineDash([]);
       ctx.fillStyle = C.text2; ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
-      ctx.fillText(state.replay ? "forecast made here" : "now", divX + 6, g.padT - 4);
+      ctx.fillText(state.replay ? (g.w < 640 ? "from here" : "forecast made here") : "now", divX + 6, g.padT - 4);
 
       // history candles
       const bodyW = Math.max(1, g.slotW * 0.62);
@@ -1548,6 +2192,11 @@
       resizeFrame = requestAnimationFrame(() => { if (view) { view.density = null; draw(); renderPatterns(); } });
     }).observe($("chartWrap"));
 
+    // A link to #technical-reference (llms.txt points agents there) opens the collapsed notes it sits in.
+    if (location.hash === "#technical-reference") {
+      $("technical-reference").closest("details").open = true;
+      $("technical-reference").scrollIntoView();
+    }
     await loadStocks();
     syncControls();
     load();

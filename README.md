@@ -135,11 +135,28 @@ A single score blurs "is this a great company" with "is this a good price", so t
 The thresholds are starting points chosen by hand, not fitted to past returns.
 
 ### 4. Options vs Shares Engine
-True IV Rank needs a year of implied-volatility history that no free source provides, so the engine compares at-the-money implied volatility with the stock's 30-day realized volatility:
-- `IV / realized ≤ 0.9`: options cheap → **Long Call** (monthly expiration nearest 45–60 DTE) or **Call Debit Spread**.
+True IV Rank needs a year of implied-volatility history that no free source provides, so the engine compares at-the-money implied volatility with the volatility expected over the option's life. That expectation is a GJR-GARCH(1,1) forecast ([`scripts/forecast_vol.mjs`](scripts/forecast_vol.mjs), run after each data build on the five years of candles in `data/replay.json`). Earnings reactions are left out of the fit and added back for a release inside the window, since implied volatility prices it too. On 2,510 replayed forecasts the GARCH forecast was unbiased (realized ÷ forecast variance 0.99) and its error (QLIKE 0.22) was about half that of 30-day realized volatility (0.42), which also ran 40% low. Stocks without a forecast fall back to 30-day realized volatility. The Trade score's options factor still uses IV ÷ 30-day realized volatility: it is part of the engine the paper record fingerprints, so it changes only with a new registration.
+- `IV / forecast ≤ 0.9`: options cheap → **Long Call** (monthly expiration nearest 45–60 DTE) or **Call Debit Spread**.
 - `0.9 – 1.3`: moderate → **Vertical Call Debit Spread**.
 - `≥ 1.3`: options expensive → **Cash-Secured Put** at support or **Shares**.
 - Illiquid chains (open interest under 500 or bid/ask spread over 6%) → **Shares**; earnings inside 14 days → **Shares only**; not in the buy zone → **WAIT**.
+
+### Strategy ([`js/strategy.js`](js/strategy.js))
+The **Your trading limits** bar under the Overview takes a budget per trade, risk per trade (% of budget), holding period, maximum option bid/ask spread and whether options are allowed. The limits are saved to the account (`users/{uid}.strategy`), or to the browser for guests. Each stock's detail view then turns them into one order, in a **Strategy** section under Entry diagnostics:
+- **Act now** (buy zone): e.g. *Buy 16 MSFT shares, don't pay above $500.42, close by Tue, Nov 3*. The vehicle follows the options rule above, with your spread limit in place of the 6%. Positions are sized so a daily close below entry support loses no more than your risk per trade; an option too large for the limits falls back to shares and says why.
+- **Planned order** (strong asset or watch): shares at the top of the preferred entry zone, to place once the stock reaches the buy zone.
+- **No trade** (avoid, or limits that can't buy one share).
+
+The exit is the end of the holding period, moved to the session before earnings and, for options, to 21 days before expiration. The order card shows capital used, loss at the stop, worst case (a one-week gap through the stop, or the whole premium), gain at the target and expected value. Only the at-the-money call is a real quote; the short call of a spread and the put are Black-Scholes estimates at the chain's implied volatility and are labelled *modeled*.
+
+**Expected value** replaces reward/risk as the headline. A stop and a target only reshape the outcomes: with no drift, every bracket is worth zero before costs, because a wide target is correspondingly unlikely to be reached first. The card shows that chance ("target first", from a driftless random walk) beside reward/risk. In the replay, a planned entry that filled stopped out 67% of the time and reached its target 26%, and waiting for the zone came out the same as buying at once. Expected value is built only from what can carry an edge, each part tagged with its evidence:
+- **Signal** *(unproven)*: the paper record's frozen model (H2, [`js/edge.js`](js/edge.js)) scores today's stocks exactly as it was fitted: Trend, Entry and Trade recomputed from prices alone, plus known price signals, ranked across the tracked stocks. Its expected return over the next month, relative to the other stocks, is scaled to the hold. The table's **Signal** column shows it. Its walk-forward test hasn't shown it to be real yet; the paper record will.
+- **Volatility** *(untested against implied volatility)*: options only. The value of the legs if the stock moves as the GARCH forecast expects during the hold (without earnings gaps, since the position exits before them) and the market prices the rest of their life at today's implied volatility, less their value now. Whether the forecast beats implied volatility can only be tested on the IV history the snapshots now record.
+- **Costs** *(estimate)*: 0.05% each way for shares; the full bid/ask spread across every option leg, in and out.
+
+Below the breakdown, every vehicle that fits the limits is sized and valued, so the rule's pick can be weighed against the alternatives.
+
+**Risk score** (0-100, higher is riskier) adds eight named factors: capital at risk (20), the chance ordinary volatility touches the stop before the exit (15), volatility (10), event risk (earnings near the exit, a negative 8-K in the last 30 days; 15), market regime (10), the verdict and chase risk (15), leverage and time decay (10), option liquidity and data gaps (5). Hover a factor to see its reading. Sizing doesn't forecast anything: the verdicts it starts from haven't shown an edge in the replay backtests yet.
 
 ### 5. Benchmark Table
 One sortable table ranks every stock in the current view (watchlist, all, primary, or alerts; the historical view is described below):
@@ -285,7 +302,20 @@ in_buy_zone = [s["ticker"] for s in index["stocks"] if s["verdict"]["bucket"] ==
 | `peers.{key}` | object | `{ label, rank, of, leader }`: rank among tracked stocks, with ties sharing a rank. Keys: `quality`, `trend`, `entry`, `trade`, `revg`, `margin`, `lev`, `fcfy`, `fpe`, `peg`, `revisions`, `target`, `rs3m`, `rs12m`. A metric with fewer than 5 ranked stocks is left out, and ETFs are ranked only on `trend`, `entry`, `trade`, `rs3m` and `rs12m` |
 | `diagnostics.{market,quality,technical,entry}[]` | array | The dashboard's diagnostic labels as `{ name, value, tone }`. `tone` is `pos`, `warn`, `neg` or `""`. `value` is display text and may use `−` (U+2212) as a minus sign |
 | `fundamentals` | object \| null | From SEC EDGAR filings; `null` for ETFs and companies without recent filings. Fields: `periodEnd`, `basis` (`ttm`, or `latest_quarter_yoy` for companies without four quarters of filings), `reportingCurrency`, `revenue`, `revenueGrowthYoY`, `earningsGrowthYoY`, `operatingMargin`, `operatingMarginChange`, `freeCashFlow`, `fcfTrend`, `netDebtToEbitda`, `epsTTM`, `sharesOutstanding`, `buybacksTTM`, `dividendsTTM`, `direction`, and `latestQuarter` (`periodEnd`, `currency`, then `revenue`, `operatingIncome` and `netIncome`, each with a `…PriorYear` value). Rates are fractions; amounts are in the reporting currency |
+| `signal` | object \| null | The paper record's frozen model (H2) on today's stocks: `{ model, expectedExcessReturn, sessions, rank, of }`. `expectedExcessReturn` is its expected return over the next `sessions` sessions relative to the other tracked stocks (a fraction). Unproven; `null` for ETFs or with fewer than 8 stocks |
 | `filings[]` | array | 8-K events from the last 120 days, the newest filing per item, negative ones first: `{ date, item, label, short, tone, url }`. `tone` is `negative` or `neutral`; `url` links to sec.gov. Routine results releases (item 2.02) are left out |
+| `strategy` | object | The detail view's Strategy, without the order's prices (see [Sizing the strategy](#sizing-the-strategy)) |
+| `strategy.reference` | object | `{ riskPct, holdDays, maxOptionSpreadPct }` the figures were built at: 1% risk, 30-day hold, 6% spread |
+| `strategy.status` | string | `act` (buy zone: order now), `plan` (place once it reaches the buy zone) or `pass` |
+| `strategy.reasonCode` | string \| null | Why `pass`: `avoid`, `no-stop`, `no-room` or `exit-too-soon` |
+| `strategy.vehicle` | string \| null | `shares`, `call` (long call), `spread` (call debit spread) or `csp` (cash-secured put) |
+| `strategy.entry` | object \| null | `{ when, maxPrice, limit }`: `when` is `now` or `buy zone`; `maxPrice` is the most to pay now before reward/risk falls under 1.5 : 1; `limit` is the planned entry (`levels.preferredEntryHigh`) |
+| `strategy.stop` | number \| null | Exit on a daily close below it (`levels.entrySupport`) |
+| `strategy.legs[]` | array | Option legs as rules, not contracts: `{ side, kind, strike, expiration }`, e.g. strike `at the money`. Empty for shares |
+| `strategy.exit` | object \| null | `{ maxHoldDays, beforeEarnings, daysBeforeExpiration }`: exit by the hold limit, the session before earnings, and for options 21 days before expiration |
+| `strategy.perDollar` | object \| null | `{ lossAtStop, worstCase, gainAtTarget, maxGain, expectedValue }` per $1 of capital used (shares: cost; call or spread: premium; put: cash set aside). Options are modeled with Black-Scholes at the chain's implied volatility. `expectedValue` is after costs, from the signal and options priced against the volatility forecast (see [Strategy](#strategy-jsstrategyjs)) |
+| `strategy.rewardRisk` | number \| null | `gainAtTarget / lossAtStop` |
+| `strategy.risk` | object \| null | `{ score, label, factors[] }`: the 0-100 risk score (higher is riskier) at the reference risk, with each factor's `{ label, points, max }` |
 | `dataGaps` | string[] | Inputs the engine didn't have; each scored at its midpoint |
 
 Shortened example (`stocks/AAPL.json`):
@@ -316,6 +346,22 @@ Shortened example (`stocks/AAPL.json`):
 ```
 
 Arrays and objects are trimmed in this example; the real files carry every factor, level and horizon.
+
+### Sizing the strategy
+
+`strategy` is published per dollar because the page sizes it from each reader's own budget, and the order's prices, strikes, expiration and exit date come from quotes the API can't republish. To size it, take your budget and risk per trade, then get the price, the option chain and the earnings date from your own source:
+
+```python
+doc = requests.get(BASE + "stocks/MSFT.json", timeout=10).json()
+s = doc["strategy"]
+if s["status"] == "act":
+    budget, risk_pct = 10_000, 1.0
+    position = min(budget, budget * risk_pct / 100 / s["perDollar"]["lossAtStop"])  # dollars of shares, premium or put collateral
+```
+
+For shares that is the whole calculation; skip the trade if the live price is above `entry.maxPrice`. For options, divide the position by one contract's premium (or strike × 100 for a put) and round down. If that comes to zero contracts, the page uses shares instead. Exit at the first of: a daily close below `stop`, `maxHoldDays`, the session before earnings, or `daysBeforeExpiration` before the option expires.
+
+The page's Strategy section also has **Copy as text**, which copies the full order with your own limits and prices, ready to paste into an AI agent.
 
 The files are built by [`scripts/build_api.mjs`](scripts/build_api.mjs) from [`js/api.js`](js/api.js), using the same engine as the dashboard. [`tests/api.test.mjs`](tests/api.test.mjs) checks that no quoted third-party value ends up in them.
 
